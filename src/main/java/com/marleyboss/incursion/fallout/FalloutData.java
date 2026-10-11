@@ -36,7 +36,7 @@ public class FalloutData extends SavedData {
 
         @Nullable
         static Zone load(CompoundTag tag) {
-            ResourceKey<Level> dimension = dimension(tag.getString("Dimension"));
+            ResourceKey<Level> dimension = parseDimension(tag.getString("Dimension"));
             if (dimension == null) {
                 return null;
             }
@@ -96,7 +96,7 @@ public class FalloutData extends SavedData {
     }
 
     @Nullable
-    static ResourceKey<Level> dimension(String id) {
+    static ResourceKey<Level> parseDimension(String id) {
         ResourceLocation location = ResourceLocation.tryParse(id);
         return location == null ? null : ResourceKey.create(Registries.DIMENSION, location);
     }

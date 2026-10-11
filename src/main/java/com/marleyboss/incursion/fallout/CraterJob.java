@@ -77,7 +77,7 @@ public class CraterJob {
 
     @Nullable
     static CraterJob load(CompoundTag tag) {
-        ResourceKey<Level> dimension = FalloutData.dimension(tag.getString("Dimension"));
+        ResourceKey<Level> dimension = FalloutData.parseDimension(tag.getString("Dimension"));
         if (dimension == null) {
             return null;
         }
