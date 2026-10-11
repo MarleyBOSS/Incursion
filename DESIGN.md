@@ -72,12 +72,22 @@ Mit jeder Stufe stärker:
   - **Belagerungsleiter:** Baumeister bauen auch senkrecht (Leiter in der Zelle, in der sie stehen; keine Kollision, explosionsfest, droppt nichts). Alle Bodenmobs klettern auf der Route mit.
   - **Keine Selbstblockade:** Eine Route setzt nie einen Block dorthin, wo ein früherer Schritt (oder eine andere aktive Route) Platz braucht, und gräbt keinen Boden weg, auf dem ein früherer Schritt steht.
   - **Alle Zombies graben** (Krieger, wenn kein Spieler da ist, und Baumeister auch). Bedarf an Rollen wird nur für Arbeit ≤ 40 Blöcke vom Kern gemeldet. Helfer laufen nur „vorwärts“ (Arbeit näher am Kern als sie selbst).
-  - **Rückruf:** Belagerungs-Mob > 24 Blöcke vom Kern, 90 s nutzlos → verschwindet, Platz für einen neuen.
-  - **Luftlandung:** Phantome tragen Mobs (≤ 1 breit, ≤ 2,2 hoch) zu einem freien Platz mit offenem Himmel direkt am Kern. Wenn der Kern ≥ 8 Blöcke über dem Boden liegt oder die Belagerung im Patt ist: 50 % der Spawns; wenn kein Bodenplatz gefunden wird: immer.
+  - **Rückruf:** (v0.7 ersetzt durch „Verirrte Mobs“)
+  - **Luftlandung:** Phantome tragen Mobs (≤ 1 breit, ≤ 2,2 hoch) zu einem freien Platz mit offenem Himmel direkt am Kern. (Häufigkeit ab v0.7 siehe unten.)
   - **Spinnen** laufen direkt auf den Kern zu und klettern Wände hoch (Umweg bei Überhang). 50 % tragen einen Zombie oder ein Skelett, das nahe am Kern absteigt.
   - **Endermen** teleportieren sich nicht mehr vom Kern weg und springen, wenn sie feststecken, direkt neben den Kern.
   - **Schützen** nehmen nur Schusspositionen, zu denen ein Weg existiert; finden sie keine, folgen sie den Routen (auch Leitern) und prüfen unterwegs weiter.
   - **Hoher Kern:** Belagerungsgebiet reicht nach unten um die Kernhöhe über dem Boden weiter; gespawnt wird notfalls auf dem Boden darunter. Der Planer kann bis an die Weltobergrenze planen.
+- **v0.7 „Einheit statt Gedränge“:**
+  - **Kein Schieben:** Angreifer kommen ins Scoreboard-Team `incursion_siege` (Kollisionsregel „nur andere Teams schieben“). Sie blockieren sich auf Treppen und Leitern nicht mehr; Spieler schieben normal. Tote Mobs werden aus dem Team entfernt.
+  - **Sammeln und Stürmen:** Solange eine Route gebaut wird, arbeiten vorne höchstens 2 Arbeiter, dahinter warten 2 Mobs; alle anderen sammeln sich am Fuß der Route (letzter Schritt auf natürlichem Boden) und laufen erst los, wenn der Weg offen ist.
+  - **Mehrere Wege:** Max. 8 Mobs pro Route. Ist sie voll, plant der nächste Mob eine zweite Route daneben (Schritte auf anderen Routen kosten extra). Überzählige Baumeister wechseln zu Routen ohne Baumeister.
+  - **Leitern bevorzugt:** Leiter setzen kostet im Planer 40 % eines Treppenblocks → zum Hochkommen wird senkrecht mit Leitern gebaut statt Wendeltreppen.
+  - **Gruppen-Spawn:** Die Mobs einer Spawn-Runde erscheinen nah beieinander auf einer Seite (nächste Runde woanders).
+  - **Spawnplätze:** Nur an der Oberfläche (höchstens 16 über bis Kernhöhe über Boden + 12 unter dem Kern), nie in Höhlen. Liegt der Kern unter der Erde (> 12 Blöcke Fels darüber), auch in Höhlen/Gängen ±5 Blöcke um die Kernhöhe.
+  - **Keine natürlichen Höhlen-Spawns** im Belagerungsgebiet, außer ±10 Blöcke um die Kernhöhe.
+  - **Verirrte Mobs:** > 24 Blöcke vom Kern und 60 s weder näher gekommen noch getroffen/geschossen/gearbeitet, und die eigene Route kommt nicht voran → Belagerungs-Mobs verschwinden (Ersatz spawnt), natürliche Mobs verlassen die Belagerung (normales Verhalten, können despawnen). Belagerungs-Mobs außerhalb des Gebiets verschwinden sofort.
+  - **Luftlandung seltener:** 3 % + 1 % pro Stufe (Stufe 20: 23 %), im Patt 50 %, immer wenn kein Bodenplatz gefunden wird.
 - **Kern-GUI (v0.5):** Schalter „Grenzen“ (grüner Ring um Totems, lila Ring um den Kern, weit sichtbar) und „KI-Anzeige“ (Namensschild mit Rolle und Tätigkeit über jedem Angreifer, Routen als Partikel: weiß Weg, rot abbauen, blau bauen, gelb Leiter).
 
 ## Schild
@@ -100,9 +110,10 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 | v0.3 | Große Explosion, Verseuchung, Entschärfen (Platzhalter), grabende Mobs, Zombie-Rollen | gebaut |
 | v0.4 | Belagerungs-KI: Routenplaner, Baumeister, Rollen, Skelett-Klassen, Pioniere, Patt-Regel, Schutztotem | getestet: Mobs erreichen Kern nicht |
 | v0.5 | KI-Neubau: direkter Kernangriff, Schusspositionen, Routen-Hüpfen, Belagerungsstein, GUI-Schalter Grenzen/KI-Anzeige | getestet: Baumeister zu schwach |
-| v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle Zombies graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | gebaut |
-| v0.7 | Schild-Kuppel, Sicherungsexplosion, Reparatur | geplant |
-| v0.8 | Vorteile: Items, Energie, Buffs | geplant |
+| v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle Zombies graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | getestet: Kern fällt (v. a. durch Phantome), Gedränge, Höhlen-Mobs |
+| v0.7 | Einheit: kein Schieben, Sammeln/Stürmen, mehrere Wege, Leitern bevorzugt, verirrte Mobs, Oberflächen-Spawns, seltene Luftlandung | gebaut |
+| v0.8 | Schild-Kuppel, Sicherungsexplosion, Reparatur | geplant |
+| v0.9 | Vorteile: Items, Energie, Buffs | geplant |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Anbindung, eigene Items | geplant |
 
 ## Offene Entscheidungen

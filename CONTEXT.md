@@ -13,12 +13,12 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 
 ## Letzter Stand
 
-- v0.1 und v0.2 getestet ✔. v0.3–v0.5: KI-Iterationen.
+- v0.1 und v0.2 getestet ✔. v0.3–v0.7: KI-Iterationen.
 - **Priorität des Nutzers:** Der Kern muss auf **jeder Stufe und in jeder Höhe** zuverlässig zerstört werden können. Erst danach geht es weiter (Schild usw.).
-- v0.5 getestet: Skelette deutlich besser (Sprengschützen stark). Probleme: Baumeister baute die eigene Treppe zu, nur diagonale Treppen, andere Zombies warteten auf Baumeister; Baumeister lief vom Kern weg zu einem Zombie in einer Höhle und steckte dort fest; Endermen nie gesehen; Kern sehr hoch → Mobs kommen nicht hin; Kern ganz oben → gar keine Spawns.
-- **v0.6 „Erreichbarkeit“** gebaut (CI grün), **Test ausstehend**: Belagerungsleiter (senkrechtes Bauen/Klettern), keine Selbstblockade von Routen, alle Zombies graben, Helfer nur „vorwärts“, Rückruf feststeckender Mobs, Phantom-Luftlandung, Spinnen klettern direkt (+ Reiter), Endermen-Teleport zum Kern, Schützen nur erreichbare Positionen sonst Routen, Spawns/Zone für hohe Kerne.
-- Ungetestet/riskant in v0.6: Klettern auf Leitern (Springen in der Leiter, Halten), Phantom-Flug (Position wird jeden Tick gesetzt), Spinnenreiter (Reiter steuert Vanilla-seitig die Spinne mit; unser Drive überschreibt jeden Tick).
-- Geänderte Defaults (`plannerMaxNodes` 12000) nur in neuen Welten bzw. nach Löschen von `serverconfig/incursion-server.toml`. Neue Config-Einträge (`laddersEnabled`, `airDrops`, `airDropChance`, `airDropElevation`, `spiderRiderChance`, `recallSeconds`) werden automatisch ergänzt.
+- v0.6 getestet: Kern wird fast immer zerstört, aber v. a. durch Phantome (zu oft, machen Mauern sinnlos). Baumeister bauten Treppen (keine Leitern); Mobs blockierten sich auf der Treppe, Baumeister kam nach Sturz nicht wieder hoch; viele Mobs in Höhlen weit weg, die nie starben (Performance). Wunsch: Mobs als Einheit, mehrere Treppen, Phantome nur vereinzelt / hohe Stufe / ohne Alternative. Höhlenbasen sollen möglich bleiben.
+- **v0.7 „Einheit“** gebaut (CI grün), **Test ausstehend**: Team ohne Schieben, Sammeln am Fuß der Route + Stürmen, max. 8 Mobs pro Route → zweite Route daneben, Leitern im Planer bevorzugt, Gruppen-Spawn, Spawns nur an der Oberfläche (Höhlen nur bei unterirdischem Kern), keine natürlichen Höhlen-Spawns im Gebiet, verirrte Mobs (60 s) entfernt/freigelassen, Luftlandung 3 % + 1 %/Stufe (Patt 50 %).
+- Ungetestet/riskant: Leiter-Klettern (seit v0.6 nie im Spiel gesehen), Sammelpunkt-Logik, zweite Route (könnte zu teuer sein → evtl. `routeCapacity` erhöhen), Team-Seiteneffekte mit anderen Mods.
+- Neue Config-Schlüssel (alte Defaults bleiben sonst in bestehenden Welten): `airDropBaseChance`, `airDropChancePerLevel`, `airDropStallChance`, `lostSeconds`, `routeCapacity`, `frontWaiters`, `noMobCollision`, `blockCaveSpawns`. Entfernt: `airDropChance`, `airDropElevation`, `recallSeconds`.
 - KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
 
 ## Projekt
@@ -36,7 +36,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   `gh api repos/MarleyBOSS/Incursion/releases/tags/dev` → Asset-ID → `gh api -H "Accept: application/octet-stream" repos/MarleyBOSS/Incursion/releases/assets/<id> > incursion.jar`
 - Commit-Nachrichten enden mit den Attributionszeilen, die die Umgebung vorgibt.
 
-## Code-Struktur (Stand v0.6)
+## Code-Struktur (Stand v0.7)
 
 | Datei | Zweck |
 |---|---|
@@ -52,12 +52,13 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 | `siege/Targeting.java` | Wer greift was an: Arbeiter → Kern, Krieger → Spieler (jede Zone), Schützen → Kern (Deckungsfeuer nur ohne Schussposition) |
 | `siege/MobRoles.java` | Rollen per Scoreboard-Tag (Zombie: Krieger/Gräber/Brecher/Baumeister; Skelett: Spreng/Feuer/normal; Enderman: Pionier), ausgewogene Vergabe, Ausrüstung |
 | `siege/SiegeAI.java` | Pro Mob alle 5 Ticks: Reiter, Rückruf, direkter Kernangriff in Reichweite, Spinnen direkt kletternd, Endermen-Teleport, Feststecken → Route teilen/helfen/planen, Route abarbeiten (graben, bauen + Anheben, Leiter, Creeper-Durchbruch, Enderman nimmt Block), Klettern/Halten auf Leitern, Hüpfen bei Hängern, Pionier-TNT, Selbstzerstörung |
+| `siege/SiegeTeam.java` | Scoreboard-Team `incursion_siege` (kein Schieben untereinander), Aufräumen beim Entfernen |
 | `siege/SiegeAirDrop.java` | Phantom-Luftlandung: Kernhöhe über Boden, Landeplatz mit offenem Himmel, Flug (Position pro Tick), Absetzen |
 | `siege/SiegeArchers.java` | Schützen: von hier schießen, erreichbare Schussposition suchen/hinlaufen, Sprengschützen sprengen Wand am Kern; sonst `false` → Routen |
 | `siege/SiegeAim.java` | Sichtprüfung auf den Kern-Block (Seitenflächen), ballistische Pfeil-Berechnung und Flugbahn-Prüfung |
 | `siege/SiegeDebug.java` | KI-Anzeige: Namensschilder mit Rolle/Tätigkeit, Routen-Partikel |
 | `siege/SiegeDriveGoal.java` | Goal (Prio 1, MOVE+LOOK) an jedem feindlichen Bodenmob; steuert Bewegung, wenn SiegeAI einen Auftrag hat |
-| `siege/RoutePlanner.java`, `Route.java` | A* über Blockpositionen (Laufen, Härte, Bauen; Treppen, Brücken, Leitern), keine Selbstblockade / reservierte Zellen anderer Routen, geteilte Routen, Arbeits-/Bedarfsmarker |
+| `siege/RoutePlanner.java`, `Route.java` | A* über Blockpositionen (Laufen, Härte, Bauen; Treppen, Brücken, Leitern bevorzugt), keine Selbstblockade / reservierte Zellen anderer Routen, geteilte Routen mit Kapazität und Mitgliederliste, zweite Spur, Sammelpunkt, Arbeits-/Bedarfs-/Fortschrittsmarker |
 | `siege/SiegeProgress.java` | Letzter Fortschritt (Patt), letzte Aktionsorte (Begleiter), Bedarf an Rollen |
 | `siege/SiegeExplosives.java` | Feuer-/Explosionspfeile, manuelle Schüsse, Pfeile fliegen durch eigene Mobs, TNT-Verfolgung und Zündung |
 | `siege/Digging.java` | Abbau mit gemeinsamem Fortschritt und Rissen, Grabzeit-Formel; Tag `incursion:siege_proof` |
@@ -92,9 +93,10 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.3 | Große Explosion, Verseuchung, Entschärfen, grabende Mobs, Zombie-Rollen | getestet (KI-Feedback → v0.4) |
 | v0.4 | Belagerungs-KI: Routenplaner, Baumeister, Rollen, Skelett-Klassen, Pioniere, Patt-Regel, Schutztotem | getestet: Mobs erreichen Kern nicht |
 | v0.5 | KI-Neubau: direkter Kernangriff, Schusspositionen, Routen-Hüpfen, Belagerungsstein, GUI-Schalter Grenzen/KI-Anzeige | getestet: Skelette gut, Baumeister schwach |
-| v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | gebaut, **Test ausstehend** |
-| v0.7 | Schildkuppel, Puls, Reparatur | erst wenn Kern zuverlässig zerstört wird |
-| v0.8 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
+| v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | getestet: Kern fällt, aber Phantome zu stark, Gedränge, Höhlen-Mobs |
+| v0.7 | Einheit: kein Schieben, Sammeln/Stürmen, mehrere Wege, Leitern bevorzugt, verirrte Mobs, Oberflächen-Spawns, seltene Luftlandung | gebaut, **Test ausstehend** |
+| v0.8 | Schildkuppel, Puls, Reparatur | erst wenn Kern zuverlässig zerstört wird |
+| v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen
@@ -103,5 +105,4 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 - Entschärf-Mechanik (v0.3-Platzhalter: GUI-Button, Countdown 10 s + 2 s/Stufe, Spieler muss ≤ 8 Blöcke bleiben)
 - Brennstoff ja/nein
 - Schutztotem-Rezept und Preis (vorerst günstig, +2 Mobs pro Totem)
-- Wo stehen wartende Mobs (aktuell 3 Schritte hinter der Arbeit)
 - Lizenz
