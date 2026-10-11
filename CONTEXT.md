@@ -9,6 +9,12 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - **Ehrlichkeit vor allem:** Der Nutzer hatte mit einer anderen KI schlechte Erfahrungen mit nicht funktionierendem Code. Unsicherheiten offen sagen, nichts als fertig melden, was nicht gebaut und geprüft ist.
 - **Nutzungslimit schonen:** knapp antworten, keine langen Zusammenfassungen, nur relevante Dateien lesen. Pro Version am besten ein neuer Chat.
 - Nach jeder Version: kurze Testanleitung (was craften, was klicken, was sollte passieren).
+- **Diese Datei aktuell halten:** Nach jedem Änderungswunsch, jeder Entscheidung, jedem Testergebnis und jeder fertigen Version die passenden Abschnitte hier aktualisieren (Roadmap-Status, offene Entscheidungen, Code-Struktur, „Letzter Stand“), dann committen und pushen. Kurz halten, nur das Nötige. Der Nutzer startet jeden neuen Chat nur mit: „Lies CONTEXT.md und mach weiter.“
+
+## Letzter Stand
+
+- v0.1 gebaut und als „Development build“ veröffentlicht. Der Nutzer testet in einem leeren NeoForge-1.21.1-Profil.
+- Nächster Schritt: Testergebnis abwarten, dann v0.2.
 
 ## Projekt
 
