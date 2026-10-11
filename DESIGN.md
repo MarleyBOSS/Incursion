@@ -18,7 +18,7 @@ Der Spieler baut den **Incursion Core**, einen Block, der von Stufe 0 bis Stufe 
   - Er lässt sich nicht umziehen.
   - Wird er abgebaut – egal ob von Spieler oder Mob – folgt die große Explosion.
   - Wird er von den Angreifern zerstört (Lebenspunkte auf 0), folgt die große Explosion.
-- **Entschärfen** ist möglich (Mechanik noch offen). Dabei gehen alle Stufen verloren, der Kern fällt auf Stufe 0 zurück.
+- **Entschärfen** (Platzhalter v0.3): Button in der GUI startet einen Countdown (10 s + 2 s pro Stufe). Der Spieler muss in der Nähe bleiben (8 Blöcke), sonst bricht es ab. Danach Stufe 0, Belagerungs-Mobs verschwinden.
 - **Später möglich:** Der Kern verbraucht wie ein Ofen laufend einen Brennstoff.
 
 ### Die große Explosion
@@ -26,6 +26,7 @@ Der Spieler baut den **Incursion Core**, einen Block, der von Stufe 0 bis Stufe 
 - Großer Krater, das Gebiet wird danach **unbewohnbar** (verseuchte Zone: Ödland-Blöcke, Schaden für alles darin).
 - Die Verseuchung bleibt standardmäßig **für immer**, in der Config einstellbar (Dauer, Radius, abschaltbar).
 - Technisch: Der Krater wird schrittweise über mehrere Ticks erzeugt, damit das Spiel nicht einfriert.
+- Umgesetzt (v0.3): Kraterradius 10 + 1,5 pro Stufe (max. 48), Verseuchung bis 1,5 × Kraterradius: Boden wird Grobe Erde/Kies, Blätter verschwinden, Kraterboden aus Schwarzstein/Basalt/Magma. In der Zone gibt es Wither (Untote immun) und Ascheregen.
 
 ## Vorteile pro Stufe
 
@@ -54,7 +55,11 @@ Mit jeder Stufe stärker:
 - Der Kern hat **Lebenspunkte**, die mit der Stufe steigen.
 - **Ausnahmeliste** in der Config: Bosse (Wither, Warden, Cataclysm-Bosse …) sind standardmäßig ausgenommen.
 - Creeper-Explosionen in der Kernzone verursachen **keinen Blockschaden** (Config umstellbar).
-- Normale Mobs graben nicht – der Spieler lenkt die Angreifer über Mauern. Mods, die Mobs graben lassen (z. B. Improved Mobs), werden nicht unterstützt.
+- **Graben (v0.3):** Nahkampf-Mobs, die auf dem Weg zum Kern feststecken, bauen Blöcke ab. Dauer hängt von der Blockhärte ab (Erde schnell, Tiefenschiefer langsam, Obsidian sehr langsam, Grundgestein nie) und vom Mob: mit passendem Werkzeug wie ein Spieler (abgeschwächt), sonst nach Angriffsschaden. Mehrere Mobs am selben Block addieren sich.
+  - Fernkämpfer (Skelette, Plünderer, Hexen …), Spinnen und Flieger graben nicht.
+  - Creeper opfern sich an der Wand und sprengen ein Loch (diese Explosion zerstört Blöcke, nie den Kern).
+  - Endermen nehmen den Block weg.
+- **Zombie-Rollen (v0.3):** Belagerungs-Zombies sind Krieger (Schwert, mehr Schaden an Spielern), Gräber (Spitzhacke, graben schnell) oder Brecher (Axt, mehr Schaden am Kern). Werkzeug-Material steigt mit der Kernstufe: Stein → Eisen (ab 5) → Diamant (ab 10) → Netherit (ab 16). Die Werkzeuge droppen nicht.
 
 ## Schild
 
@@ -71,9 +76,9 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 
 | Version | Inhalt | Status |
 |---|---|---|
-| v0.1 | Kern-Block, Aktivierung mit Rohstoff, Stufen-Upgrades (Platzhalter-Kosten), Statusanzeige, ein Kern pro Welt | in Arbeit |
-| v0.2 | Belagerung abhängig von der Stufe, Zielverhalten, Lebenspunkte des Kerns, Chunkloader | geplant |
-| v0.3 | Große Explosion, Verseuchung, Entschärfen (Platzhalter) | geplant |
+| v0.1 | Kern-Block, Aktivierung mit Rohstoff, Stufen-Upgrades (Platzhalter-Kosten), Statusanzeige, ein Kern pro Welt | fertig |
+| v0.2 | Belagerung abhängig von der Stufe, Zielverhalten, Lebenspunkte des Kerns, Chunkloader, GUI | fertig |
+| v0.3 | Große Explosion, Verseuchung, Entschärfen (Platzhalter), grabende Mobs, Zombie-Rollen | gebaut |
 | v0.4 | Schild-Kuppel, Sicherungsexplosion, Reparatur | geplant |
 | v0.5 | Vorteile: Items, Energie, Buffs | geplant |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Anbindung, eigene Items | geplant |

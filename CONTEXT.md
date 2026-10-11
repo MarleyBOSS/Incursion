@@ -13,10 +13,11 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 
 ## Letzter Stand
 
-- v0.1 vom Nutzer getestet: Block, Aktivieren, Leveln, Sounds funktionieren. Wunsch: eigene GUI beim Rechtsklick (umgesetzt in v0.2).
-- v0.2 (Belagerung + GUI) gebaut, CI grün, als „Development build“ (`incursion-0.2.0.jar`) veröffentlicht. **Test durch Nutzer ausstehend.**
-- Bekannte Grenze v0.2: Zombies & Co. brauchen Sicht auf den Punkt knapp über dem Kern; ist der Block direkt über dem Kern zugebaut, können Nahkämpfer nicht zuschlagen (Skelette/Creeper ggf. schon).
-- Kern-HP auf 0 = Platzhalter (kleine Explosion ohne Blockschaden, Kern fällt auf Stufe 0/inaktiv). Große Explosion kommt in v0.3.
+- v0.1 und v0.2 vom Nutzer getestet ✔ (Block, GUI, Leveln, Belagerung, Mobs greifen an).
+- v0.3 gebaut, CI grün, als „Development build“ (`incursion-0.3.0.jar`) veröffentlicht. **Test durch Nutzer ausstehend.**
+- v0.3 enthält zusätzlich (Nutzerwunsch): Nahkampf-Mobs graben sich durch Blöcke (Tempo nach Härte und Schaden/Werkzeug), Creeper sprengen sich an Wänden, Endermen nehmen Blöcke weg, Zombie-Rollen Krieger/Gräber/Brecher mit Werkzeug-Tier nach Kernstufe.
+- Hinweis an Nutzer: Plünderer (Pillager) schießen mit Armbrust = Fernkampf, graben also nicht. Diener (Vindicator, Axt) graben schnell.
+- Neue Mob-Pool-Defaults (Enderman ab Stufe 10) greifen nur in neuen Welten bzw. nach Löschen der Server-Config.
 
 ## Projekt
 
@@ -33,25 +34,29 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   `gh api repos/MarleyBOSS/Incursion/releases/tags/dev` → Asset-ID → `gh api -H "Accept: application/octet-stream" repos/MarleyBOSS/Incursion/releases/assets/<id> > incursion.jar`
 - Commit-Nachrichten enden mit den Attributionszeilen, die die Umgebung vorgibt.
 
-## Code-Struktur (Stand v0.2)
+## Code-Struktur (Stand v0.3)
 
 | Datei | Zweck |
 |---|---|
-| `Incursion.java` | `@Mod`, Registrierung, Creative Tab, Server-Config, Siege-Events |
+| `Incursion.java` | `@Mod`, Registrierung, Creative Tab, Server-Config, Events, Ticket-Controller |
 | `IncursionClient.java` | Config-Bildschirm, Screen- und Renderer-Registrierung |
-| `Config.java` | SERVER-Config, Abschnitte `core` und `siege`, Formeln (Kosten, HP, Radien, Mob-Anzahl) |
+| `Config.java` | SERVER-Config: `core`, `siege`, `digging`, `zombies`, `explosion`, `defuse` + Formeln |
 | `registry/*` | Blocks, Items, BlockEntities, Entities (`core_target`), Menus |
-| `block/CoreBlock.java` | Property `ACTIVE`, Rechtsklick: Item-Shortcut oder GUI, Ticker, aktiv = nicht abbaubar |
+| `block/CoreBlock.java` | Property `ACTIVE`, Rechtsklick: Item-Shortcut oder GUI, aktiv = nicht abbaubar; **Entfernen eines aktiven Kerns (egal wie) = Explosion** |
 | `block/CoreActions.java` | Aktivieren/Upgraden (bezahlt aus dem ganzen Inventar, Kreativ gratis) |
-| `block/CoreBlockEntity.java` | Level, HP, geladener Chunk-Radius (NBT), Ziel-Entity, Schaden + Chat-Warnung |
-| `entity/CoreTargetEntity.java` | Unsichtbare LivingEntity am Kern (1,2×1,6). Mobs zielen darauf, Schaden von Enemy-Mobs geht an Kern-HP. Nicht gespeichert, nicht anklickbar, Projektile treffen |
-| `siege/SiegeManager.java` | Jede Sekunde: Chunks laden, Regeneration, Mobs umlenken, Follow-Range anheben, Spawns, Kern-Zerstörung |
-| `siege/SiegeEvents.java` | `LivingChangeTargetEvent` (Zonenregeln), Creeper-Blockschutz, Server-Stopp |
-| `siege/ActiveSiege.java` | Statischer Schnappschuss (Kern, Zonen), läuft nach 3 s ohne Update ab |
-| `siege/SiegeRules.java` | Mob-Pool und Ausnahmeliste aus der Config (+ Tag `c:bosses`) |
-| `siege/ChunkLoading.java` | NeoForge `TicketController`, quadratischer Bereich um den Kern |
-| `menu/CoreMenu.java`, `client/CoreScreen.java` | GUI ohne Slots, Daten über ContainerData, Buttons über `clickMenuButton`; ohne Textur gezeichnet |
-| `data/CoreWorldData.java` | SavedData `incursion_core`: Dimension und Position des einzigen aktiven Cores |
+| `block/CoreBlockEntity.java` | Level, HP, Chunk-Radius (NBT), Ziel-Entity, Schaden + Warnung, **Entschärfen** (Laufzeit, nicht gespeichert) |
+| `entity/CoreTargetEntity.java` | Unsichtbare LivingEntity am Kern, Schaden von Enemy-Mobs → Kern-HP (× Brecher-Multiplikator) |
+| `siege/SiegeManager.java` | Jede Sekunde: Chunks, Regeneration, Mobs umlenken, Spawns; `destroyCore` (= Block entfernen), `defuse`, `clearSiegeMobs` |
+| `siege/SiegeEvents.java` | Target-Regeln, Creeper-Blockschutz (Breach-Creeper ausgenommen, Kern nie), Rollen-Schaden gegen Spieler |
+| `siege/Digging.java` | Feststeckende Mobs (3 s kein Fortschritt): Nahkampf gräbt, Creeper zündet, Enderman nimmt Block. Gemeinsamer Fortschritt pro Block, Risse sichtbar. Tag `incursion:siege_proof` = unzerstörbar |
+| `siege/ZombieRoles.java` | Rollen per Scoreboard-Tag: Krieger (Schwert), Gräber (Spitzhacke), Brecher (Axt); Tier Stein/Eisen/Diamant/Netherit nach Stufe |
+| `siege/ActiveSiege.java`, `SiegeRules.java`, `ChunkLoading.java` | Zonen-Schnappschuss, Mob-Listen, Kern-Chunkloader |
+| `fallout/Fallout.java` | `detonate`, Level-Tick (Krater-Jobs), Zonen-Effekte (Wither, Asche), Ticket-Controller `explosion` |
+| `fallout/CraterJob.java` | Phasen BLAST → CARVE (Blöcke/Tick) → SCORCH (Ödland, Blätter weg) → FINISH (Items weg, Chunks frei); übersteht Neustart |
+| `fallout/CraterShape.java` | Vorberechnete, nach Abstand sortierte Offsets (Schüssel: r seitlich/oben, 0,6 r unten), deterministisch per Seed |
+| `fallout/FalloutData.java` | SavedData `incursion_fallout`: verseuchte Zonen + laufende Krater |
+| `menu/CoreMenu.java`, `client/CoreScreen.java` | GUI ohne Slots; Buttons Aktivieren/Upgraden/Entschärfen, Explosionsradius, Entschärf-Balken |
+| `data/CoreWorldData.java` | SavedData `incursion_core`: der eine aktive Core |
 
 Ressourcen: Blockstates/Modelle (`core`, `core_active`), Platzhalter-Texturen, Loot Table, Rezept (Weinender Obsidian / Enderaugen / Diamantblock), Tags, Sprachdateien `en_us` und `de_de`.
 
@@ -74,15 +79,15 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`), Platzhalter-Texturen, L
 | Version | Inhalt | Status |
 |---|---|---|
 | v0.1 | Core, Aktivierung, Upgrades, Status, 1 pro Welt | getestet ✔ |
-| v0.2 | Belagerung, Zonen-Targeting, Core-Lebenspunkte, Chunkloader, persistente Mobs, Warnungen, **Core-GUI** | gebaut, **Test ausstehend** |
-| v0.3 | Große Explosion, Verseuchung, Entschärfen | als Nächstes |
-| v0.4 | Schildkuppel, Puls, Reparatur | |
+| v0.2 | Belagerung, Zonen-Targeting, Core-Lebenspunkte, Chunkloader, persistente Mobs, Warnungen, **Core-GUI** | getestet ✔ |
+| v0.3 | Große Explosion, Verseuchung, Entschärfen, grabende Mobs, Zombie-Rollen | gebaut, **Test ausstehend** |
+| v0.4 | Schildkuppel, Puls, Reparatur | als Nächstes |
 | v0.5 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen
 
 - Aktivierungs- und Upgrade-Kosten (vorerst Lohenrute bzw. Diamanten)
-- Entschärf-Mechanik
+- Entschärf-Mechanik (v0.3-Platzhalter: GUI-Button, Countdown 10 s + 2 s/Stufe, Spieler muss ≤ 8 Blöcke bleiben)
 - Brennstoff ja/nein
 - Lizenz
