@@ -124,6 +124,7 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
 | v0.10 | Tag/Nacht und Pausen (Details unter „Letzter Stand“) | Idee |
 | v0.11 | Belagerungs-Ausbau: Wächter ab Stufe X, Mob-Pool pro Stufe (welche Mobs ab welcher Stufe, per Config) | Idee |
+| v0.12 | Totem-Ausbau: gemeinsame quadratische Safezone Kern + Totems, Laser an den Ecken, 1 Front pro Totem (erst Totem, dann Kern), Totem = 50 % Kern-Effekte, nachts nicht platzierbar (Details im Ideen-Doc) | Idee |
 | danach | Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen
