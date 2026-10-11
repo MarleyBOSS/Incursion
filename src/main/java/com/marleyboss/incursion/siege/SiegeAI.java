@@ -59,8 +59,12 @@ public final class SiegeAI {
     private static final double ESCORT_RADIUS = 12.0;
     private static final int FUSE_TICKS = 40;
     private static final double SAPPER_RANGE = 20.0;
+    /** How far a stuck mob walks to help on another route. */
+    private static final double HELP_RANGE = 40.0;
+    /** Give up walking to another route after this many ticks. */
+    private static final long APPROACH_TICKS = 400;
 
-    enum Mode { NONE, ROUTE, HOLD }
+    enum Mode { NONE, ROUTE, HOLD, GOTO }
 
     enum Kind {
         NONE(false, false),
@@ -94,6 +98,10 @@ public final class SiegeAI {
         BlockPos lookPos;
         Mode mode = Mode.NONE;
         long controlUntil;
+        @Nullable
+        Route approach;
+        long approachStart;
+        long noApproachUntil;
         long fuseStart = -1;
         long nextShot;
         long nextTeleport;
@@ -232,26 +240,33 @@ public final class SiegeAI {
             return;
         }
 
+        Kind kind = kindOf(mob, role);
         if (state.route == null) {
-            if (distance < state.bestDistance - 1.0) {
-                state.bestDistance = distance;
-                state.lastCloser = now;
-                state.lastUseful = now;
-                return;
+            if (state.approach != null) {
+                if (!tickApproach(mob, state, siege, now)) {
+                    return;
+                }
+            } else {
+                if (distance < state.bestDistance - 1.0) {
+                    state.bestDistance = distance;
+                    state.lastCloser = now;
+                    state.lastUseful = now;
+                    return;
+                }
+                if (now - state.lastCloser < Config.STUCK_SECONDS.get() * 20L || !canUseRoutes(mob)) {
+                    return;
+                }
+                Route route = acquireRoute(level, mob, state, kind, siege, now);
+                if (route == null) {
+                    return;
+                }
+                state.route = route;
             }
-            if (now - state.lastCloser < Config.STUCK_SECONDS.get() * 20L || !canUseRoutes(mob)) {
-                return;
-            }
-            Route route = acquireRoute(level, mob, state, siege, now);
-            if (route == null) {
-                return;
-            }
-            state.route = route;
             state.bestIndex = state.routeIndex;
             state.actionPos = null;
             state.actionTicks = 0;
         }
-        followRoute(level, mob, state, kindOf(mob, role), siege, now, distance);
+        followRoute(level, mob, state, kind, siege, now, distance);
     }
 
     private static boolean canHitCore(Mob mob, ActiveSiege siege, double distance) {
@@ -301,11 +316,20 @@ public final class SiegeAI {
     // ------------------------------------------------------------------
 
     @Nullable
-    private static Route acquireRoute(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
+    private static Route acquireRoute(ServerLevel level, Mob mob, MobState state, Kind kind, ActiveSiege siege, long now) {
         Route shared = Route.share(mob.position(), siege.corePos, now);
         if (shared != null) {
             state.routeIndex = Math.max(0, shared.joinIndex(mob.position()));
             return shared;
+        }
+        if (now >= state.noApproachUntil) {
+            // Go and help where help is wanted, instead of starting a new hole somewhere else.
+            Route wanted = Route.findHelpWanted(mob.position(), siege.corePos, kind.canDig, kind.canBuild, HELP_RANGE, now);
+            if (wanted != null) {
+                state.approach = wanted;
+                state.approachStart = now;
+                return null;
+            }
         }
         if (!Route.canPlan(now)) {
             return null; // the planner is busy, try again in a moment
@@ -319,7 +343,35 @@ public final class SiegeAI {
         return route;
     }
 
+    /** Walking over to another route. Returns true once the mob has joined it. */
+    private static boolean tickApproach(Mob mob, MobState state, ActiveSiege siege, long now) {
+        Route route = state.approach;
+        if (route == null) {
+            return false;
+        }
+        int join = route.joinIndex(mob.position());
+        if (join >= 0 && route.isUsable(siege.corePos, now)) {
+            state.approach = null;
+            state.route = route;
+            state.routeIndex = join;
+            state.lastUseful = now;
+            return true;
+        }
+        if (!route.isUsable(siege.corePos, now) || now - state.approachStart > APPROACH_TICKS) {
+            // Could not get there: plan an own route next time.
+            state.approach = null;
+            state.noApproachUntil = now + 1200;
+            state.mode = Mode.NONE;
+            state.lastCloser = now - Config.STUCK_SECONDS.get() * 20L;
+            return false;
+        }
+        control(state, Mode.GOTO, now);
+        state.lookPos = null;
+        return false;
+    }
+
     private static void dropRoute(MobState state, long now, double distance) {
+        state.approach = null;
         if (state.route != null) {
             state.route = null;
             // Plan again soon if the mob is still stuck.
@@ -372,12 +424,14 @@ public final class SiegeAI {
         if (!capable) {
             // Somebody else has to do this; wait a few steps behind and let the siege know what is missing.
             SiegeProgress.need(action.dig() ? SiegeProgress.Need.DIGGER : SiegeProgress.Need.BUILDER, now);
+            route.markNeed(pending, action.dig(), now);
             state.walkLimit = Math.max(index, pending - 3);
             state.lookPos = null;
             return;
         }
         state.walkLimit = pending - 1;
         state.lookPos = action.pos();
+        route.markWork(pending, now);
         double reach = mob.getEyePosition().distanceTo(Vec3.atCenterOf(action.pos()));
         if (reach > REACH) {
             return; // still walking up to the work spot
@@ -475,6 +529,13 @@ public final class SiegeAI {
         if (state.lookPos != null) {
             mob.getLookControl().setLookAt(state.lookPos.getX() + 0.5, state.lookPos.getY() + 0.5, state.lookPos.getZ() + 0.5);
         }
+        if (state.mode == Mode.GOTO && state.approach != null) {
+            if (mob.getNavigation().isDone() || mob.tickCount % 20 == 0) {
+                BlockPos meet = state.approach.meetingPoint();
+                mob.getNavigation().moveTo(meet.getX() + 0.5, meet.getY(), meet.getZ() + 0.5, 1.0);
+            }
+            return;
+        }
         if (state.mode != Mode.ROUTE || state.route == null) {
             mob.getNavigation().stop();
             return;
@@ -502,7 +563,7 @@ public final class SiegeAI {
     private static boolean isAt(Mob mob, BlockPos node) {
         double dx = node.getX() + 0.5 - mob.getX();
         double dz = node.getZ() + 0.5 - mob.getZ();
-        return dx * dx + dz * dz < 0.05 && Math.abs(node.getY() - mob.getY()) < 0.8;
+        return dx * dx + dz * dz < 0.2 && Math.abs(node.getY() - mob.getY()) < 0.8;
     }
 
     // ------------------------------------------------------------------

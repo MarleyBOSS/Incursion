@@ -39,6 +39,11 @@ public final class Route {
     private final BlockPos[][] clears;
     private final BlockPos[] supports;
     private boolean invalid;
+    /** Step where work is going on (or waiting to be done). */
+    private int frontier;
+    private long lastWork = Long.MIN_VALUE / 2;
+    private long lastNeedDig = Long.MIN_VALUE / 2;
+    private long lastNeedBuild = Long.MIN_VALUE / 2;
 
     Route(BlockPos corePos, BlockPos[] nodes, BlockPos[][] clears, BlockPos[] supports, boolean complete, long created) {
         this.corePos = corePos.immutable();
@@ -66,10 +71,10 @@ public final class Route {
         int from = Math.max(0, around - 4);
         int to = Math.min(nodes.length - 1, around + 8);
         int best = -1;
-        double bestDistance = 2.5 * 2.5;
+        double bestDistance = 2.5 * 2.5 + 0.001;
         for (int i = from; i <= to; i++) {
             double distance = Vec3.atBottomCenterOf(nodes[i]).distanceToSqr(position);
-            if (distance <= bestDistance) {
+            if (distance < bestDistance) {
                 bestDistance = distance;
                 best = i;
             }
@@ -134,6 +139,58 @@ public final class Route {
 
     public boolean isInvalid() {
         return invalid;
+    }
+
+    /** A worker is busy at this step. */
+    public void markWork(int index, long now) {
+        frontier = index;
+        lastWork = now;
+    }
+
+    /** Mobs are waiting at this step for somebody who can dig (or build). */
+    public void markNeed(int index, boolean dig, long now) {
+        frontier = index;
+        if (dig) {
+            lastNeedDig = now;
+        } else {
+            lastNeedBuild = now;
+        }
+    }
+
+    /** Where mobs that come to help should go: a few steps before the work. */
+    public BlockPos meetingPoint() {
+        return node(Math.max(0, frontier - 2));
+    }
+
+    /**
+     * A route nearby that could use this mob: diggers go where somebody waits for a digger, builders where
+     * somebody waits for a builder, everybody else (escorts) goes where workers are busy.
+     */
+    @Nullable
+    public static Route findHelpWanted(Vec3 position, BlockPos core, boolean canDig, boolean canBuild, double range,
+                                       long now) {
+        Route best = null;
+        double bestDistance = range * range;
+        for (Route route : ACTIVE) {
+            if (!route.isUsable(core, now)) {
+                continue;
+            }
+            boolean wanted;
+            if (canDig || canBuild) {
+                wanted = (canDig && now - route.lastNeedDig < 200) || (canBuild && now - route.lastNeedBuild < 200);
+            } else {
+                wanted = now - route.lastWork < 600;
+            }
+            if (!wanted) {
+                continue;
+            }
+            double distance = Vec3.atBottomCenterOf(route.meetingPoint()).distanceToSqr(position);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = route;
+            }
+        }
+        return best;
     }
 
     // ------------------------------------------------------------------

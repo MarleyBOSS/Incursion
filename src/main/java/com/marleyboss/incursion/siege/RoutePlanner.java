@@ -134,7 +134,13 @@ public final class RoutePlanner {
         }
         Node end = goal != null ? goal : best;
         if (end == first) {
-            return null;
+            if (goal == null) {
+                return null;
+            }
+            // Already next to the Core but cannot hit it: only the block on top of the Core is in the way.
+            BlockPos here = start.immutable();
+            return new Route(core, new BlockPos[]{here, here}, new BlockPos[][]{new BlockPos[0], new BlockPos[]{core.above()}},
+                    new BlockPos[]{null, null}, true, now);
         }
         return build(end, goal != null, now);
     }
@@ -150,7 +156,7 @@ public final class RoutePlanner {
         if (dx == 0 && dz == 0) {
             return dy == 1; // standing on top of the Core
         }
-        return Math.abs(dx) + Math.abs(dz) == 1 && dy >= -1 && dy <= 1;
+        return Math.abs(dx) + Math.abs(dz) == 1 && dy == 0;
     }
 
     private float heuristic(int x, int y, int z) {
@@ -325,6 +331,13 @@ public final class RoutePlanner {
             if (n.move == MOVE_START) {
                 supports[i] = null;
             }
+        }
+        if (complete) {
+            // Mobs aim at the Core's upper half: the block on top of the Core must not block their view.
+            BlockPos[] lastClears = clears[size - 1];
+            BlockPos[] withTop = java.util.Arrays.copyOf(lastClears, lastClears.length + 1);
+            withTop[lastClears.length] = core.above();
+            clears[size - 1] = withTop;
         }
         return new Route(core, positions, clears, supports, complete, now);
     }
