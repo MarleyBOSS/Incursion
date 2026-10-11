@@ -103,7 +103,7 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 - **Alle feindlichen Mobs**, auch modded, greifen auf ihre eigene Art an. Bosse lassen sich per Config ausnehmen. Creeper zerstören am Core keine Blöcke (konfigurierbar). Der Core hat Lebenspunkte, die mit der Stufe steigen.
 - **Ein aktiver Core pro Welt.**
 - **Aktiver Core = scharfe Bombe:** nicht verschiebbar. Abbau oder Zerstörung löst eine riesige, schrittweise erzeugte Explosion aus, die einen Krater und eine verseuchte Zone hinterlässt (standardmäßig dauerhaft). Entschärfen (Mechanik offen) setzt den Core auf Stufe 0 zurück.
-- **Schild:** Partikelkuppel, deren Radius mit der Stufe wächst. Durchbricht ein Mob den Schild, tötet ein Puls alle Mobs im Radius (ohne Blockschaden), danach ist der Schild kaputt. Reparatur kostet 1 Core-Stufe und geht erst ab einer Mindeststufe (Standard 5).
+- **Schild:** Partikelkuppeln, die von außen nach innen dazukommen: Schild 1 ab Stufe 5 (Radius 10), Schild 2 ab 10 (Radius 5), Schild 3 ab 15 (Radius 2), darunter keiner; Stufe 20 Sonderschild (später). Mehr im Ideen-Doc. Durchbricht ein Mob den Schild, tötet ein Puls alle Mobs im Radius (ohne Blockschaden), danach ist der Schild kaputt. Reparatur kostet 1 Core-Stufe und geht erst ab einer Mindeststufe (Standard 5).
 
 ## Roadmap
 
