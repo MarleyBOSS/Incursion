@@ -88,6 +88,16 @@ Mit jeder Stufe stärker:
   - **Keine natürlichen Höhlen-Spawns** im Belagerungsgebiet, außer ±10 Blöcke um die Kernhöhe.
   - **Verirrte Mobs:** > 24 Blöcke vom Kern und 60 s weder näher gekommen noch getroffen/geschossen/gearbeitet, und die eigene Route kommt nicht voran → Belagerungs-Mobs verschwinden (Ersatz spawnt), natürliche Mobs verlassen die Belagerung (normales Verhalten, können despawnen). Belagerungs-Mobs außerhalb des Gebiets verschwinden sofort.
   - **Luftlandung seltener:** 3 % + 1 % pro Stufe (Stufe 20: 23 %), im Patt 50 %, immer wenn kein Bodenplatz gefunden wird.
+- **v0.7.1 „Kommandant“** (ersetzt Einzel-Routen pro Mob, Leitern, Routen-Teilen/Helfen, Gruppen-Spawn an zufälliger Seite):
+  - **Analyse und Plan:** Ein zentraler Kommandant plant eine **Front**: A*-Suche rückwärts vom Kern. Start = Angriffsplätze direkt seitlich am Kern (Füße oder Kopf auf Kernhöhe; die Hülle dort wird aufgebrochen). Ziel = **Sammelplatz** auf natürlichem, festem Boden an der Oberfläche (bei unterirdischem Kern auch Höhle ±6 um die Kernhöhe), mindestens Kernzone + 6 Blöcke vom Kern, nicht im Totem-Radius. Dazwischen der billigste Weg: laufen, Treppe hoch/runter (1 Block pro Schritt), 2–3 fallen, graben (nach Härte), Boden setzen (Belagerungsstein). Keine Leitern, keine Säulen. Gerade Treppen werden leicht bevorzugt. Die Suche läuft verteilt (20 000 Positionen pro Sekunde, max. 60 000).
+  - **Plattform:** Bis zu 5 Felder neben und hinter dem Angriffsplatz, damit mehrere Mobs gleichzeitig zuschlagen. Baumeister bauen sie, sobald der Weg offen ist.
+  - **Spawns nach Plan:** Alle Mobs erscheinen am Sammelplatz. Reihenfolge: zuerst fehlende Baumeister (1, ab 10 Blöcken und Limit ≥ 6: 2), dann Gräber (1–3, 3 bei harten Blöcken wie Obsidian), höchstens 2 Begleiter, solange gebaut wird; Angreifer erst, wenn höchstens 3 Arbeitsschritte übrig sind. Hat eine Front keinen Baumeister/Gräber, wird ein Zombie der Front umgeschult; geht das nicht, darf 1 Arbeiter über dem Limit spawnen (max. +2).
+  - **Ablauf am Weg:** wie v0.7 (vorne max. 2 Bauende bzw. 3 Grabende, 2 Wartende, Rest am Fuß; Sturm, wenn offen). Langsame Gräber (z. B. Baumeister an Obsidian) überlassen den Block einem mit passendem Werkzeug, wenn einer da ist.
+  - **Neu planen:** Weg unmöglich (z. B. Grundgestein gesetzt) oder 3 min ohne Fortschritt → neuer Plan (vorhandene Treppen werden mitgenutzt). Zweite Front (Config `maxFronts`, Standard 2) auf einer anderen Seite, wenn die erste offen ist und das Limit ≥ 8 ist.
+  - **Höhlen-Mobs:** Wer seinen Sammelplatz 30 s lang nicht näher kommt, verschwindet (Belagerungs-Mobs und natürliche Mobs ohne Namensschild). Natürliche Spawns im Belagerungsgebiet unter der Oberfläche sind ganz aus (außer bei unterirdischem Kern ±10).
+  - **Graben:** Eine Spitzhacke gräbt Obsidian ohne Tier-Strafe (Stein-Spitzhacke ca. 54 s pro Block und Gräber, mehrere Gräber addieren sich).
+  - **Luftlandung:** nur noch Grundchance (3 % + 1 %/Stufe); ohne möglichen Plan wie bisher häufig.
+  - **KI-Anzeige:** Plan im Chat (Seite, Blöcke bauen/abbauen, Sammelplatz), Partikel: gelb Sammelplatz, weiß Weg, lila Plattform, rot/blau nächster Arbeitsschritt.
 - **Kern-GUI (v0.5):** Schalter „Grenzen“ (grüner Ring um Totems, lila Ring um den Kern, weit sichtbar) und „KI-Anzeige“ (Namensschild mit Rolle und Tätigkeit über jedem Angreifer, Routen als Partikel: weiß Weg, rot abbauen, blau bauen, gelb Leiter).
 
 ## Schild
@@ -111,7 +121,8 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 | v0.4 | Belagerungs-KI: Routenplaner, Baumeister, Rollen, Skelett-Klassen, Pioniere, Patt-Regel, Schutztotem | getestet: Mobs erreichen Kern nicht |
 | v0.5 | KI-Neubau: direkter Kernangriff, Schusspositionen, Routen-Hüpfen, Belagerungsstein, GUI-Schalter Grenzen/KI-Anzeige | getestet: Baumeister zu schwach |
 | v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle Zombies graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | getestet: Kern fällt (v. a. durch Phantome), Gedränge, Höhlen-Mobs |
-| v0.7 | Einheit: kein Schieben, Sammeln/Stürmen, mehrere Wege, Leitern bevorzugt, verirrte Mobs, Oberflächen-Spawns, seltene Luftlandung | gebaut |
+| v0.7 | Einheit: kein Schieben, Sammeln/Stürmen, mehrere Wege, Leitern bevorzugt, verirrte Mobs, Oberflächen-Spawns, seltene Luftlandung | getestet: schlechter |
+| v0.7.1 | Kommandant: zentraler Plan, Treppe + Plattform, Spawns am Sammelplatz nach Bedarf | gebaut |
 | v0.8 | Schild-Kuppel, Sicherungsexplosion, Reparatur | geplant |
 | v0.9 | Vorteile: Items, Energie, Buffs | geplant |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Anbindung, eigene Items | geplant |

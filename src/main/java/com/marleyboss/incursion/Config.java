@@ -420,11 +420,11 @@ public final class Config {
             .define("buildingEnabled", true);
 
     public static final ModConfigSpec.BooleanValue LADDERS_ENABLED = BUILDER
-            .comment("If true, builders also place siege ladders, so the siege can climb straight up (e.g. to a Core high up).")
+            .comment("No longer used (since 0.7.1 the siege builds staircases instead of ladders).")
             .define("laddersEnabled", true);
 
     public static final ModConfigSpec.IntValue PLANNER_MAX_NODES = BUILDER
-            .comment("How many positions the route planner may check for one route. Higher = smarter over long distances, but more lag.")
+            .comment("How many positions the siege planner may check for one plan (at least 60000 are used; spread over several seconds).")
             .defineInRange("plannerMaxNodes", 12000, 500, 100000);
 
     public static final ModConfigSpec.BooleanValue AIR_DROPS = BUILDER
@@ -458,6 +458,11 @@ public final class Config {
             .comment("At most this many mobs use one route (staircase, ladder ...). Further mobs plan their own route next to it,",
                     "so the siege builds several ways up and splits up.")
             .defineInRange("routeCapacity", 8, 2, 64);
+
+    public static final ModConfigSpec.IntValue MAX_FRONTS = BUILDER
+            .comment("How many lines of attack (each with its own way / staircase to the Core) the siege plans at most.",
+                    "A further one is only planned once the existing ways are open and the siege has at least 8 mobs.")
+            .defineInRange("maxFronts", 2, 1, 4);
 
     public static final ModConfigSpec.IntValue FRONT_WAITERS = BUILDER
             .comment("While a route is still being built, only this many mobs wait right behind the workers.",

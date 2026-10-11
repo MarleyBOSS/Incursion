@@ -138,6 +138,38 @@ public final class MobRoles {
         }
     }
 
+    /**
+     * Role for a mob the siege commander ordered: a zombie gets the ordered worker role (builder, miner); without an
+     * order, a zombie becomes a fighter (warrior or breaker). Other mobs get their usual classes.
+     */
+    public static void applyOrdered(Mob mob, @org.jetbrains.annotations.Nullable Role ordered, int coreLevel,
+                                    RandomSource random, long now) {
+        if (isZombieRoleType(mob) && Config.ZOMBIE_ROLES.get()) {
+            Role role = ordered;
+            if (role == null) {
+                int[] weights = {Config.WARRIOR_WEIGHT.get(), 0, Config.BREAKER_WEIGHT.get(), 0};
+                role = balanced(ZOMBIE_ROLES, weights, random);
+            }
+            if (role != Role.NONE) {
+                setRole((Zombie) mob, role, coreLevel);
+                COUNTS[role.ordinal()]++;
+            }
+            return;
+        }
+        apply(mob, coreLevel, random, now);
+    }
+
+    /** Gives a zombie a new role (and the matching equipment), e.g. when the siege needs another builder. */
+    public static void setRole(Zombie zombie, Role role, int coreLevel) {
+        for (Role old : ROLES) {
+            if (old != Role.NONE) {
+                zombie.removeTag(old.tag);
+            }
+        }
+        zombie.addTag(role.tag);
+        equipZombie(zombie, role, coreLevel);
+    }
+
     /** Sappers must not drop their TNT somewhere random (vanilla endermen put blocks down by chance). */
     public static void prepareGoals(Mob mob) {
         if (mob instanceof EnderMan && mob.getTags().contains(Role.SAPPER.tag)) {

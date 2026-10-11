@@ -33,11 +33,13 @@ public final class ActiveSiege {
     public final boolean showDebug;
     /** How far the Core is above the surrounding ground; the siege area reaches down that much further. */
     public final int elevation;
+    /** The Core is deep underground (a cave base): caves at about its height belong to the siege. */
+    public final boolean underground;
     private final long validUntil;
 
     private ActiveSiege(ServerLevel level, BlockPos corePos, CoreTargetEntity target, int coreZoneRadius,
                         int siegeRadius, int playerAggroRange, int coreLevel, boolean showBorders, boolean showDebug,
-                        int elevation) {
+                        int elevation, boolean underground) {
         this.level = level;
         this.corePos = corePos.immutable();
         this.target = target;
@@ -48,14 +50,15 @@ public final class ActiveSiege {
         this.showBorders = showBorders;
         this.showDebug = showDebug;
         this.elevation = elevation;
+        this.underground = underground;
         this.validUntil = level.getGameTime() + 60;
     }
 
     public static void update(ServerLevel level, BlockPos corePos, CoreTargetEntity target, int coreZoneRadius,
                               int siegeRadius, int playerAggroRange, int coreLevel, boolean showBorders,
-                              boolean showDebug, int elevation) {
+                              boolean showDebug, int elevation, boolean underground) {
         current = new ActiveSiege(level, corePos, target, coreZoneRadius, siegeRadius, playerAggroRange, coreLevel,
-                showBorders, showDebug, elevation);
+                showBorders, showDebug, elevation, underground);
     }
 
     public static void clear() {

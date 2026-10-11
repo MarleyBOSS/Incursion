@@ -87,7 +87,10 @@ public final class Digging {
             return 1.0F;
         }
         float speed = Math.max(0.01F, digSpeed(tool, attack, state));
-        boolean harvest = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state);
+        // A mob with the right kind of tool (pickaxe on stone or obsidian) digs at full speed even if the tool
+        // tier is too low for drops; only mobs without a fitting tool are much slower.
+        boolean harvest = !state.requiresCorrectToolForDrops() || tool.isCorrectToolForDrops(state)
+                || (!tool.isEmpty() && tool.getDestroySpeed(state) > 1.0F);
         return hardness * (harvest ? 30.0F : 100.0F) / speed;
     }
 

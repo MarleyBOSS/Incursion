@@ -95,8 +95,9 @@ public final class SiegeManager {
         int siegeRadius = Config.siegeRadiusBlocks(coreLevel);
         int aggroRange = Config.PLAYER_AGGRO_RANGE.get();
         int elevation = Math.max(0, SiegeAirDrop.elevation(level, pos, coreZone + 6));
+        boolean underground = isUnderground(level, pos);
         ActiveSiege.update(level, pos, target, coreZone, siegeRadius, aggroRange, coreLevel,
-                core.isShowBorders(), core.isShowAi(), elevation);
+                core.isShowBorders(), core.isShowAi(), elevation, underground);
         ActiveSiege siege = ActiveSiege.get(level);
         if (siege == null) {
             return;
@@ -106,6 +107,7 @@ public final class SiegeManager {
         AABB area = new AABB(pos).inflate(siegeRadius, 64, siegeRadius).expandTowards(0, -elevation, 0);
         List<Mob> mobs = level.getEntitiesOfClass(Mob.class, area, Entity::isAlive);
         List<Mob> fireArchers = new ArrayList<>();
+        List<Mob> attackers = new ArrayList<>();
         int siegeMobs = 0;
         MobRoles.resetCounts();
         for (Mob mob : mobs) {
@@ -120,6 +122,7 @@ public final class SiegeManager {
             if (zone == ActiveSiege.ZONE_OUTSIDE) {
                 continue;
             }
+            attackers.add(mob);
             if (MobRoles.of(mob) == MobRoles.Role.FIRE_ARCHER) {
                 fireArchers.add(mob);
             }
@@ -134,8 +137,16 @@ public final class SiegeManager {
         // 6. Fire archers ignite TNT placed by sappers.
         SiegeExplosives.tickTnt(level, fireArchers, now);
 
-        // 7. Show where mobs cannot spawn (and the AI view), if switched on in the Core GUI.
+        // 7. The commander analyses the situation, plans the fronts and decides which roles are needed.
         List<BlockPos> wards = WardBlockEntity.wardsNear(level, pos, siegeRadius);
+        boolean stalled = SiegeProgress.isStalled(now);
+        int max = Config.maxSiegeMobs(coreLevel) + wards.size() * Config.WARD_EXTRA_MOBS.get();
+        if (stalled) {
+            max += max * Config.STALL_EXTRA_MOBS_PERCENT.get() / 100;
+        }
+        SiegeCommander.tick(level, siege, attackers, wards, max, now);
+
+        // 8. Show where mobs cannot spawn (and the AI view), if switched on in the Core GUI.
         int minDistance = Config.coreZoneRadius(coreLevel) + 6;
         if (siege.showBorders) {
             SpawnRings.drawCore(level, pos, minDistance);
@@ -147,9 +158,8 @@ public final class SiegeManager {
             SiegeDebug.drawRoutes(level, siege, now);
         }
 
-        // 8. Spawn new attackers. If the siege is stuck, reinforcements may exceed the normal limit.
+        // 9. Spawn new attackers. If the siege is stuck, reinforcements may exceed the normal limit.
         int interval = Config.SPAWN_INTERVAL_SECONDS.get();
-        boolean stalled = SiegeProgress.isStalled(now);
         if (stalled && !stallAnnounced) {
             stallAnnounced = true;
             level.getServer().getPlayerList().broadcastSystemMessage(
@@ -158,22 +168,31 @@ public final class SiegeManager {
             stallAnnounced = false;
         }
         if ((tickCounter / 20) % interval == 0 && level.getDifficulty() != Difficulty.PEACEFUL) {
-            int max = Config.maxSiegeMobs(coreLevel) + wards.size() * Config.WARD_EXTRA_MOBS.get();
-            if (stalled) {
-                max += max * Config.STALL_EXTRA_MOBS_PERCENT.get() / 100;
-                SiegeProgress.need(SiegeProgress.Need.DIGGER, now);
-                SiegeProgress.need(SiegeProgress.Need.BUILDER, now);
-            }
             int free = max - siegeMobs;
-            int toSpawn = Math.min(free, 1 + coreLevel / 4 + (stalled ? 1 : 0));
+            boolean urgent = SiegeCommander.urgentWorkerNeeded(max);
+            if (free <= 0 && urgent && siegeMobs < max + EXTRA_WORKERS) {
+                free = 1; // a front has nobody who can do its work: one worker may come on top
+            }
+            int toSpawn = Math.min(free, 1 + coreLevel / 4 + (stalled || urgent ? 1 : 0));
             if (toSpawn > 0) {
-                double airChance = stalled ? Config.AIR_DROP_STALL_CHANCE.get()
-                        : Config.AIR_DROP_BASE_CHANCE.get() + Config.AIR_DROP_CHANCE_PER_LEVEL.get() * coreLevel;
-                int spawned = spawnAttackers(level, pos, coreLevel, toSpawn, target, wards, now, airChance, elevation);
+                int spawned;
+                if (SiegeCommander.planFailed()) {
+                    // No way to the Core found: scattered spawns, and more come by air.
+                    double airChance = Math.max(Config.AIR_DROP_STALL_CHANCE.get(),
+                            Config.AIR_DROP_BASE_CHANCE.get() + Config.AIR_DROP_CHANCE_PER_LEVEL.get() * coreLevel);
+                    spawned = spawnScattered(level, pos, coreLevel, toSpawn, target, wards, now, airChance, elevation);
+                } else {
+                    // With a plan, the siege takes its way; only a few attackers come by air.
+                    double airChance = Config.AIR_DROP_BASE_CHANCE.get() + Config.AIR_DROP_CHANCE_PER_LEVEL.get() * coreLevel;
+                    spawned = spawnForFronts(level, pos, coreLevel, toSpawn, target, now, airChance, max);
+                }
                 core.setSiegeMobCount(siegeMobs + spawned);
             }
         }
     }
+
+    /** A front without its builder / miner may get one even if the siege is at its limit (at most this many over). */
+    private static final int EXTRA_WORKERS = 2;
 
     /** Removes the long sight range again (the mob left the siege). */
     public static void clearFollowRange(Mob mob) {
@@ -208,7 +227,7 @@ public final class SiegeManager {
     // Spawning
     // ------------------------------------------------------------------
 
-    private static int spawnAttackers(ServerLevel level, BlockPos core, int coreLevel, int count,
+    private static int spawnScattered(ServerLevel level, BlockPos core, int coreLevel, int count,
                                       CoreTargetEntity target, List<BlockPos> wards, long now, double airChance,
                                       int elevation) {
         List<EntityType<?>> pool = SiegeRules.spawnPool(coreLevel);
@@ -293,9 +312,104 @@ public final class SiegeManager {
         return spawned;
     }
 
+    /**
+     * Spawns what the commander orders, at the assembly point of the front (the foot of its way): workers first
+     * (builders, miners), attackers once the way is (almost) open. A few attackers come by air instead.
+     */
+    private static int spawnForFronts(ServerLevel level, BlockPos core, int coreLevel, int count,
+                                      CoreTargetEntity target, long now, double airChance, int max) {
+        List<EntityType<?>> pool = SiegeRules.spawnPool(coreLevel);
+        if (pool.isEmpty()) {
+            return 0;
+        }
+        RandomSource random = level.getRandom();
+        int minDistance = Config.coreZoneRadius(coreLevel) + 6;
+        int maxDistance = Math.max(minDistance + 4,
+                Math.min(Config.SPAWN_MAX_DISTANCE.get(), Config.siegeRadiusBlocks(coreLevel) - 4));
+        int spawned = 0;
+        for (int i = 0; i < count; i++) {
+            SiegeCommander.SpawnOrder order = SiegeCommander.nextSpawn(max);
+            if (order == null) {
+                break; // nothing needed right now (the workers are busy, the attackers come when the way is open)
+            }
+            MobRoles.Role role = order.role();
+            EntityType<?> type = role != null ? zombieType(pool, random) : pool.get(random.nextInt(pool.size()));
+            if (role == null && SiegeAirDrop.isEnabled() && SiegeAirDrop.canCarry(type) && random.nextDouble() < airChance
+                    && airDrop(level, core, coreLevel, type, target, minDistance, maxDistance, random, now)) {
+                SiegeCommander.noteOrdered(order);
+                spawned++;
+                continue;
+            }
+            BlockPos spawnPos = assemblySpot(level, order.front().assembly(), random);
+            if (spawnPos == null) {
+                break;
+            }
+            Mob mob = createSiegeMob(level, type, spawnPos, coreLevel, random, now, role, true);
+            if (mob == null) {
+                continue;
+            }
+            if (!level.noCollision(mob) || level.containsAnyLiquid(mob.getBoundingBox())) {
+                mob.discard();
+                continue;
+            }
+            if (role == null && mob instanceof Spider spider && random.nextDouble() < Config.SPIDER_RIDER_CHANCE.get()) {
+                addRider(level, spider, coreLevel, random, now);
+            }
+            level.addFreshEntityWithPassengers(mob);
+            aimAtCore(mob, target);
+            SiegeAI.assign(mob, order.front(), now);
+            for (Entity passenger : mob.getPassengers()) {
+                if (passenger instanceof Mob rider) {
+                    aimAtCore(rider, target);
+                }
+            }
+            level.sendParticles(ParticleTypes.PORTAL, mob.getX(), mob.getY() + 1.0, mob.getZ(), 30, 0.4, 0.8, 0.4, 0.2);
+            SiegeCommander.noteOrdered(order);
+            spawned++;
+        }
+        return spawned;
+    }
+
+    /** A zombie type for a worker (from the pool if possible). */
+    private static EntityType<?> zombieType(List<EntityType<?>> pool, RandomSource random) {
+        List<EntityType<?>> zombies = new ArrayList<>();
+        for (EntityType<?> type : pool) {
+            if (ZOMBIE_TYPES.contains(type)) {
+                zombies.add(type);
+            }
+        }
+        return zombies.isEmpty() ? EntityType.ZOMBIE : zombies.get(random.nextInt(zombies.size()));
+    }
+
+    /** The assembly point itself or a free spot right next to it (on the same natural ground). */
+    @Nullable
+    private static BlockPos assemblySpot(ServerLevel level, BlockPos assembly, RandomSource random) {
+        List<BlockPos> spots = new ArrayList<>();
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                BlockPos pos = assembly.offset(dx, 0, dz);
+                if (isStandable(level, pos)) {
+                    spots.add(pos);
+                }
+            }
+        }
+        if (spots.isEmpty()) {
+            return null;
+        }
+        return spots.get(random.nextInt(spots.size()));
+    }
+
     @Nullable
     private static Mob createSiegeMob(ServerLevel level, EntityType<?> type, BlockPos pos, int coreLevel,
                                       RandomSource random, long now) {
+        return createSiegeMob(level, type, pos, coreLevel, random, now, null, false);
+    }
+
+    /** @param ordered with {@code commanded}: the role the commander ordered (null = an attacker) */
+    @Nullable
+    private static Mob createSiegeMob(ServerLevel level, EntityType<?> type, BlockPos pos, int coreLevel,
+                                      RandomSource random, long now, @Nullable MobRoles.Role ordered,
+                                      boolean commanded) {
         Entity entity = type.create(level);
         if (!(entity instanceof Mob mob)) {
             if (entity != null) {
@@ -306,14 +420,25 @@ public final class SiegeManager {
         mob.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, random.nextFloat() * 360.0F, 0.0F);
         EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
         prepareSiegeMob(mob, coreLevel);
-        MobRoles.apply(mob, coreLevel, random, now);
+        if (commanded) {
+            // No vanilla jockeys: a worker riding a chicken could not work.
+            mob.ejectPassengers();
+            Entity vehicle = mob.getVehicle();
+            if (vehicle != null) {
+                mob.stopRiding();
+                vehicle.discard();
+            }
+            MobRoles.applyOrdered(mob, ordered, coreLevel, random, now);
+        } else {
+            MobRoles.apply(mob, coreLevel, random, now);
+        }
         return mob;
     }
 
     private static boolean airDrop(ServerLevel level, BlockPos core, int coreLevel, EntityType<?> type,
                                    CoreTargetEntity target, int minDistance, int maxDistance, RandomSource random,
                                    long now) {
-        Mob mob = createSiegeMob(level, type, core, coreLevel, random, now);
+        Mob mob = createSiegeMob(level, type, core, coreLevel, random, now, null, true);
         if (mob == null) {
             return false;
         }

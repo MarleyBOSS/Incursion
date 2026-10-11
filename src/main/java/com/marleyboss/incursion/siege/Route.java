@@ -1,49 +1,25 @@
 package com.marleyboss.incursion.siege;
 
-import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import com.marleyboss.incursion.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
-import com.marleyboss.incursion.Config;
-import com.marleyboss.incursion.registry.ModBlocks;
-import net.minecraft.world.level.block.state.BlockState;
-
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 /**
- * A planned way to the Core: a list of feet positions. Each step may need blocks dug out (the cells the mob
- * walks through) and a floor placed under the new position: a siege stone, or a siege ladder in the cell the
- * mob climbs up from. Whether a step still needs work is always read from the world, so it does not matter
- * who did the work (or if a player undid it).
- * <p>
- * Routes are shared: a mob that gets stuck close to an existing route joins it instead of planning its own,
- * so mobs coming from the same side work on the same wall. New routes never build into the way of
- * existing ones (see {@link #reservedClear} / {@link #reservedSupport}).
+ * The way of one siege front: a list of feet positions from the assembly point (index 0, natural ground,
+ * where the attackers spawn and gather) to the attack position right next to the Core (last index).
+ * Each step may need blocks dug out (the cells the mob walks through) and a floor block (siege stone) placed
+ * under the new position. Whether a step still needs work is always read from the world, so it does not
+ * matter who did the work (or if a player undid it).
  */
 public final class Route {
-    /** A route is offered to newly stuck mobs for this long. */
-    private static final long SHARE_TICKS = 1200;
-    /** After this long, mobs drop the route and plan again (the base may have changed). */
-    public static final long MAX_AGE_TICKS = 2400;
-    /** At most one new route is planned every this many ticks. */
-    private static final long PLAN_GAP_TICKS = 4;
-    private static final int MAX_ROUTES = 24;
-
-    public static final byte SUPPORT_NONE = 0;
-    public static final byte SUPPORT_BLOCK = 1;
-    public static final byte SUPPORT_LADDER = 2;
-
-    private static final List<Route> ACTIVE = new ArrayList<>();
-    private static long lastPlan = Long.MIN_VALUE / 2;
-
-    public enum Work { DIG, BLOCK, LADDER }
+    public enum Work { DIG, BLOCK }
 
     public record Action(BlockPos pos, Work work) {
         public boolean dig() {
@@ -51,33 +27,25 @@ public final class Route {
         }
     }
 
+    /** Blocks at least this hard count as "hard" (obsidian ...): the siege sends more miners. */
+    static final float HARD_BLOCK = 10.0F;
+
     public final BlockPos corePos;
-    public final boolean complete;
     public final long created;
     private final BlockPos[] nodes;
     private final BlockPos[][] clears;
     private final BlockPos[] supports;
-    private final byte[] supportKinds;
     private boolean invalid;
-    /** Step where work is going on (or waiting to be done). */
-    private int frontier;
-    private long lastWork = Long.MIN_VALUE / 2;
-    private long lastNeedDig = Long.MIN_VALUE / 2;
-    private long lastNeedBuild = Long.MIN_VALUE / 2;
-    private long lastBuilderWork = Long.MIN_VALUE / 2;
     private long lastProgress;
     /** Mobs on this route: entity id -> {route index, 1 if working, last seen}. */
     private final Map<Integer, long[]> members = new HashMap<>();
     private static final long MEMBER_TICKS = 30;
 
-    Route(BlockPos corePos, BlockPos[] nodes, BlockPos[][] clears, BlockPos[] supports, byte[] supportKinds,
-          boolean complete, long created) {
+    Route(BlockPos corePos, BlockPos[] nodes, BlockPos[][] clears, BlockPos[] supports, long created) {
         this.corePos = corePos.immutable();
         this.nodes = nodes;
         this.clears = clears;
         this.supports = supports;
-        this.supportKinds = supportKinds;
-        this.complete = complete;
         this.created = created;
         this.lastProgress = created;
     }
@@ -98,19 +66,11 @@ public final class Route {
     private void pruneMembers(long now) {
         Iterator<long[]> iterator = members.values().iterator();
         while (iterator.hasNext()) {
-            if (now - iterator.next()[2] > MEMBER_TICKS) {
+            long[] member = iterator.next();
+            if (now - member[2] > MEMBER_TICKS || now < member[2]) {
                 iterator.remove();
             }
         }
-    }
-
-    public int memberCount(long now) {
-        pruneMembers(now);
-        return members.size();
-    }
-
-    public boolean isFull(long now) {
-        return memberCount(now) >= Config.ROUTE_CAPACITY.get();
     }
 
     /** How many other mobs on this route are further ahead (only workers, if asked). */
@@ -129,33 +89,48 @@ public final class Route {
         return count;
     }
 
-    /** True if a mob that can do the next piece of work is on this route right now. */
-    public boolean hasWorker(long now) {
-        pruneMembers(now);
-        for (long[] member : members.values()) {
-            if (member[1] != 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** Work on this route got done (a block dug or placed). */
-    public void noteProgress(long now, boolean builder) {
+    public void noteProgress(long now) {
         lastProgress = now;
-        if (builder) {
-            lastBuilderWork = now;
-        }
     }
 
-    /** True if work on this route got done recently, so waiting for it is not hopeless. */
+    /** True if work on this route got done since then. */
     public boolean progressedSince(long since) {
         return lastProgress >= since;
     }
 
+    public long lastProgress() {
+        return lastProgress;
+    }
+
+    // ------------------------------------------------------------------
+    // Geometry
+    // ------------------------------------------------------------------
+
+    public int size() {
+        return nodes.length;
+    }
+
+    public int last() {
+        return nodes.length - 1;
+    }
+
+    public BlockPos node(int index) {
+        return nodes[Math.max(0, Math.min(index, nodes.length - 1))];
+    }
+
+    @Nullable
+    BlockPos support(int index) {
+        return supports[index];
+    }
+
+    BlockPos[] clears(int index) {
+        return clears[index];
+    }
+
     /**
      * Where mobs gather while the way is still being built: the last step before {@code limit} that stands on
-     * natural ground (the foot of the stairs or ladder). Mobs on the built part only get in each other's way.
+     * natural ground (the foot of the stairs). Mobs on the built part only get in each other's way.
      */
     public int stagingIndex(Level level, int limit) {
         int i = Math.min(limit, nodes.length - 1);
@@ -166,33 +141,12 @@ public final class Route {
     }
 
     private boolean isBuilt(Level level, int index) {
-        if (supportKinds[index] == SUPPORT_LADDER) {
-            return true;
-        }
         BlockPos support = supports[index];
         if (support == null) {
             return false;
         }
         BlockState state = level.getBlockState(support);
-        return state.is(ModBlocks.SIEGE_STONE.get()) || state.is(ModBlocks.SIEGE_LADDER.get())
-                || !RoutePlanner.isSupport(level, support);
-    }
-
-    public int size() {
-        return nodes.length;
-    }
-
-    public BlockPos node(int index) {
-        return nodes[Math.max(0, Math.min(index, nodes.length - 1))];
-    }
-
-    /** True if this step is climbed on a ladder (the step before is straight below). */
-    public boolean isClimb(int index) {
-        return index > 0 && index < nodes.length && supportKinds[index] == SUPPORT_LADDER;
-    }
-
-    public boolean isUsable(BlockPos core, long now) {
-        return !invalid && corePos.equals(core) && now - created < MAX_AGE_TICKS;
+        return state.is(ModBlocks.SIEGE_STONE.get()) || !RoutePlanner.isSupport(level, support);
     }
 
     /** Index of the route position closest to {@code position}, searched around {@code around}; -1 if the mob is off the route. */
@@ -211,17 +165,29 @@ public final class Route {
         return best;
     }
 
-    /** The furthest route position close to the mob (to join a shared route); -1 if none. */
-    public int joinIndex(Vec3 position) {
+    /** The route position the mob is standing at (anywhere on the route, the closest one); -1 if none. */
+    public int findIndex(Vec3 position) {
         int best = -1;
+        double bestDistance = Double.MAX_VALUE;
         for (int i = 0; i < nodes.length; i++) {
             Vec3 node = Vec3.atBottomCenterOf(nodes[i]);
-            if (Math.abs(node.y - position.y) <= 1.1 && node.distanceToSqr(position) <= 4.0) {
-                best = i;
+            double dx = node.x - position.x;
+            double dz = node.z - position.z;
+            double dy = node.y - position.y;
+            if (Math.abs(dy) <= 1.1 && dx * dx + dz * dz <= 1.5 * 1.5) {
+                double distance = dx * dx + dz * dz + dy * dy;
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = i;
+                }
             }
         }
         return best;
     }
+
+    // ------------------------------------------------------------------
+    // Work
+    // ------------------------------------------------------------------
 
     /**
      * First step in [from, to] that still needs work, or -1 if the way is open. Marks the route invalid
@@ -242,7 +208,7 @@ public final class Route {
         return -1;
     }
 
-    /** The next piece of work at step {@code index}: a block to dig (top first), a floor or a ladder to place. */
+    /** The next piece of work at step {@code index}: a block to dig (top first) or a floor to place. */
     @Nullable
     public Action action(Level level, int index) {
         Action action = actionAt(level, index);
@@ -262,201 +228,56 @@ public final class Route {
         if (support == null) {
             return null;
         }
-        if (supportKinds[index] == SUPPORT_LADDER) {
-            if (RoutePlanner.isClimbable(level, support)) {
-                return null;
-            }
-            if (!RoutePlanner.isPassable(level, support)) {
-                // Somebody put a block into the ladder shaft.
-                return RoutePlanner.isDiggable(level, support, corePos) ? new Action(support, Work.DIG) : INVALID;
-            }
-            return RoutePlanner.canPlace(level, support, corePos) ? new Action(support, Work.LADDER) : INVALID;
-        }
         if (!RoutePlanner.isSupport(level, support)) {
             return RoutePlanner.canPlace(level, support, corePos) ? new Action(support, Work.BLOCK) : INVALID;
         }
         return null;
     }
 
+    /**
+     * Counts the work still to do on the whole route: {blocks to place, blocks to dig, hard blocks to dig}.
+     * Also notices if the route became impossible.
+     */
+    int[] countWork(Level level) {
+        int build = 0;
+        int dig = 0;
+        int hard = 0;
+        for (int i = 1; i < nodes.length; i++) {
+            for (BlockPos cell : clears[i]) {
+                if (!RoutePlanner.isPassable(level, cell)) {
+                    if (!RoutePlanner.isDiggable(level, cell, corePos)) {
+                        invalid = true;
+                        continue;
+                    }
+                    dig++;
+                    if (level.getBlockState(cell).getDestroySpeed(level, cell) >= HARD_BLOCK) {
+                        hard++;
+                    }
+                }
+            }
+            BlockPos support = supports[i];
+            if (support != null && !RoutePlanner.isSupport(level, support)) {
+                if (!RoutePlanner.canPlace(level, support, corePos)) {
+                    invalid = true;
+                } else {
+                    build++;
+                }
+            }
+        }
+        // The assembly point itself must stay usable (natural ground, free).
+        BlockPos start = nodes[0];
+        if (!RoutePlanner.isPassable(level, start) || !RoutePlanner.isPassable(level, start.above())
+                || !RoutePlanner.isSupport(level, start.below())) {
+            invalid = true;
+        }
+        return new int[]{build, dig, hard};
+    }
+
     public boolean isInvalid() {
         return invalid;
     }
 
-    /** A worker is busy at this step. */
-    public void markWork(int index, long now) {
-        frontier = index;
-        lastWork = now;
-    }
-
-    /** Mobs are waiting at this step for somebody who can dig (or build). */
-    public void markNeed(int index, boolean dig, long now) {
-        frontier = index;
-        if (dig) {
-            lastNeedDig = now;
-        } else {
-            lastNeedBuild = now;
-        }
-    }
-
-    /** Where mobs that come to help should go: a few steps before the work. */
-    public BlockPos meetingPoint() {
-        return node(Math.max(0, frontier - 2));
-    }
-
-    /** Where the work is. */
-    public BlockPos frontierPos() {
-        return node(frontier);
-    }
-
-    /**
-     * A route nearby that could use this mob: diggers go where somebody waits for a digger, builders where
-     * somebody waits for a builder, everybody else (escorts) goes where workers are busy.
-     * Mobs only help "forwards": the work must be closer to the Core than the helper, so a builder next to the
-     * Core never walks back to a mob stuck in a cave far away.
-     */
-    @Nullable
-    public static Route findHelpWanted(Vec3 position, BlockPos core, boolean canDig, boolean canBuild, double range,
-                                       long now, @Nullable Route exclude) {
-        Route best = null;
-        double bestDistance = range * range;
-        Vec3 coreCenter = Vec3.atCenterOf(core);
-        double helperToCore = position.distanceTo(coreCenter);
-        for (Route route : ACTIVE) {
-            if (route == exclude || !route.isUsable(core, now)) {
-                continue;
-            }
-            boolean wanted;
-            if (canDig || canBuild) {
-                // Builders spread out: a route that already has a builder at work does not need a second one.
-                boolean needsBuilder = canBuild && now - route.lastNeedBuild < 200 && now - route.lastBuilderWork > 100;
-                wanted = (canDig && now - route.lastNeedDig < 200) || needsBuilder;
-            } else if (route.isFull(now)) {
-                wanted = false;
-            } else {
-                wanted = now - route.lastWork < 600;
-            }
-            if (!wanted) {
-                continue;
-            }
-            Vec3 meeting = Vec3.atBottomCenterOf(route.meetingPoint());
-            if (meeting.distanceTo(coreCenter) > helperToCore + 4.0) {
-                continue; // would have to walk away from the Core
-            }
-            double distance = meeting.distanceToSqr(position);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = route;
-            }
-        }
-        return best;
-    }
-
-    // ------------------------------------------------------------------
-    // Shared registry
-    // ------------------------------------------------------------------
-
-    /** An existing route that passes right by the mob and has room, or null. */
-    @Nullable
-    public static Route share(Vec3 position, BlockPos core, long now) {
-        ACTIVE.removeIf(route -> !route.isUsable(core, now));
-        Route best = null;
-        int bestIndex = -1;
-        for (Route route : ACTIVE) {
-            if (now - route.created > SHARE_TICKS || route.isFull(now)) {
-                continue;
-            }
-            int index = route.joinIndex(position);
-            if (index > bestIndex) {
-                bestIndex = index;
-                best = route;
-            }
-        }
-        return best;
-    }
-
-    /** True if a route passes right by the mob but is full (the mob should build a second way next to it). */
-    public static boolean crowdedNear(Vec3 position, BlockPos core, long now) {
-        for (Route route : ACTIVE) {
-            if (route.isUsable(core, now) && route.joinIndex(position) >= 0 && route.isFull(now)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Feet positions of all active routes (a second lane avoids them). */
-    static LongOpenHashSet usedNodes(BlockPos core, long now) {
-        LongOpenHashSet set = new LongOpenHashSet();
-        for (Route route : ACTIVE) {
-            if (route.isUsable(core, now)) {
-                for (BlockPos node : route.nodes) {
-                    set.add(node.asLong());
-                }
-            }
-        }
-        return set;
-    }
-
-    /** All routes the siege currently knows (for the AI view). */
-    public static List<Route> active() {
-        return java.util.Collections.unmodifiableList(ACTIVE);
-    }
-
-    /** Cells that existing routes need free (feet, head, dug cells). New routes must not build there. */
-    static LongOpenHashSet reservedClear(BlockPos core, long now) {
-        LongOpenHashSet set = new LongOpenHashSet();
-        for (Route route : ACTIVE) {
-            if (!route.isUsable(core, now)) {
-                continue;
-            }
-            for (int i = 0; i < route.nodes.length; i++) {
-                set.add(route.nodes[i].asLong());
-                set.add(route.nodes[i].above().asLong());
-                for (BlockPos cell : route.clears[i]) {
-                    set.add(cell.asLong());
-                }
-            }
-        }
-        return set;
-    }
-
-    /** Floor blocks existing routes stand on. New routes must not dig them away. */
-    static LongOpenHashSet reservedSupport(BlockPos core, long now) {
-        LongOpenHashSet set = new LongOpenHashSet();
-        for (Route route : ACTIVE) {
-            if (!route.isUsable(core, now)) {
-                continue;
-            }
-            for (int i = 0; i < route.nodes.length; i++) {
-                if (route.supports[i] != null && route.supportKinds[i] == SUPPORT_BLOCK) {
-                    set.add(route.supports[i].asLong());
-                }
-            }
-        }
-        return set;
-    }
-
-    public static boolean canPlan(long now) {
-        return now - lastPlan >= PLAN_GAP_TICKS || now < lastPlan;
-    }
-
-    @Nullable
-    public static Route plan(ServerLevel level, BlockPos start, BlockPos core, int coreLevel, int bound, long now,
-                             boolean newLane) {
-        lastPlan = now;
-        ACTIVE.removeIf(route -> !route.isUsable(core, now));
-        Route route = RoutePlanner.plan(level, start, core, coreLevel, bound, now, newLane);
-        if (route != null) {
-            ACTIVE.add(route);
-            while (ACTIVE.size() > MAX_ROUTES) {
-                ACTIVE.remove(0);
-            }
-        }
-        return route;
-    }
-
-    public static void clear() {
-        ACTIVE.clear();
-        lastPlan = Long.MIN_VALUE / 2;
+    void invalidate() {
+        invalid = true;
     }
 }

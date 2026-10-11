@@ -10,6 +10,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.neoforge.common.NeoForge;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
@@ -42,12 +43,12 @@ public final class SiegeEvents {
         NeoForge.EVENT_BUS.addListener(SiegeTeam::onLeaveLevel);
     }
 
-    /** Monsters in caves are no use to the siege (unless the cave is at about the Core's height). */
+    /** Underground Core: caves this close to the Core's height belong to the siege. */
     private static final int CAVE_BAND = 10;
 
     /**
      * No natural monster spawns in caves inside the siege area: they cannot reach the Core, cost performance and
-     * fill the area. Caves at about the Core's height (e.g. a cave base) are left alone.
+     * fill the area. Only if the Core itself is underground (a cave base), caves at about its height are left alone.
      */
     private static void onSpawnCheck(MobSpawnEvent.PositionCheck event) {
         if (event.getSpawnType() != MobSpawnType.NATURAL || !Config.BLOCK_CAVE_SPAWNS.get()) {
@@ -62,9 +63,14 @@ public final class SiegeEvents {
             return;
         }
         BlockPos pos = BlockPos.containing(event.getX(), event.getY(), event.getZ());
-        if (Math.abs(pos.getY() - siege.corePos.getY()) > CAVE_BAND && !mob.level().canSeeSky(pos)) {
-            event.setResult(MobSpawnEvent.PositionCheck.Result.FAIL);
+        int surface = mob.level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
+        if (pos.getY() >= surface - 1) {
+            return; // on the surface
         }
+        if (siege.underground && Math.abs(pos.getY() - siege.corePos.getY()) <= CAVE_BAND) {
+            return;
+        }
+        event.setResult(MobSpawnEvent.PositionCheck.Result.FAIL);
     }
 
     /**
