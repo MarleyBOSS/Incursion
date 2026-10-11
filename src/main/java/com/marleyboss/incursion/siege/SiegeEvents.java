@@ -139,7 +139,9 @@ public final class SiegeEvents {
         if (newTarget instanceof Player player) {
             redirect = !Targeting.prefersPlayer(mob, player, siege, zone);
         } else {
-            redirect = newTarget == null || (zone == ActiveSiege.ZONE_CORE && MobRoles.of(mob).isWorker());
+            // Villagers, turtles, animals ...: ignored (only things that fight back, like iron golems, count).
+            redirect = newTarget == null || (zone == ActiveSiege.ZONE_CORE && MobRoles.of(mob).isWorker())
+                    || !Targeting.fightsBack(mob, newTarget);
         }
         if (redirect) {
             event.setNewAboutToBeSetTarget(siege.target);

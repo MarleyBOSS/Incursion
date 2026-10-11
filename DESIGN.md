@@ -93,11 +93,19 @@ Mit jeder Stufe stärker:
   - **Plattform:** Bis zu 5 Felder neben und hinter dem Angriffsplatz, damit mehrere Mobs gleichzeitig zuschlagen. Baumeister bauen sie, sobald der Weg offen ist.
   - **Spawns nach Plan:** Alle Mobs erscheinen am Sammelplatz. Reihenfolge: zuerst fehlende Baumeister (1, ab 10 Blöcken und Limit ≥ 6: 2), dann Gräber (1–3, 3 bei harten Blöcken wie Obsidian), höchstens 2 Begleiter, solange gebaut wird; Angreifer erst, wenn höchstens 3 Arbeitsschritte übrig sind. Hat eine Front keinen Baumeister/Gräber, wird ein Zombie der Front umgeschult; geht das nicht, darf 1 Arbeiter über dem Limit spawnen (max. +2).
   - **Ablauf am Weg:** wie v0.7 (vorne max. 2 Bauende bzw. 3 Grabende, 2 Wartende, Rest am Fuß; Sturm, wenn offen). Langsame Gräber (z. B. Baumeister an Obsidian) überlassen den Block einem mit passendem Werkzeug, wenn einer da ist.
-  - **Neu planen:** Weg unmöglich (z. B. Grundgestein gesetzt) oder 3 min ohne Fortschritt → neuer Plan (vorhandene Treppen werden mitgenutzt). Zweite Front (Config `maxFronts`, Standard 2) auf einer anderen Seite, wenn die erste offen ist und das Limit ≥ 8 ist.
+  - **Neu planen:** Weg unmöglich (z. B. Grundgestein gesetzt) oder 3 min ohne Fortschritt → neuer Plan (vorhandene Treppen werden mitgenutzt). Weitere Fronten: siehe v0.7.2.
   - **Höhlen-Mobs:** Wer seinen Sammelplatz 30 s lang nicht näher kommt, verschwindet (Belagerungs-Mobs und natürliche Mobs ohne Namensschild). Natürliche Spawns im Belagerungsgebiet unter der Oberfläche sind ganz aus (außer bei unterirdischem Kern ±10).
   - **Graben:** Eine Spitzhacke gräbt Obsidian ohne Tier-Strafe (Stein-Spitzhacke ca. 54 s pro Block und Gräber, mehrere Gräber addieren sich).
   - **Luftlandung:** nur noch Grundchance (3 % + 1 %/Stufe); ohne möglichen Plan wie bisher häufig.
   - **KI-Anzeige:** Plan im Chat (Seite, Blöcke bauen/abbauen, Sammelplatz), Partikel: gelb Sammelplatz, weiß Weg, lila Plattform, rot/blau nächster Arbeitsschritt.
+- **v0.7.2** (Test v0.7.1: Baumeister baut sicher zum Kern, aber nur eine schmale Treppe, zu wenige Mobs, Höhlen-Mobs, Zombies jagen Dorfbewohner, kaum Skelette/Creeper):
+  - **Mehrere Fronten gleichzeitig:** Config `fronts` (Standard 4): Stufe 0–4 → 1, 5–9 → 2, 10–14 → 3, ab 15 → 4 Treppen, jede auf einer anderen Kernseite, höchstens Limit/5 Fronten. Weitere Fronten werden 10 s nach der vorigen geplant (nicht erst wenn die erste offen ist). Jede Front hat ihre eigenen Baumeister/Gräber.
+  - **Angreifer ohne Begleiter-Limit:** Alle Mobs bis zum Limit (Stufe 20: 42) werden gespawnt, auch während gebaut wird (v0.7.1 hielt sie zurück → nur 4 Angreifer). Offene Fronten bekommen sie zuerst; wer vor einer unfertigen Treppe wartet, läuft zu einer offenen Front. Pro Spawn-Runde höchstens 1 Luftlandung.
+  - **Breite Treppe:** Neben jedem gesetzten Treppenblock setzt der Baumeister einen zweiten (2 Blöcke breit, wenn Platz ist). Plattform am Kern 3×3 statt 5 Felder.
+  - **„Unterirdisch“ strenger:** Nur noch Kerne unter Meereshöhe − 8 mit Fels darüber; sonst nie Sammelplatz in Höhlen. Sammelplatz nicht am Grund einer Schlucht/Grube (die meisten Nachbarsäulen ≥ 3 höher).
+  - **Höhlen-Mobs weg:** Siege-Mob > 5 Blöcke unter der Oberfläche und tiefer als Kern − 2, nicht auf einer Route → verschwindet sofort (Ersatz spawnt); natürliche Mobs verlassen die Belagerung.
+  - **Dorfbewohner ignoriert:** Belagerungs-Mobs bekommen als Ziel nur Spieler, den Kern oder etwas, das sie angreift (Golem, Angreifer). Dorfbewohner, Tiere usw. werden umgeleitet.
+  - **Umschulen/Zählen:** Nur eigene Siege-Mobs zählen für den Plan; umgeschult wird nur ein Zombie am Weg oder am Sammelplatz.
 - **Kern-GUI (v0.5):** Schalter „Grenzen“ (grüner Ring um Totems, lila Ring um den Kern, weit sichtbar) und „KI-Anzeige“ (Namensschild mit Rolle und Tätigkeit über jedem Angreifer, Routen als Partikel: weiß Weg, rot abbauen, blau bauen, gelb Leiter).
 
 ## Schild
@@ -122,7 +130,8 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 | v0.5 | KI-Neubau: direkter Kernangriff, Schusspositionen, Routen-Hüpfen, Belagerungsstein, GUI-Schalter Grenzen/KI-Anzeige | getestet: Baumeister zu schwach |
 | v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle Zombies graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | getestet: Kern fällt (v. a. durch Phantome), Gedränge, Höhlen-Mobs |
 | v0.7 | Einheit: kein Schieben, Sammeln/Stürmen, mehrere Wege, Leitern bevorzugt, verirrte Mobs, Oberflächen-Spawns, seltene Luftlandung | getestet: schlechter |
-| v0.7.1 | Kommandant: zentraler Plan, Treppe + Plattform, Spawns am Sammelplatz nach Bedarf | gebaut |
+| v0.7.1 | Kommandant: zentraler Plan, Treppe + Plattform, Spawns am Sammelplatz nach Bedarf | getestet: baut sicher, aber nur 1 Treppe, zu wenige Mobs |
+| v0.7.2 | Mehrere Fronten, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | gebaut, **Test ausstehend** |
 | v0.8 | Schild-Kuppel, Sicherungsexplosion, Reparatur | geplant |
 | v0.9 | Vorteile: Items, Energie, Buffs | geplant |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Anbindung, eigene Items | geplant |

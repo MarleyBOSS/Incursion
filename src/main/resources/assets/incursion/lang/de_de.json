@@ -194,5 +194,5 @@
   "message.incursion.plan.front": "Belagerungsplan: Angriff von %s. Zu bauen: %s Blöcke, abzubauen: %s (%s harte). Sammelplatz: %s %s %s",
   "message.incursion.plan.replan": "Belagerungsplan: Weg blockiert oder festgefahren, plane neu.",
   "message.incursion.plan.failed": "Belagerungsplan: kein Weg zum Kern gefunden. Angreifer kommen aus der Luft.",
-  "incursion.configuration.maxFronts": "Max. Angriffslinien"
+  "incursion.configuration.fronts": "Gleichzeitige Angriffslinien"
 }

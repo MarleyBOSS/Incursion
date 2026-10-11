@@ -122,6 +122,17 @@ public final class SiegeManager {
             if (zone == ActiveSiege.ZONE_OUTSIDE) {
                 continue;
             }
+            if (inCave(level, siege, mob, zone)) {
+                // Deep in a cave below a Core on the surface: no use to the siege. Natural monsters just stay
+                // normal cave monsters; siege mobs disappear (the siege sends a new one to a front).
+                if (mob.getTags().contains(SIEGE_TAG)) {
+                    SiegeAI.recall(level, mob);
+                    siegeMobs--;
+                } else {
+                    SiegeAI.releaseFromSiege(mob);
+                }
+                continue;
+            }
             attackers.add(mob);
             if (MobRoles.of(mob) == MobRoles.Role.FIRE_ARCHER) {
                 fireArchers.add(mob);
@@ -327,6 +338,7 @@ public final class SiegeManager {
         int maxDistance = Math.max(minDistance + 4,
                 Math.min(Config.SPAWN_MAX_DISTANCE.get(), Config.siegeRadiusBlocks(coreLevel) - 4));
         int spawned = 0;
+        boolean airDropped = false;
         for (int i = 0; i < count; i++) {
             SiegeCommander.SpawnOrder order = SiegeCommander.nextSpawn(max);
             if (order == null) {
@@ -334,15 +346,18 @@ public final class SiegeManager {
             }
             MobRoles.Role role = order.role();
             EntityType<?> type = role != null ? zombieType(pool, random) : pool.get(random.nextInt(pool.size()));
-            if (role == null && SiegeAirDrop.isEnabled() && SiegeAirDrop.canCarry(type) && random.nextDouble() < airChance
+            // At most one attacker per spawn round comes by air (the siege takes its ways, air drops stay rare).
+            if (role == null && !airDropped && SiegeAirDrop.isEnabled() && SiegeAirDrop.canCarry(type)
+                    && random.nextDouble() < airChance
                     && airDrop(level, core, coreLevel, type, target, minDistance, maxDistance, random, now)) {
+                airDropped = true;
                 SiegeCommander.noteOrdered(order);
                 spawned++;
                 continue;
             }
             BlockPos spawnPos = assemblySpot(level, order.front().assembly(), random);
             if (spawnPos == null) {
-                break;
+                continue; // somebody stands on every spot of this front's assembly point: maybe another front
             }
             Mob mob = createSiegeMob(level, type, spawnPos, coreLevel, random, now, role, true);
             if (mob == null) {
@@ -510,13 +525,40 @@ public final class SiegeManager {
         return false;
     }
 
-    /** The Core is underground (e.g. a cave base): rock above it, far below the surface. */
+    /**
+     * The Core is underground (e.g. a cave base): below sea level, rock above it, far below the surface.
+     * Only then may the siege use caves; a Core higher up is always attacked from the surface.
+     */
     private static boolean isUnderground(ServerLevel level, BlockPos core) {
+        if (core.getY() >= level.getSeaLevel() - UNDERGROUND_BELOW_SEA) {
+            return false;
+        }
         int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, core.getX(), core.getZ());
         return top - core.getY() > UNDERGROUND_DEPTH && !level.canSeeSky(core.above());
     }
 
     private static final int UNDERGROUND_DEPTH = 12;
+    /** A Core counts as underground only this far below sea level (sea level 63 -> below y 55). */
+    private static final int UNDERGROUND_BELOW_SEA = 8;
+    /** A mob this far below the surface (outside the core zone) is in a cave. */
+    private static final int CAVE_DEPTH = 5;
+
+    /**
+     * True if the mob is deep in a cave (below the surface) while the Core is not underground. Siege mobs on a
+     * front's way (e.g. a tunnel the miners dug) do not count.
+     */
+    private static boolean inCave(ServerLevel level, ActiveSiege siege, Mob mob, int zone) {
+        if (siege.underground || zone == ActiveSiege.ZONE_CORE || mob.isPassenger()) {
+            return false;
+        }
+        BlockPos pos = mob.blockPosition();
+        int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
+        if (pos.getY() >= top - CAVE_DEPTH || pos.getY() >= siege.corePos.getY() - 2) {
+            return false; // on the surface, or not below the Core (then it is in some building, not in a cave)
+        }
+        SiegeAI.MobState state = SiegeAI.stateOf(mob);
+        return state == null || state.routeIndex < 0;
+    }
     /** Underground Core: mobs may spawn in caves and tunnels this close to the Core's height. */
     private static final int CAVE_BAND = 5;
 

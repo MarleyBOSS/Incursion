@@ -4,6 +4,7 @@ import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.siege.MobRoles.Role;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.animal.AbstractGolem;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ProjectileWeaponItem;
@@ -91,6 +92,17 @@ public final class Targeting {
         return best;
     }
 
+    /**
+     * True for a non-player target the mob may keep fighting: something that attacks it (an iron golem, a
+     * tamed wolf ...). Villagers, animals and the like are ignored: the siege is about the Core.
+     */
+    public static boolean fightsBack(Mob mob, LivingEntity other) {
+        if (other instanceof AbstractGolem || other == mob.getLastHurtByMob()) {
+            return true;
+        }
+        return other instanceof Mob attacker && attacker.getTarget() == mob;
+    }
+
     /** Once per second: point the mob at the right target. */
     public static void update(Mob mob, ActiveSiege siege, int zone) {
         LivingEntity current = mob.getTarget();
@@ -98,7 +110,7 @@ public final class Targeting {
             return;
         }
         if (current != null && current != siege.target && !(current instanceof Player) && current.isAlive()
-                && zone != ActiveSiege.ZONE_CORE) {
+                && zone != ActiveSiege.ZONE_CORE && fightsBack(mob, current)) {
             return; // fighting an iron golem or similar
         }
         Player player = findPlayer(mob, siege, zone);

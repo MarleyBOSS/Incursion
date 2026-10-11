@@ -40,11 +40,10 @@ public final class SiegeCommander {
     /** An unfinished way without any progress for this long is planned again. */
     private static final long STALE_TICKS = 3600;
     private static final long PROMOTE_TICKS = 100;
-    private static final long SECOND_FRONT_DELAY = 1200;
-    /** While the way is being built, at most this many non-workers per front. */
-    private static final int ESCORTS_WHILE_BUILDING = 2;
-    /** With this little work left the way counts as "almost open": the attackers are sent. */
-    private static final int ALMOST_OPEN = 3;
+    /** A further front is planned at the earliest this long after the newest one. */
+    private static final long NEXT_FRONT_DELAY = 200;
+    /** Each front needs at least this many mobs of the siege's limit (otherwise fewer fronts are built). */
+    private static final int MOBS_PER_FRONT = 5;
 
     /** What the siege should spawn next: a mob for this front, with this role (null = an attacker). */
     public record SpawnOrder(SiegeFront front, @Nullable Role role) {
@@ -127,8 +126,8 @@ public final class SiegeCommander {
         }
         for (Mob mob : attackers) {
             SiegeFront front = SiegeAI.frontOf(mob);
-            if (front == null || !FRONTS.contains(front)) {
-                continue;
+            if (front == null || !FRONTS.contains(front) || !isSiegeMob(mob)) {
+                continue; // naturally spawned monsters may help, but the siege does not count on them
             }
             Role role = MobRoles.of(mob);
             front.roleCounts[role.ordinal()]++;
@@ -145,15 +144,13 @@ public final class SiegeCommander {
             }
         }
 
-        // 4. Plan (another) front.
-        boolean allOpen = true;
+        // 4. Plan (another) front: several ways are built at the same time (more at higher levels).
         long newest = Long.MIN_VALUE / 2;
         for (SiegeFront front : FRONTS) {
-            allOpen &= front.open;
             newest = Math.max(newest, front.created);
         }
-        boolean wanted = FRONTS.isEmpty() || (FRONTS.size() < Config.MAX_FRONTS.get() && allOpen && maxMobs >= 8
-                && now - newest > SECOND_FRONT_DELAY);
+        int frontsWanted = Math.min(Config.frontsFor(siege.coreLevel), Math.max(1, maxMobs / MOBS_PER_FRONT));
+        boolean wanted = FRONTS.isEmpty() || (FRONTS.size() < frontsWanted && now - newest > NEXT_FRONT_DELAY);
         if (job == null && wanted && now >= nextAttempt) {
             job = newPlanner(level, siege, wards, now);
         }
@@ -260,9 +257,20 @@ public final class SiegeCommander {
         return null;
     }
 
-    /** True if attackers should be sent to this front now (the way is open or almost open, or escorts are missing). */
-    private static boolean wantsAttackers(SiegeFront front) {
-        return front.open || front.totalWork() <= ALMOST_OPEN || front.others() < ESCORTS_WHILE_BUILDING;
+    /** An open front (way finished) with the fewest members, or null. */
+    @Nullable
+    static SiegeFront openFront() {
+        SiegeFront best = null;
+        for (SiegeFront front : FRONTS) {
+            if (front.open && (best == null || front.members < best.members)) {
+                best = front;
+            }
+        }
+        return best;
+    }
+
+    static boolean isSiegeMob(Mob mob) {
+        return mob.getTags().contains(SiegeManager.SIEGE_TAG);
     }
 
     /** The next mob the siege should spawn, or null if nothing is wanted right now. */
@@ -284,9 +292,12 @@ public final class SiegeCommander {
         if (best != null) {
             return new SpawnOrder(best, bestRole);
         }
-        // Then attackers, to the front with the fewest members that wants them.
+        // Then attackers (up to the siege's limit), to the front with the fewest members; open ways first.
+        int bestScore = Integer.MAX_VALUE;
         for (SiegeFront front : FRONTS) {
-            if (wantsAttackers(front) && (best == null || front.members + front.others() < best.members + best.others())) {
+            int score = front.members + (front.open ? 0 : 4);
+            if (score < bestScore) {
+                bestScore = score;
                 best = front;
             }
         }
@@ -334,7 +345,13 @@ public final class SiegeCommander {
         int candidateScore = Integer.MAX_VALUE;
         for (Mob mob : attackers) {
             if (!(mob instanceof Zombie zombie) || !MobRoles.isZombieRoleType(zombie) || zombie.isBaby()
-                    || SiegeAI.frontOf(mob) != front || mob.isPassenger()) {
+                    || SiegeAI.frontOf(mob) != front || mob.isPassenger() || !isSiegeMob(mob)) {
+                continue;
+            }
+            // Only a zombie that is already on the way or at its foot (not one still stuck somewhere).
+            SiegeAI.MobState state = SiegeAI.stateOf(mob);
+            boolean onWay = state != null && state.routeIndex >= 0;
+            if (!onWay && mob.position().distanceTo(net.minecraft.world.phys.Vec3.atBottomCenterOf(front.assembly())) > 6.0) {
                 continue;
             }
             Role role = MobRoles.of(mob);

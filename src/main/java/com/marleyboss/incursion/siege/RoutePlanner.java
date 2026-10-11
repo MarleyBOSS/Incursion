@@ -270,6 +270,9 @@ public final class RoutePlanner {
         if (!surface && !cave) {
             return false;
         }
+        if (!cave && isPit(n.x, n.y, n.z)) {
+            return false; // bottom of a ravine or pit: the attackers would gather (and get stuck) down there
+        }
         for (BlockPos ward : wards) {
             double wx = n.x - ward.getX();
             double wz = n.z - ward.getZ();
@@ -279,6 +282,22 @@ public final class RoutePlanner {
         }
         return true;
     }
+
+    /** Most of the ground a few blocks around is much higher: a ravine, a pit or a cave opening. */
+    private boolean isPit(int x, int y, int z) {
+        int higher = 0;
+        for (int dx = -PIT_RANGE; dx <= PIT_RANGE; dx += PIT_RANGE) {
+            for (int dz = -PIT_RANGE; dz <= PIT_RANGE; dz += PIT_RANGE) {
+                if ((dx != 0 || dz != 0) && columnTop(x + dx, z + dz) > y + PIT_DEPTH) {
+                    higher++;
+                }
+            }
+        }
+        return higher >= 5;
+    }
+
+    private static final int PIT_RANGE = 3;
+    private static final int PIT_DEPTH = 3;
 
     private float heuristic(int x, int y, int z) {
         double dx = x - core.getX();
@@ -532,8 +551,80 @@ public final class RoutePlanner {
         }
         Route route = new Route(core, positions, clears, supports, now);
         Direction side = Direction.from2DDataValue(path.get(size - 1).side);
-        result = new Result(route, side, platform(route, side));
+        List<BlockPos> platform = platform(route, side);
+        route.setWings(wings(route, platform));
+        result = new Result(route, side, platform);
         done = true;
+    }
+
+    /**
+     * A second column next to every stair block the siege has to build, so the stairs are two blocks wide
+     * (more room, mobs fall off less). The builder places it together with the stair block. Cells this route,
+     * its platform or another front need free are left out, and the second column stays on one side where possible.
+     */
+    private BlockPos[] wings(Route route, List<BlockPos> platform) {
+        LongOpenHashSet keepFree = new LongOpenHashSet();
+        keepFree.add(core.asLong());
+        for (int i = 0; i < route.size(); i++) {
+            keepFree.add(route.node(i).asLong());
+            keepFree.add(route.node(i).above().asLong());
+            for (BlockPos cell : route.clears(i)) {
+                keepFree.add(cell.asLong());
+            }
+        }
+        for (BlockPos spot : platform) {
+            keepFree.add(spot.asLong());
+            keepFree.add(spot.above().asLong());
+        }
+        BlockPos[] wings = new BlockPos[route.size()];
+        Direction preferred = null;
+        for (int i = 1; i < route.size(); i++) {
+            BlockPos support = route.support(i);
+            if (support == null || cell(support.getX(), support.getY(), support.getZ()).support() != SUPPORT_PLACEABLE) {
+                continue; // natural ground there: nothing to build
+            }
+            Direction move = horizontal(route.node(i - 1), route.node(i));
+            if (move == null) {
+                continue;
+            }
+            Direction first = move.getClockWise();
+            Direction second = move.getCounterClockWise();
+            if (preferred == second) {
+                first = second;
+                second = move.getClockWise();
+            }
+            for (Direction perp : new Direction[]{first, second}) {
+                BlockPos wing = support.relative(perp);
+                long key = wing.asLong();
+                if (keepFree.contains(key) || avoidClear.contains(key)) {
+                    continue;
+                }
+                byte wingSupport = cell(wing.getX(), wing.getY(), wing.getZ()).support();
+                if (wingSupport == SUPPORT_SOLID) {
+                    preferred = perp; // already wide there
+                    break;
+                }
+                if (wingSupport == SUPPORT_PLACEABLE) {
+                    wings[i] = wing.immutable();
+                    preferred = perp;
+                    break;
+                }
+            }
+        }
+        return wings;
+    }
+
+    @Nullable
+    private static Direction horizontal(BlockPos from, BlockPos to) {
+        int dx = Integer.signum(to.getX() - from.getX());
+        int dz = Integer.signum(to.getZ() - from.getZ());
+        if (dx != 0 && dz == 0) {
+            return dx > 0 ? Direction.EAST : Direction.WEST;
+        }
+        if (dz != 0 && dx == 0) {
+            return dz > 0 ? Direction.SOUTH : Direction.NORTH;
+        }
+        return null;
     }
 
     /**
@@ -556,10 +647,15 @@ public final class RoutePlanner {
         }
         BlockPos attackPos = route.node(route.last());
         Direction left = side.getClockWise();
-        Direction right = side.getCounterClockWise();
-        BlockPos behind = attackPos.relative(side);
-        BlockPos[] candidates = {attackPos.relative(left), attackPos.relative(right), behind,
-                behind.relative(left), behind.relative(right)};
+        // A 3 x 3 area in front of the Core (the attack position in the middle of its first row).
+        List<BlockPos> candidates = new ArrayList<>();
+        for (int along = 0; along <= 2; along++) {
+            for (int across : new int[]{0, -1, 1}) {
+                if (along != 0 || across != 0) {
+                    candidates.add(attackPos.relative(side, along).relative(left, across));
+                }
+            }
+        }
         List<BlockPos> platform = new ArrayList<>();
         for (BlockPos spot : candidates) {
             if (routeClear.contains(spot.below().asLong()) || routeSupport.contains(spot.asLong())
@@ -575,6 +671,10 @@ public final class RoutePlanner {
             }
             if (onRoute) {
                 continue;
+            }
+            if (avoidClear.contains(spot.below().asLong()) || avoidSupport.contains(spot.asLong())
+                    || avoidSupport.contains(spot.above().asLong())) {
+                continue; // another front's way
             }
             if (cell(spot.getX(), spot.getY(), spot.getZ()).clear() == INF
                     || cell(spot.getX(), spot.getY() + 1, spot.getZ()).clear() == INF

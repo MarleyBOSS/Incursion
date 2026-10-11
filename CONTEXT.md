@@ -18,9 +18,11 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - **Priorität des Nutzers:** Der Kern muss auf **jeder Stufe und in jeder Höhe** zuverlässig zerstört werden können. Erst danach geht es weiter (Schild usw.).
 - v0.6 getestet: Kern wird fast immer zerstört, aber v. a. durch Phantome (zu oft, machen Mauern sinnlos). Baumeister bauten Treppen (keine Leitern); Mobs blockierten sich auf der Treppe, Baumeister kam nach Sturz nicht wieder hoch; viele Mobs in Höhlen weit weg, die nie starben (Performance). Wunsch: Mobs als Einheit, mehrere Treppen, Phantome nur vereinzelt / hohe Stufe / ohne Alternative. Höhlenbasen sollen möglich bleiben.
 - v0.7 getestet: **schlechter**. Kern (in der Luft, in Obsidian eingebaut, auf Holzstamm) wurde nicht zerstört. Baumeister baute Leitern (hässlich) bis *über* den Kern, oben standen alle nur rum (konnten nicht nach unten graben). Viele Mobs in Höhlen („sammelt sich“, „wartet auf Baumeister“), die blieben. Mehrere Angreifer, aber nur ein Baumeister. Nutzer-Wunsch: Mobs sollen **als Gruppe analysieren und planen** (Kern in der Luft + eingebaut → Treppe auf Kernhöhe + Plattform, frontal freilegen), **effizient und langfristig**, Spawns passend zum Plan.
-- **v0.7.1 „Kommandant“** gebaut, **Test ausstehend**: KI grundlegend umgebaut (siehe DESIGN.md): ein zentraler Plan pro Front statt Einzel-Routen pro Mob. Planer sucht rückwärts vom Kern (Angriffsplatz seitlich am Kern, Hülle dort aufbrechen) zum Sammelplatz auf natürlichem Boden (Oberfläche, ≥ Kernzone + 6). Nur Treppen/Brücken/Graben, **keine Leitern mehr**. Plattform (bis 5 Felder) am Angriffsplatz. Spawns nur am Sammelplatz; erst Baumeister/Gräber, max. 2 Begleiter, Angreifer erst wenn der Weg (fast) offen ist; fehlt ein Arbeiter, wird ein Zombie umgeschult. Wer den Sammelplatz 30 s nicht erreicht, verschwindet (auch natürliche Mobs ohne Namen). Natürliche Höhlen-Spawns im Gebiet ganz aus (außer Kern unterirdisch). Spitzhacke gräbt Obsidian ohne Tier-Strafe. Offline-Simulation des Planers (4 Szenarien) ok.
+- **v0.7.1 „Kommandant“** getestet: Baumeister baut jetzt **sicher** zum Kern (3 von 3), aber nur **eine schmale Treppe** (nur 1 Baumeister/Front), nur 4 von 42 Angreifer (Spawns wurden zurückgehalten), viele Mobs in Höhlen (Sammelplatz in Höhle, weil Kern als „unterirdisch“ galt), Zombies gingen auf Dorfbewohner, kaum Skelette/Creeper. Wunsch: mehrere Treppen/Türme (Spinnen klettern, Zombies/Skelette stehen), Plattform, Spawnpunkt höher wenn der Kern nicht tief liegt. Aufbau von v0.7.1: KI grundlegend umgebaut (siehe DESIGN.md): ein zentraler Plan pro Front statt Einzel-Routen pro Mob. Planer sucht rückwärts vom Kern (Angriffsplatz seitlich am Kern, Hülle dort aufbrechen) zum Sammelplatz auf natürlichem Boden (Oberfläche, ≥ Kernzone + 6). Nur Treppen/Brücken/Graben, **keine Leitern mehr**. Plattform (bis 5 Felder) am Angriffsplatz. Spawns nur am Sammelplatz; erst Baumeister/Gräber, max. 2 Begleiter, Angreifer erst wenn der Weg (fast) offen ist; fehlt ein Arbeiter, wird ein Zombie umgeschult. Wer den Sammelplatz 30 s nicht erreicht, verschwindet (auch natürliche Mobs ohne Namen). Natürliche Höhlen-Spawns im Gebiet ganz aus (außer Kern unterirdisch). Spitzhacke gräbt Obsidian ohne Tier-Strafe. Offline-Simulation des Planers (4 Szenarien) ok.
 - Ungetestet/riskant: Laufen auf 1 breiter Treppe (Hüpf-Fallback vorhanden), Plattformbau, zweite Front, Rechenzeit großer Pläne (läuft verteilt, 20 000 Knoten/s).
-- Neuer Config-Schlüssel: `maxFronts` (2). `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
+- **v0.7.2** gebaut (**kann hier nicht kompiliert werden, CI prüfen**), **Test ausstehend**: `fronts` (4) statt `maxFronts`: Stufe 0–4: 1, 5–9: 2, 10–14: 3, 15+: 4 Treppen gleichzeitig auf verschiedenen Seiten; alle Angreifer bis zum Limit sofort (offene Fronten zuerst); Treppe 2 breit; Plattform 3×3; „unterirdisch“ nur noch unter Meereshöhe − 8 (sonst nie Höhlen-Sammelplatz), kein Sammelplatz in Schluchten; Mobs in Höhlen verschwinden sofort; Dorfbewohner/Tiere werden ignoriert. Details in DESIGN.md.
+- Offen/nächste Ideen, falls v0.7.2 nicht reicht: echte Türme für Spinnen, Skelette auf erhöhter Plattform, Spawn-Gewichtung (Skelette/Creeper) prüfen.
+- `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
 - KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
 
 ## Projekt
@@ -38,7 +40,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   `gh api repos/MarleyBOSS/Incursion/releases/tags/dev` → Asset-ID → `gh api -H "Accept: application/octet-stream" repos/MarleyBOSS/Incursion/releases/assets/<id> > incursion.jar`
 - Commit-Nachrichten enden mit den Attributionszeilen, die die Umgebung vorgibt.
 
-## Code-Struktur (Stand v0.7.1)
+## Code-Struktur (Stand v0.7.2)
 
 | Datei | Zweck |
 |---|---|
@@ -99,7 +101,8 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.5 | KI-Neubau: direkter Kernangriff, Schusspositionen, Routen-Hüpfen, Belagerungsstein, GUI-Schalter Grenzen/KI-Anzeige | getestet: Skelette gut, Baumeister schwach |
 | v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | getestet: Kern fällt, aber Phantome zu stark, Gedränge, Höhlen-Mobs |
 | v0.7 | Einheit: kein Schieben, Sammeln/Stürmen, mehrere Wege, Leitern, verirrte Mobs, Oberflächen-Spawns, seltene Luftlandung | getestet: schlechter (Kern nicht zerstört) |
-| v0.7.1 | Kommandant: zentraler Plan, Treppe + Plattform, Spawns am Sammelplatz nach Bedarf, Umschulen, Höhlen-Mobs weg | gebaut, **Test ausstehend** |
+| v0.7.1 | Kommandant: zentraler Plan, Treppe + Plattform, Spawns am Sammelplatz nach Bedarf, Umschulen, Höhlen-Mobs weg | getestet: baut sicher, aber 1 Treppe, zu wenige Mobs, Höhlen |
+| v0.7.2 | Mehrere Fronten gleichzeitig, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | gebaut, **Test ausstehend** |
 | v0.8 | Schildkuppel, Puls, Reparatur | erst wenn Kern zuverlässig zerstört wird |
 | v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Integration | |

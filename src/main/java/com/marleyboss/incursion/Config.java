@@ -459,10 +459,10 @@ public final class Config {
                     "so the siege builds several ways up and splits up.")
             .defineInRange("routeCapacity", 8, 2, 64);
 
-    public static final ModConfigSpec.IntValue MAX_FRONTS = BUILDER
-            .comment("How many lines of attack (each with its own way / staircase to the Core) the siege plans at most.",
-                    "A further one is only planned once the existing ways are open and the siege has at least 8 mobs.")
-            .defineInRange("maxFronts", 2, 1, 4);
+    public static final ModConfigSpec.IntValue FRONTS = BUILDER
+            .comment("How many lines of attack (each with its own way / staircase to the Core) the siege builds at the same time,",
+                    "at most. Level 0-4: 1, level 5-9: 2, level 10-14: 3, level 15+: 4 (never more than this value).")
+            .defineInRange("fronts", 4, 1, 6);
 
     public static final ModConfigSpec.IntValue FRONT_WAITERS = BUILDER
             .comment("While a route is still being built, only this many mobs wait right behind the workers.",
@@ -624,6 +624,11 @@ public final class Config {
 
     public static int maxSiegeMobs(int level) {
         return MAX_SIEGE_MOBS_BASE.get() + MAX_SIEGE_MOBS_PER_LEVEL.get() * level;
+    }
+
+    /** How many fronts (ways to the Core) the siege builds at the same time at this Core level. */
+    public static int frontsFor(int level) {
+        return Math.max(1, Math.min(FRONTS.get(), 1 + Math.max(0, level) / 5));
     }
 
     public static int craterRadius(int level) {

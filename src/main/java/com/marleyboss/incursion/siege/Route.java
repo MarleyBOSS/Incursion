@@ -35,6 +35,8 @@ public final class Route {
     private final BlockPos[] nodes;
     private final BlockPos[][] clears;
     private final BlockPos[] supports;
+    /** Stair block -> the block placed next to it (two-wide stairs). */
+    private final Map<BlockPos, BlockPos> wings = new HashMap<>();
     private boolean invalid;
     private long lastProgress;
     /** Mobs on this route: entity id -> {route index, 1 if working, last seen}. */
@@ -117,6 +119,25 @@ public final class Route {
 
     public BlockPos node(int index) {
         return nodes[Math.max(0, Math.min(index, nodes.length - 1))];
+    }
+
+    void setWings(BlockPos[] wingsByIndex) {
+        wings.clear();
+        for (int i = 0; i < wingsByIndex.length && i < supports.length; i++) {
+            if (wingsByIndex[i] != null && supports[i] != null) {
+                wings.put(supports[i], wingsByIndex[i]);
+            }
+        }
+    }
+
+    /** The block to place next to this stair block (or null). */
+    @Nullable
+    BlockPos wingOf(BlockPos support) {
+        return wings.get(support);
+    }
+
+    java.util.Collection<BlockPos> wings() {
+        return wings.values();
     }
 
     @Nullable

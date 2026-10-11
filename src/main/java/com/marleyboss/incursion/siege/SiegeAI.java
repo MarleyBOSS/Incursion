@@ -560,6 +560,16 @@ public final class SiegeAI {
             state.walkLimit = nearFront ? Math.max(index, waitFront) : Math.max(Math.min(index, waitFront), wait);
             state.lookAt = null;
             boolean gathering = !nearFront && index <= wait;
+            if (gathering && !MobRoles.of(mob).isWorker()) {
+                // Another way is already open: go there instead of waiting here.
+                SiegeFront open = SiegeCommander.openFront();
+                if (open != null && open != front) {
+                    route.removeMember(mob.getId());
+                    assign(mob, open, now);
+                    state.status("to_foot");
+                    return;
+                }
+            }
             state.status(gathering ? "gather" : action.dig() ? "wait_digger" : "wait_builder");
             hopIfStuck(level, mob, state, route, now);
             return;
@@ -590,7 +600,27 @@ public final class SiegeAI {
             state.actionTicks = 0;
             route.noteProgress(now);
             SiegeProgress.progress(action.pos(), now);
+            if (!action.dig()) {
+                BlockPos wing = route.wingOf(action.pos());
+                if (wing != null) {
+                    placeWing(level, wing, route);
+                }
+            }
         }
+    }
+
+    /** The second column of the stairs, placed together with the stair block (only into free space). */
+    private static void placeWing(ServerLevel level, BlockPos pos, Route route) {
+        BlockState current = level.getBlockState(pos);
+        if (!current.canBeReplaced() || current.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)
+                || !RoutePlanner.canPlace(level, pos, route.corePos)) {
+            return;
+        }
+        BlockState block = ModBlocks.SIEGE_STONE.get().defaultBlockState();
+        if (!level.isUnobstructed(block, pos, CollisionContext.empty())) {
+            return; // somebody is standing there
+        }
+        level.setBlockAndUpdate(pos, block);
     }
 
     /** The way is open: builders and miners make the platform next to the Core (more room to attack). */
@@ -985,6 +1015,11 @@ public final class SiegeAI {
             recall(level, mob);
             return;
         }
+        releaseFromSiege(mob);
+    }
+
+    /** The mob leaves the siege for good and behaves like a normal monster again. */
+    static void releaseFromSiege(Mob mob) {
         forget(mob);
         mob.addTag(SiegeRules.RELEASED_TAG);
         SiegeTeam.leave(mob);
@@ -1002,7 +1037,7 @@ public final class SiegeAI {
     }
 
     /** A siege mob that is no use where it is disappears; the siege spawns a new one at a front. */
-    private static void recall(ServerLevel level, Mob mob) {
+    static void recall(ServerLevel level, Mob mob) {
         forget(mob);
         level.sendParticles(ParticleTypes.PORTAL, mob.getX(), mob.getY() + 1.0, mob.getZ(), 30, 0.4, 0.8, 0.4, 0.2);
         mob.ejectPassengers();
