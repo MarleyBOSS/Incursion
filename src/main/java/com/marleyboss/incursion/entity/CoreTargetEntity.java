@@ -31,6 +31,7 @@ public class CoreTargetEntity extends LivingEntity {
     public CoreTargetEntity(EntityType<? extends CoreTargetEntity> type, Level level) {
         super(type, level);
         this.noPhysics = true;
+        this.blocksBuilding = false; // players may still place blocks right next to / on top of the Core
         this.setNoGravity(true);
         this.setSilent(true);
     }
