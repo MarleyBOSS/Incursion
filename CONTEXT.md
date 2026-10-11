@@ -26,7 +26,13 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - **v0.7.4** gebaut (**lokal nicht kompilierbar, CI prüfen**), **Test ausstehend**: Ursache der fehlenden Plattformen nicht sicher gefunden (Vermutung: Kern stirbt, bevor der Baumeister fertig ist; Baumeister überspringen Landings hinter sich). Änderungen: Baumeister bauen Landings zum nächstgelegenen Landing auch **treppab** (Laufen Stufe für Stufe in `SiegeAI.drive`), greifen den Kern nie an, solange Plattform-/Landing-Arbeit offen ist, zweiter Baumeister früher (ab Limit 6, offene Front mit ≥ 8 Feldern Arbeit). Bei eingeschalteter KI-Anzeige meldet der Plan jetzt Plattformfelder/Landings/Felder (`message.incursion.plan.extras`): **Wenn dort 0 steht, liegt der Fehler im Planer (`RoutePlanner.platform/landings/usableSpot`)**. Neu: `PlayerHunt` (Jagd): in Kernnähe (`huntRadius` 48, max `huntMaxPlayers` 2) plant ein Planer-Lauf einen Weg zum Spieler (Ziel = Spielerposition), Jäger-Baumeister/-Gräber (Tag `incursion_hunt_worker`, max `huntWorkers` 3 pro Spieler, zusätzlich zum Mob-Limit) bauen/graben ihn, die Jäger laufen normal (Vanilla-Pfad findet die fertige Treppe). Teams dynamisch (`MobRoles.rebalanceTeams`, 1×/s): Spieler in Kernnähe → `hunterPercent` der Kämpfer sind Jäger, sonst alle Kern-Team. Jäger-Arbeiter ohne Aufgabe gehen ins Kern-Team über (Tag weg, Kommandant gibt ihnen eine Kern-Front). Jäger jagen auch ohne Sichtkontakt, Reichweite 96.
 - **v0.7.4** getestet: **Kern wird immer zerstört → KI-Problem vom Nutzer als gelöst bestätigt.** Plattformen werden weiterhin nicht gebaut; Nutzer will das **nicht weiter verfolgen** (zu viel Zeit). Spielerjagd/dynamische Teams: kein gesondertes Feedback.
 - **Nächster Schritt: v0.8 (Schild).** Balancing erst nach v0.9 (siehe Roadmap „Belagerungs-Ausbau“).
-- Neue Nutzer-Ideen (nach v0.9): **Wächter** ab bestimmter Kernstufe; **stufenabhängige Mob-Auswahl** statt „alle Mobs auf jeder Stufe, nur mehr“ (einzelne Mobs evtl. ganz raus).
+- **Idee v0.10 „Tag/Nacht und Pausen“** (Grund: auf hoher Stufe kann man sonst nicht mehr bauen/normal spielen; bewusst erst nach v0.9, weil zeitunabhängige Angriffe leichter zu testen sind). Kein Wellen-System mit steigender Schwierigkeit.
+  - Angriffe nur nachts, tagsüber Zeit für Reparatur/Umbau.
+  - **Nacht aussetzen** (auch Schlafen): nächste Nacht ×2, danach ×4 (genaue Staffelung noch klären), nur für Notfälle.
+  - **Waffenruhe** (verdient): nach einer Anzahl verteidigter Nächte im Kern aufgeladen, aktivieren = 3 Tage + Nächte Ruhe, danach wieder nach 7 Nächten verfügbar.
+  - **Kern pausieren**: jederzeit, kostet 2 Kernstufen.
+  - Offen: Was machen Mobs tagsüber (verschwinden / Belagerungslager / stehen)? Brennen in der Sonne? Dimensionen ohne Nacht (Nether/End)? Was heißt „×2“ (Mobanzahl, Limit, Stärke)?
+- Neue Nutzer-Ideen (nach v0.10): **Wächter** ab bestimmter Kernstufe; **stufenabhängige Mob-Auswahl** statt „alle Mobs auf jeder Stufe, nur mehr“ (einzelne Mobs evtl. ganz raus).
 - `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
 - KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
 
@@ -113,7 +119,8 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.7.4 | Plattformbau parallel zum Angriff (Vorrang für Baumeister), Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | getestet ✔ Kern fällt immer (Plattformen fehlen, akzeptiert) |
 | v0.8 | Schildkuppel, Puls, Reparatur | **als Nächstes** |
 | v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
-| v0.10 | Belagerungs-Ausbau: Wächter ab Stufe X, Mob-Pool pro Stufe (welche Mobs ab welcher Stufe, per Config) | Idee |
+| v0.10 | Tag/Nacht und Pausen (Details unter „Letzter Stand“) | Idee |
+| v0.11 | Belagerungs-Ausbau: Wächter ab Stufe X, Mob-Pool pro Stufe (welche Mobs ab welcher Stufe, per Config) | Idee |
 | danach | Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen
