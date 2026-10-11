@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "OEO",
+    "EDE",
+    "OEO"
+  ],
+  "key": {
+    "O": { "item": "minecraft:crying_obsidian" },
+    "E": { "item": "minecraft:ender_eye" },
+    "D": { "item": "minecraft:diamond_block" }
+  },
+  "result": { "id": "incursion:core", "count": 1 }
+}

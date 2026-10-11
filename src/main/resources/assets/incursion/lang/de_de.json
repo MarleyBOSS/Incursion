@@ -1,0 +1,20 @@
+{
+  "block.incursion.core": "Incursion-Kern",
+  "message.incursion.core.status": "Incursion-Kern – Stufe %s/%s – %s",
+  "message.incursion.core.state.active": "AKTIV",
+  "message.incursion.core.state.inactive": "inaktiv",
+  "message.incursion.core.hint_activate": "Wirf %s ein, um den Kern zu aktivieren. Achtung: Danach lässt er sich nicht mehr bewegen, und die Belagerung beginnt.",
+  "message.incursion.core.next_cost": "Nächstes Upgrade: %s× %s",
+  "message.incursion.core.activated": "Der Incursion-Kern ist aktiv. Die Belagerung beginnt!",
+  "message.incursion.core.upgraded": "Incursion-Kern auf Stufe %s/%s aufgewertet. Die Belagerung wird stärker ...",
+  "message.incursion.core.max_level": "Der Kern hat die Höchststufe erreicht (%s).",
+  "message.incursion.core.not_enough": "Du brauchst %s× %s für das nächste Upgrade.",
+  "message.incursion.core.another_active": "In dieser Welt ist bereits ein Incursion-Kern aktiv (bei %s, %s, %s).",
+  "incursion.configuration.title": "Incursion-Einstellungen",
+  "incursion.configuration.core": "Kern",
+  "incursion.configuration.maxLevel": "Höchststufe",
+  "incursion.configuration.activationItem": "Aktivierungs-Item",
+  "incursion.configuration.upgradeItem": "Upgrade-Item",
+  "incursion.configuration.upgradeBaseCost": "Upgrade-Grundkosten",
+  "incursion.configuration.upgradeCostPerLevel": "Upgrade-Kosten pro Stufe"
+}
