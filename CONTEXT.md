@@ -13,13 +13,13 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 
 ## Letzter Stand
 
-- v0.1 und v0.2 getestet ✔. v0.3 → KI-Feedback, in v0.4 umgesetzt.
-- v0.4 getestet: **Mobs erreichen den Kern auf keiner Stufe.** Baumeister hören bei gewisser Höhe auf, Gräber gehen fertige Treppen nicht hoch, Creeper sprengen die Treppe, Skelette stellen sich nicht sinnvoll hin, Sprengschützen sprengen nicht. Ziel des Nutzers: auf jeder Stufe muss der Kern erreichbar sein (niedrige Stufe = langsamer).
-- Ursache u. a.: Vanilla-Sichtlinie zielt auf die Ziel-Entity *über* dem Kern; ist der Block auf dem Kern fest, „sieht“ kein Mob den Kern (kein Nahkampf, kein Schuss).
-- **v0.5 „KI-Neubau“** gebaut, CI grün, `incursion-0.5.0.jar` im „Development build“. **Test durch Nutzer ausstehend.** Ungetestet/riskant: Schusspositions-Suche, Hüpfen auf Routen, Anheben beim Bauen, Pfeile durch eigene Mobs (abgebrochenes ProjectileImpactEvent).
-- Neue KI-Anzeige im Kern-GUI ist zum Testen gedacht: Nutzer soll Screenshots mit eingeschalteter KI-Anzeige schicken.
-- Geänderte Defaults (`blastArrowPower` 2,5) nur in neuen Welten bzw. nach Löschen von `serverconfig/incursion-server.toml`. Config-Einträge `builderBlock` und `showSpawnRings` entfernt.
-- Schild auf v0.6 verschoben.
+- v0.1 und v0.2 getestet ✔. v0.3–v0.5: KI-Iterationen.
+- **Priorität des Nutzers:** Der Kern muss auf **jeder Stufe und in jeder Höhe** zuverlässig zerstört werden können. Erst danach geht es weiter (Schild usw.).
+- v0.5 getestet: Skelette deutlich besser (Sprengschützen stark). Probleme: Baumeister baute die eigene Treppe zu, nur diagonale Treppen, andere Zombies warteten auf Baumeister; Baumeister lief vom Kern weg zu einem Zombie in einer Höhle und steckte dort fest; Endermen nie gesehen; Kern sehr hoch → Mobs kommen nicht hin; Kern ganz oben → gar keine Spawns.
+- **v0.6 „Erreichbarkeit“** gebaut (CI grün), **Test ausstehend**: Belagerungsleiter (senkrechtes Bauen/Klettern), keine Selbstblockade von Routen, alle Zombies graben, Helfer nur „vorwärts“, Rückruf feststeckender Mobs, Phantom-Luftlandung, Spinnen klettern direkt (+ Reiter), Endermen-Teleport zum Kern, Schützen nur erreichbare Positionen sonst Routen, Spawns/Zone für hohe Kerne.
+- Ungetestet/riskant in v0.6: Klettern auf Leitern (Springen in der Leiter, Halten), Phantom-Flug (Position wird jeden Tick gesetzt), Spinnenreiter (Reiter steuert Vanilla-seitig die Spinne mit; unser Drive überschreibt jeden Tick).
+- Geänderte Defaults (`plannerMaxNodes` 12000) nur in neuen Welten bzw. nach Löschen von `serverconfig/incursion-server.toml`. Neue Config-Einträge (`laddersEnabled`, `airDrops`, `airDropChance`, `airDropElevation`, `spiderRiderChance`, `recallSeconds`) werden automatisch ergänzt.
+- KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
 
 ## Projekt
 
@@ -36,14 +36,14 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   `gh api repos/MarleyBOSS/Incursion/releases/tags/dev` → Asset-ID → `gh api -H "Accept: application/octet-stream" repos/MarleyBOSS/Incursion/releases/assets/<id> > incursion.jar`
 - Commit-Nachrichten enden mit den Attributionszeilen, die die Umgebung vorgibt.
 
-## Code-Struktur (Stand v0.5)
+## Code-Struktur (Stand v0.6)
 
 | Datei | Zweck |
 |---|---|
 | `Incursion.java` | `@Mod`, Registrierung, Creative Tab, Server-Config, Events, Ticket-Controller |
 | `IncursionClient.java` | Config-Bildschirm, Screen- und Renderer-Registrierung |
 | `Config.java` | SERVER-Config: `core`, `siege`, `digging`, `zombies`, `skeletons`, `endermen`, `tactics`, `wards`, `explosion`, `defuse` + Formeln |
-| `registry/*` | Blocks (`core`, `ward`, `siege_stone`), Items, BlockEntities, Entities (`core_target`), Menus |
+| `registry/*` | Blocks (`core`, `ward`, `siege_stone`, `siege_ladder`), Items, BlockEntities, Entities (`core_target`), Menus |
 | `block/CoreBlock.java`, `CoreActions.java`, `CoreBlockEntity.java` | Kern: Aktivieren/Upgraden, HP, Chunk-Radius, Ziel-Entity, Entschärfen, Schalter Grenzen/KI-Anzeige; Entfernen eines aktiven Kerns = Explosion |
 | `block/WardBlock.java`, `WardBlockEntity.java` | Schutztotem: kein Spawn im Radius, statische Liste geladener Totems |
 | `entity/CoreTargetEntity.java` | Unsichtbare LivingEntity am Kern, Schaden von Enemy-Mobs → Kern-HP (× Rollen-Multiplikator), meldet Fortschritt |
@@ -51,12 +51,13 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 | `siege/SiegeEvents.java` | Target-Regeln, Explosionen (Kern/siege_proof geschützt, Belagerungs-Explosionen schonen Belagerungs-Mobs), Rollen-Schaden |
 | `siege/Targeting.java` | Wer greift was an: Arbeiter → Kern, Krieger → Spieler (jede Zone), Schützen → Kern (Deckungsfeuer nur ohne Schussposition) |
 | `siege/MobRoles.java` | Rollen per Scoreboard-Tag (Zombie: Krieger/Gräber/Brecher/Baumeister; Skelett: Spreng/Feuer/normal; Enderman: Pionier), ausgewogene Vergabe, Ausrüstung |
-| `siege/SiegeAI.java` | Pro Mob alle 5 Ticks: direkter Kernangriff in Reichweite, Feststecken → Route teilen/helfen/planen, Route abarbeiten (graben, bauen + Anheben, Creeper-Durchbruch, Enderman nimmt Block), Hüpfen bei Hängern, Pionier-TNT, Selbstzerstörung |
-| `siege/SiegeArchers.java` | Schützen: Schussposition suchen/hinlaufen/schießen, Sprengschützen sprengen Wand am Kern |
+| `siege/SiegeAI.java` | Pro Mob alle 5 Ticks: Reiter, Rückruf, direkter Kernangriff in Reichweite, Spinnen direkt kletternd, Endermen-Teleport, Feststecken → Route teilen/helfen/planen, Route abarbeiten (graben, bauen + Anheben, Leiter, Creeper-Durchbruch, Enderman nimmt Block), Klettern/Halten auf Leitern, Hüpfen bei Hängern, Pionier-TNT, Selbstzerstörung |
+| `siege/SiegeAirDrop.java` | Phantom-Luftlandung: Kernhöhe über Boden, Landeplatz mit offenem Himmel, Flug (Position pro Tick), Absetzen |
+| `siege/SiegeArchers.java` | Schützen: von hier schießen, erreichbare Schussposition suchen/hinlaufen, Sprengschützen sprengen Wand am Kern; sonst `false` → Routen |
 | `siege/SiegeAim.java` | Sichtprüfung auf den Kern-Block (Seitenflächen), ballistische Pfeil-Berechnung und Flugbahn-Prüfung |
 | `siege/SiegeDebug.java` | KI-Anzeige: Namensschilder mit Rolle/Tätigkeit, Routen-Partikel |
 | `siege/SiegeDriveGoal.java` | Goal (Prio 1, MOVE+LOOK) an jedem feindlichen Bodenmob; steuert Bewegung, wenn SiegeAI einen Auftrag hat |
-| `siege/RoutePlanner.java`, `Route.java` | A* über Blockpositionen (Kosten: Laufen, Härte, Bauen; Treppen statt Säulen), geteilte Routen, Arbeits-/Bedarfsmarker |
+| `siege/RoutePlanner.java`, `Route.java` | A* über Blockpositionen (Laufen, Härte, Bauen; Treppen, Brücken, Leitern), keine Selbstblockade / reservierte Zellen anderer Routen, geteilte Routen, Arbeits-/Bedarfsmarker |
 | `siege/SiegeProgress.java` | Letzter Fortschritt (Patt), letzte Aktionsorte (Begleiter), Bedarf an Rollen |
 | `siege/SiegeExplosives.java` | Feuer-/Explosionspfeile, manuelle Schüsse, Pfeile fliegen durch eigene Mobs, TNT-Verfolgung und Zündung |
 | `siege/Digging.java` | Abbau mit gemeinsamem Fortschritt und Rissen, Grabzeit-Formel; Tag `incursion:siege_proof` |
@@ -66,7 +67,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 | `menu/CoreMenu.java`, `client/CoreScreen.java` | GUI ohne Slots; Aktivieren/Upgraden/Entschärfen |
 | `data/CoreWorldData.java` | SavedData `incursion_core`: der eine aktive Core |
 
-Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`), Platzhalter-Texturen (`core`, `core_active`, `ward`, `siege_stone`), Loot Table, Rezepte (Kern: Weinender Obsidian / Enderaugen / Diamantblock; Schutztotem: Enderperle / Gold / Steinziegel), Tags, Sprachdateien `en_us` und `de_de`.
+Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_ladder` mit Vanilla-Leitertextur, Tag `minecraft:climbable`), Platzhalter-Texturen (`core`, `core_active`, `ward`, `siege_stone`), Loot Table, Rezepte (Kern: Weinender Obsidian / Enderaugen / Diamantblock; Schutztotem: Enderperle / Gold / Steinziegel), Tags, Sprachdateien `en_us` und `de_de`.
 
 ## Konzept in Kürze (Details in DESIGN.md)
 
@@ -90,9 +91,10 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`), Platzhal
 | v0.2 | Belagerung, Zonen-Targeting, Core-Lebenspunkte, Chunkloader, persistente Mobs, Warnungen, **Core-GUI** | getestet ✔ |
 | v0.3 | Große Explosion, Verseuchung, Entschärfen, grabende Mobs, Zombie-Rollen | getestet (KI-Feedback → v0.4) |
 | v0.4 | Belagerungs-KI: Routenplaner, Baumeister, Rollen, Skelett-Klassen, Pioniere, Patt-Regel, Schutztotem | getestet: Mobs erreichen Kern nicht |
-| v0.5 | KI-Neubau: direkter Kernangriff, Schusspositionen, Routen-Hüpfen, Belagerungsstein, GUI-Schalter Grenzen/KI-Anzeige | gebaut, **Test ausstehend** |
-| v0.6 | Schildkuppel, Puls, Reparatur | als Nächstes (erst wenn Mobs zuverlässig zum Kern kommen) |
-| v0.7 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
+| v0.5 | KI-Neubau: direkter Kernangriff, Schusspositionen, Routen-Hüpfen, Belagerungsstein, GUI-Schalter Grenzen/KI-Anzeige | getestet: Skelette gut, Baumeister schwach |
+| v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | gebaut, **Test ausstehend** |
+| v0.7 | Schildkuppel, Puls, Reparatur | erst wenn Kern zuverlässig zerstört wird |
+| v0.8 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen

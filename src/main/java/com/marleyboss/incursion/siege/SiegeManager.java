@@ -380,7 +380,7 @@ public final class SiegeManager {
         }
         // The Core is far above (or below) the ground: spawn on the ground anyway. The mobs build their way
         // up (ladders, stairs), spiders climb, and the rest comes by air.
-        if (isStandable(level, surface)) {
+        if (top < coreY && isStandable(level, surface)) {
             return surface;
         }
         return null;
