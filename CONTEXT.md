@@ -28,10 +28,11 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - **Nächster Schritt: v0.8 (Schild).** Balancing erst nach v0.9 (siehe Roadmap „Belagerungs-Ausbau“).
 - **Idee v0.10 „Tag/Nacht und Pausen“** (Grund: auf hoher Stufe kann man sonst nicht mehr bauen/normal spielen; bewusst erst nach v0.9, weil zeitunabhängige Angriffe leichter zu testen sind). Kein Wellen-System mit steigender Schwierigkeit.
   - Angriffe nur nachts, tagsüber Zeit für Reparatur/Umbau.
-  - **Nacht aussetzen** (auch Schlafen): nächste Nacht ×2, danach ×4 (genaue Staffelung noch klären), nur für Notfälle.
-  - **Waffenruhe** (verdient): nach einer Anzahl verteidigter Nächte im Kern aufgeladen, aktivieren = 3 Tage + Nächte Ruhe, danach wieder nach 7 Nächten verfügbar.
-  - **Kern pausieren**: jederzeit, kostet 2 Kernstufen.
-  - Offen: Was machen Mobs tagsüber (verschwinden / Belagerungslager / stehen)? Brennen in der Sonne? Dimensionen ohne Nacht (Nether/End)? Was heißt „×2“ (Mobanzahl, Limit, Stärke)?
+  - **Nacht pausieren** (Button im Kern-GUI): diese Nacht keine Belagerung, Schlafen möglich. Gilt nur für eine Nacht, danach automatisch wieder aktiv. Strafe stapelt sich: nächste Nacht ×2, erneut pausiert ×4, dann ×8 … Eine verteidigte Nacht setzt den Faktor auf ×1 zurück.
+  - **Schlafen** nur, wenn die Nacht pausiert ist oder Waffenruhe läuft (Annahme: sonst in der ganzen Welt blockiert, damit man nicht woanders schläft).
+  - **Waffenruhe** (Button im Kern-GUI, gratis): 3 Tage + Nächte Ruhe. Danach müssen **7 Nächte verteidigt** werden, bis sie wieder aufgeladen ist. Pausierte Nächte, Waffenruhe-Nächte und Zeit im entschärften Zustand zählen nicht.
+  - **Entschärfen** = unbegrenzte Pause: kostet **80 % der Stufe** (Stufe 20 → 4; Annahme: abrunden). Ersetzt die alte Idee „Kern pausieren kostet 2 Stufen“ und den bisherigen Reset auf Stufe 0.
+  - Offen: Was machen Mobs tagsüber (verschwinden / Belagerungslager / stehen)? Brennen in der Sonne? Dimensionen ohne Nacht (Nether/End)? Was heißt „×2“ (Mobanzahl, Limit, Stärke)? Gibt es im entschärften Zustand noch Belohnungen (Items/Energie/Buffs)?
 - Neue Nutzer-Ideen (nach v0.10): **Wächter** ab bestimmter Kernstufe; **stufenabhängige Mob-Auswahl** statt „alle Mobs auf jeder Stufe, nur mehr“ (einzelne Mobs evtl. ganz raus).
 - `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
 - KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
@@ -126,7 +127,7 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 ## Offene Entscheidungen
 
 - Aktivierungs- und Upgrade-Kosten (vorerst Lohenrute bzw. Diamanten)
-- Entschärf-Mechanik (v0.3-Platzhalter: GUI-Button, Countdown 10 s + 2 s/Stufe, Spieler muss ≤ 8 Blöcke bleiben)
+- Entschärf-Mechanik (v0.3-Platzhalter: GUI-Button, Countdown 10 s + 2 s/Stufe, Spieler muss ≤ 8 Blöcke bleiben). Entschieden: Kosten künftig 80 % der Stufe statt Reset auf 0 (v0.10)
 - Brennstoff ja/nein
 - Schutztotem-Rezept und Preis (vorerst günstig, +2 Mobs pro Totem)
 - Lizenz
