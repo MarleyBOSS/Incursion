@@ -43,6 +43,20 @@ public final class ModBlocks {
                     .sound(SoundType.STONE)
                     .noLootTable());
 
+    /**
+     * Placed by builder zombies so the whole siege can climb straight up. No collision (mobs climb inside it,
+     * like inside a ladder; it is in the minecraft:climbable tag), immune to explosions, drops nothing.
+     */
+    public static final DeferredBlock<Block> SIEGE_LADDER = BLOCKS.registerSimpleBlock("siege_ladder",
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.WOOD)
+                    .strength(0.4F, 1200.0F)
+                    .sound(SoundType.LADDER)
+                    .noCollission()
+                    .noOcclusion()
+                    .pushReaction(PushReaction.DESTROY)
+                    .noLootTable());
+
     private ModBlocks() {
     }
 }

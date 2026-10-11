@@ -11,6 +11,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.common.NeoForge;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
 import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
@@ -30,6 +32,30 @@ public final class SiegeEvents {
         NeoForge.EVENT_BUS.addListener(SiegeAI::onJoin);
         NeoForge.EVENT_BUS.addListener(SiegeExplosives::onJoin);
         NeoForge.EVENT_BUS.addListener(SiegeExplosives::onImpact);
+        NeoForge.EVENT_BUS.addListener(SiegeAirDrop::onEntityTick);
+        NeoForge.EVENT_BUS.addListener(SiegeEvents::onEnderTeleport);
+    }
+
+    /**
+     * Siege endermen do not teleport away from the Core by themselves (vanilla endermen teleport randomly in
+     * daylight and when hit), otherwise they wander off and are never seen at the Core. In water or rain they
+     * may still escape.
+     */
+    private static void onEnderTeleport(EntityTeleportEvent.EnderEntity event) {
+        if (!(event.getEntity() instanceof Mob mob) || mob.level().isClientSide) {
+            return;
+        }
+        ActiveSiege siege = ActiveSiege.get(mob.level());
+        if (siege == null || !SiegeRules.isAttacker(mob) || siege.zoneOf(mob) == ActiveSiege.ZONE_OUTSIDE
+                || mob.isInWaterRainOrBubble()) {
+            return;
+        }
+        Vec3 core = Vec3.atCenterOf(siege.corePos);
+        double before = mob.position().distanceTo(core);
+        double after = new Vec3(event.getTargetX(), event.getTargetY(), event.getTargetZ()).distanceTo(core);
+        if (after > before + 2.0) {
+            event.setCanceled(true);
+        }
     }
 
     /** Role damage against players; a siege mob hitting a player counts as progress. */

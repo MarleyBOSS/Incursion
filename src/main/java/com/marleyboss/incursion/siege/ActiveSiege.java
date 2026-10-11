@@ -31,10 +31,13 @@ public final class ActiveSiege {
     public final int coreLevel;
     public final boolean showBorders;
     public final boolean showDebug;
+    /** How far the Core is above the surrounding ground; the siege area reaches down that much further. */
+    public final int elevation;
     private final long validUntil;
 
     private ActiveSiege(ServerLevel level, BlockPos corePos, CoreTargetEntity target, int coreZoneRadius,
-                        int siegeRadius, int playerAggroRange, int coreLevel, boolean showBorders, boolean showDebug) {
+                        int siegeRadius, int playerAggroRange, int coreLevel, boolean showBorders, boolean showDebug,
+                        int elevation) {
         this.level = level;
         this.corePos = corePos.immutable();
         this.target = target;
@@ -44,14 +47,15 @@ public final class ActiveSiege {
         this.coreLevel = coreLevel;
         this.showBorders = showBorders;
         this.showDebug = showDebug;
+        this.elevation = elevation;
         this.validUntil = level.getGameTime() + 60;
     }
 
     public static void update(ServerLevel level, BlockPos corePos, CoreTargetEntity target, int coreZoneRadius,
                               int siegeRadius, int playerAggroRange, int coreLevel, boolean showBorders,
-                              boolean showDebug) {
+                              boolean showDebug, int elevation) {
         current = new ActiveSiege(level, corePos, target, coreZoneRadius, siegeRadius, playerAggroRange, coreLevel,
-                showBorders, showDebug);
+                showBorders, showDebug, elevation);
     }
 
     public static void clear() {
@@ -76,7 +80,8 @@ public final class ActiveSiege {
         if (dx * dx + dz * dz <= (double) coreZoneRadius * coreZoneRadius && Math.abs(dy) <= coreZoneRadius) {
             return ZONE_CORE;
         }
-        if (Math.abs(dx) <= siegeRadius && Math.abs(dz) <= siegeRadius && Math.abs(dy) <= VERTICAL_RANGE) {
+        if (Math.abs(dx) <= siegeRadius && Math.abs(dz) <= siegeRadius && dy <= VERTICAL_RANGE
+                && dy >= -(VERTICAL_RANGE + elevation)) {
             return ZONE_SIEGE;
         }
         return ZONE_OUTSIDE;

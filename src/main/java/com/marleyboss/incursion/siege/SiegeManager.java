@@ -26,6 +26,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.monster.Spider;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -93,15 +94,16 @@ public final class SiegeManager {
         int coreZone = Config.coreZoneRadius(coreLevel);
         int siegeRadius = Config.siegeRadiusBlocks(coreLevel);
         int aggroRange = Config.PLAYER_AGGRO_RANGE.get();
+        int elevation = Math.max(0, SiegeAirDrop.elevation(level, pos, coreZone + 6));
         ActiveSiege.update(level, pos, target, coreZone, siegeRadius, aggroRange, coreLevel,
-                core.isShowBorders(), core.isShowAi());
+                core.isShowBorders(), core.isShowAi(), elevation);
         ActiveSiege siege = ActiveSiege.get(level);
         if (siege == null) {
             return;
         }
 
         // 5. Point every hostile mob in the area at the Core or at a player (depending on its role).
-        AABB area = new AABB(pos).inflate(siegeRadius, 64, siegeRadius);
+        AABB area = new AABB(pos).inflate(siegeRadius, 64, siegeRadius).expandTowards(0, -elevation, 0);
         List<Mob> mobs = level.getEntitiesOfClass(Mob.class, area, Entity::isAlive);
         List<Mob> fireArchers = new ArrayList<>();
         int siegeMobs = 0;
@@ -164,7 +166,8 @@ public final class SiegeManager {
             int free = max - siegeMobs;
             int toSpawn = Math.min(free, 1 + coreLevel / 4 + (stalled ? 1 : 0));
             if (toSpawn > 0) {
-                int spawned = spawnAttackers(level, pos, coreLevel, toSpawn, target, wards, now);
+                boolean airDrops = stalled || elevation >= Config.AIR_DROP_ELEVATION.get();
+                int spawned = spawnAttackers(level, pos, coreLevel, toSpawn, target, wards, now, airDrops);
                 core.setSiegeMobCount(siegeMobs + spawned);
             }
         }
@@ -196,7 +199,7 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
 
     private static int spawnAttackers(ServerLevel level, BlockPos core, int coreLevel, int count,
-                                      CoreTargetEntity target, List<BlockPos> wards, long now) {
+                                      CoreTargetEntity target, List<BlockPos> wards, long now, boolean airDrops) {
         List<EntityType<?>> pool = SiegeRules.spawnPool(coreLevel);
         if (pool.isEmpty()) {
             return 0;
@@ -208,11 +211,21 @@ public final class SiegeManager {
         int wardRadius = Config.WARD_RADIUS.get();
         // With wards, mobs may also spawn a bit farther out (otherwise a big base leaves no room).
         int wardMaxDistance = Math.max(maxDistance, Config.siegeRadiusBlocks(coreLevel) - 4);
+        boolean airAllowed = SiegeAirDrop.isEnabled();
 
         int spawned = 0;
         for (int i = 0; i < count; i++) {
             EntityType<?> type = pickType(pool, random, now);
-            for (int attempt = 0; attempt < 12; attempt++) {
+            boolean carry = airAllowed && SiegeAirDrop.canCarry(type);
+            // High Core or stuck siege: some attackers come by air, right next to the Core.
+            if (carry && airDrops && random.nextDouble() < Config.AIR_DROP_CHANCE.get()) {
+                if (airDrop(level, core, coreLevel, type, target, minDistance, maxDistance, random, now)) {
+                    spawned++;
+                    continue;
+                }
+            }
+            boolean done = false;
+            for (int attempt = 0; attempt < 12 && !done; attempt++) {
                 double angle = random.nextDouble() * Math.PI * 2.0;
                 int limit = attempt < 6 ? maxDistance : wardMaxDistance;
                 double distance = minDistance + random.nextDouble() * (limit - minDistance);
@@ -225,32 +238,89 @@ public final class SiegeManager {
                 if (spawnPos == null) {
                     continue;
                 }
-                Entity entity = type.create(level);
-                if (!(entity instanceof Mob mob)) {
-                    if (entity != null) {
-                        entity.discard();
-                    }
+                Mob mob = createSiegeMob(level, type, spawnPos, coreLevel, random, now);
+                if (mob == null) {
                     continue;
                 }
-                mob.moveTo(spawnPos.getX() + 0.5, spawnPos.getY(), spawnPos.getZ() + 0.5,
-                        random.nextFloat() * 360.0F, 0.0F);
                 if (!level.noCollision(mob) || level.containsAnyLiquid(mob.getBoundingBox())) {
                     mob.discard();
                     continue;
                 }
-                EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(spawnPos), MobSpawnType.EVENT, null);
-                prepareSiegeMob(mob, coreLevel);
-                MobRoles.apply(mob, coreLevel, random, now);
+                if (mob instanceof Spider spider && random.nextDouble() < Config.SPIDER_RIDER_CHANCE.get()) {
+                    addRider(level, spider, coreLevel, random, now);
+                }
                 level.addFreshEntityWithPassengers(mob);
-                mob.setTarget(target);
-                ensureFollowRange(mob, target);
+                aimAtCore(mob, target);
+                for (Entity passenger : mob.getPassengers()) {
+                    if (passenger instanceof Mob rider) {
+                        aimAtCore(rider, target);
+                    }
+                }
                 level.sendParticles(ParticleTypes.PORTAL, mob.getX(), mob.getY() + 1.0, mob.getZ(),
                         30, 0.4, 0.8, 0.4, 0.2);
                 spawned++;
-                break;
+                done = true;
+            }
+            // No room on the ground (e.g. the Core floats high above the void): come by air.
+            if (!done && carry && airDrop(level, core, coreLevel, type, target, minDistance, maxDistance, random, now)) {
+                spawned++;
             }
         }
         return spawned;
+    }
+
+    @Nullable
+    private static Mob createSiegeMob(ServerLevel level, EntityType<?> type, BlockPos pos, int coreLevel,
+                                      RandomSource random, long now) {
+        Entity entity = type.create(level);
+        if (!(entity instanceof Mob mob)) {
+            if (entity != null) {
+                entity.discard();
+            }
+            return null;
+        }
+        mob.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, random.nextFloat() * 360.0F, 0.0F);
+        EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(pos), MobSpawnType.EVENT, null);
+        prepareSiegeMob(mob, coreLevel);
+        MobRoles.apply(mob, coreLevel, random, now);
+        return mob;
+    }
+
+    private static boolean airDrop(ServerLevel level, BlockPos core, int coreLevel, EntityType<?> type,
+                                   CoreTargetEntity target, int minDistance, int maxDistance, RandomSource random,
+                                   long now) {
+        Mob mob = createSiegeMob(level, type, core, coreLevel, random, now);
+        if (mob == null) {
+            return false;
+        }
+        mob.ejectPassengers(); // e.g. a vanilla chicken jockey
+        if (!SiegeAirDrop.launch(level, core, mob, minDistance, maxDistance, random)) {
+            mob.discard();
+            return false;
+        }
+        aimAtCore(mob, target);
+        return true;
+    }
+
+    /** Spider jockey: a zombie (with a role) or a skeleton rides the spider up the walls. */
+    private static void addRider(ServerLevel level, Spider spider, int coreLevel, RandomSource random, long now) {
+        if (spider.isVehicle()) {
+            return; // vanilla already made it a jockey
+        }
+        EntityType<?> type = random.nextBoolean() ? EntityType.ZOMBIE : EntityType.SKELETON;
+        Mob rider = createSiegeMob(level, type, spider.blockPosition(), coreLevel, random, now);
+        if (rider == null) {
+            return;
+        }
+        rider.ejectPassengers();
+        if (rider.isBaby() || !rider.startRiding(spider, true)) {
+            rider.discard();
+        }
+    }
+
+    private static void aimAtCore(Mob mob, CoreTargetEntity target) {
+        mob.setTarget(target);
+        ensureFollowRange(mob, target);
     }
 
     private static final Set<EntityType<?>> ZOMBIE_TYPES = Set.of(EntityType.ZOMBIE, EntityType.HUSK);
@@ -308,7 +378,9 @@ public final class SiegeManager {
                 return pos;
             }
         }
-        if (Math.abs(top - coreY) <= 40 && isStandable(level, surface)) {
+        // The Core is far above (or below) the ground: spawn on the ground anyway. The mobs build their way
+        // up (ladders, stairs), spiders climb, and the rest comes by air.
+        if (isStandable(level, surface)) {
             return surface;
         }
         return null;

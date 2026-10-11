@@ -15,6 +15,7 @@ import net.minecraft.world.entity.monster.CrossbowAttackMob;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -41,7 +42,7 @@ import java.util.ArrayList;
 final class SiegeArchers {
     /** Archers shoot at the Core from at most this far away. */
     static final double SHOOT_RANGE = 18.0;
-    private static final double MIN_SHOOT_RANGE = 2.5;
+    private static final double MIN_SHOOT_RANGE = 1.0;
     /** Wall blocks at most this far from the Core are worth a blast arrow. */
     private static final double BLAST_WALL_RANGE = 4.5;
     private static final double MIN_BLAST_DISTANCE = 4.0;
@@ -49,6 +50,7 @@ final class SiegeArchers {
     private static final long SPOT_TIMEOUT = 600;
     private static final long BAD_SPOT_TICKS = 1200;
     private static final int MAX_SEARCHES_PER_TICK = 2;
+    private static final int MAX_PATH_CHECKS = 3;
     private static final double[] SPEEDS = {2.4, 3.0};
     private static final float BLAST_MAX_RESISTANCE = 100.0F;
 
@@ -69,32 +71,18 @@ final class SiegeArchers {
         searchesThisTick = 0;
     }
 
-    static void tick(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
+    /**
+     * One archer step. Returns true if the archer is busy (shooting, blasting, walking to a firing position);
+     * false if it has nothing to shoot at and no firing position it can walk to. Then it follows the siege's
+     * routes like a melee mob (a longer way, but better than standing around) and keeps checking.
+     */
+    static boolean tick(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
         BlockPos core = siege.corePos;
         boolean blast = MobRoles.of(mob) == Role.BLAST_ARCHER;
-        Vec3 eyes = mob.getEyePosition();
-        double distance = SiegeAim.distanceToCore(eyes, core);
 
         // 1. Shoot from where it stands.
-        boolean badHere = BAD.containsKey(mob.blockPosition().asLong());
-        if (distance <= SHOOT_RANGE && distance >= MIN_SHOOT_RANGE && !badHere) {
-            Vec3 point = SiegeAim.visibleCorePoint(level, eyes, core, mob);
-            if (point != null && state.blockedShots < 3) {
-                SiegeAI.control(state, Mode.HOLD, now);
-                state.lookAt = point;
-                state.status("shoot");
-                if (now >= state.nextShot) {
-                    if (fire(level, mob, point, core)) {
-                        state.nextShot = now + (blast ? 50 : 30) + mob.getRandom().nextInt(10);
-                        state.lastUseful = now;
-                        state.blockedShots = 0;
-                    } else {
-                        state.nextShot = now + 10;
-                        state.blockedShots++; // the arc is blocked even though the line is free
-                    }
-                }
-                return;
-            }
+        if (shootFromHere(level, mob, state, siege, now)) {
+            return true;
         }
         if (state.blockedShots >= 3) {
             markBad(mob.blockPosition(), now);
@@ -123,7 +111,7 @@ final class SiegeArchers {
                         state.spot = null;
                     }
                 }
-                return;
+                return true;
             }
             state.spot = null; // the wall is gone; look again
             state.nextSpotSearch = now;
@@ -132,7 +120,8 @@ final class SiegeArchers {
         // 3. Walk to a firing position.
         if (state.spot != null) {
             boolean arrived = isAt(mob, state.spot);
-            boolean timedOut = now - state.spotSince > SPOT_TIMEOUT || state.pathFailures > 3;
+            boolean timedOut = now - state.spotSince > SPOT_TIMEOUT || state.pathFailures > 3
+                    || (now - state.spotSince > 40 && mob.getNavigation().isDone());
             if (arrived || timedOut) {
                 // Arrived but still cannot shoot (or never got there): this spot is no good.
                 markBad(state.spot, now);
@@ -143,11 +132,11 @@ final class SiegeArchers {
                 state.gotoPos = state.spot;
                 state.lookAt = null;
                 state.status(state.spotWall != null ? "goto_blast" : "goto_spot");
-                return;
+                return true;
             }
         }
 
-        // 4. Find a firing position.
+        // 4. Find a firing position it can walk to.
         if (now >= state.nextSpotSearch && searchAllowed(now)) {
             state.nextSpotSearch = now + 60;
             Spot found = search(level, mob, core, blast, now);
@@ -159,21 +148,43 @@ final class SiegeArchers {
                 SiegeAI.control(state, Mode.GOTO, now);
                 state.gotoPos = found.pos;
                 state.status(found.wall != null ? "goto_blast" : "goto_spot");
-                return;
+                return true;
             }
-            state.status("no_spot");
             state.noSpotUntil = now + 300;
-        } else if (!"no_spot".equals(state.status)) {
-            state.status("seek_spot");
         }
 
-        // 5. Nothing to shoot at: wait at a distance instead of running under the Core.
-        if (distance <= SHOOT_RANGE + 6.0) {
-            SiegeAI.control(state, Mode.HOLD, now);
-            state.lookAt = Vec3.atCenterOf(core);
-        } else {
-            state.mode = Mode.NONE; // the normal AI brings it closer
+        // 5. Nothing to shoot at: follow the routes (SiegeAI).
+        return false;
+    }
+
+    /** Shoots at the Core if it can be hit from where the archer stands (also while riding). */
+    static boolean shootFromHere(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
+        BlockPos core = siege.corePos;
+        boolean blast = MobRoles.of(mob) == Role.BLAST_ARCHER;
+        Vec3 eyes = mob.getEyePosition();
+        double distance = SiegeAim.distanceToCore(eyes, core);
+        boolean badHere = BAD.containsKey(mob.blockPosition().asLong());
+        if (distance > SHOOT_RANGE || distance < MIN_SHOOT_RANGE || badHere || state.blockedShots >= 3) {
+            return false;
         }
+        Vec3 point = SiegeAim.visibleCorePoint(level, eyes, core, mob);
+        if (point == null) {
+            return false;
+        }
+        SiegeAI.control(state, Mode.HOLD, now);
+        state.lookAt = point;
+        state.status("shoot");
+        if (now >= state.nextShot) {
+            if (fire(level, mob, point, core)) {
+                state.nextShot = now + (blast ? 50 : 30) + mob.getRandom().nextInt(10);
+                state.lastUseful = now;
+                state.blockedShots = 0;
+            } else {
+                state.nextShot = now + 10;
+                state.blockedShots++; // the arc is blocked even though the line is free
+            }
+        }
+        return true;
     }
 
     /**
@@ -272,15 +283,16 @@ final class SiegeArchers {
     /**
      * Tries random columns around the Core. A position is good if the Core can be hit from there (for blast
      * archers also: if a wall block right next to the Core can be hit). Prefers positions close to the archer,
-     * about 10 blocks from the Core, and not already taken by other archers.
+     * about 10 blocks from the Core, and not already taken by other archers. Only positions the archer can
+     * actually walk to count; the others are remembered as useless for a while.
      */
     @Nullable
     private static Spot search(ServerLevel level, Mob mob, BlockPos core, boolean blast, long now) {
         cleanup(now);
         RandomSource random = mob.getRandom();
         double eyeHeight = mob.getEyeHeight();
-        Spot best = null;
-        Spot bestWall = null;
+        List<Spot> shots = new ArrayList<>();
+        List<Spot> walls = new ArrayList<>();
         for (int i = 0; i < SEARCH_COLUMNS; i++) {
             double angle = random.nextDouble() * Math.PI * 2.0;
             double radius = 3.0 + random.nextDouble() * (SHOOT_RANGE - 4.0);
@@ -304,18 +316,19 @@ final class SiegeArchers {
                 double score = Math.sqrt(mob.blockPosition().distSqr(pos)) + Math.abs(toCore - 10.0) * 0.4
                         + taken(pos) * 6.0;
                 if (SiegeAim.visibleCorePoint(level, eyes, core, mob) != null) {
-                    if (best == null || score < best.score) {
-                        best = new Spot(pos, null, score);
-                    }
-                } else if (blast && best == null) {
+                    shots.add(new Spot(pos, null, score));
+                } else if (blast && shots.isEmpty()) {
                     BlockPos wall = wallFrom(level, eyes, mob, core);
-                    if (wall != null && (bestWall == null || score < bestWall.score)) {
-                        bestWall = new Spot(pos, wall, score);
+                    if (wall != null) {
+                        walls.add(new Spot(pos, wall, score));
                     }
                 }
             }
         }
-        Spot result = best != null ? best : bestWall;
+        Spot result = reachable(mob, shots, now);
+        if (result == null) {
+            result = reachable(mob, walls, now);
+        }
         if (result != null) {
             TAKEN.add(result.pos);
             while (TAKEN.size() > 64) {
@@ -323,6 +336,28 @@ final class SiegeArchers {
             }
         }
         return result;
+    }
+
+    /** The best spot the mob can walk to (checks at most a few paths); unreachable ones are marked useless. */
+    @Nullable
+    private static Spot reachable(Mob mob, List<Spot> spots, long now) {
+        spots.sort(java.util.Comparator.comparingDouble(Spot::score));
+        int checks = 0;
+        for (Spot spot : spots) {
+            if (checks >= MAX_PATH_CHECKS) {
+                break;
+            }
+            if (isAt(mob, spot.pos)) {
+                return spot;
+            }
+            checks++;
+            Path path = mob.getNavigation().createPath(spot.pos, 0);
+            if (path != null && path.canReach()) {
+                return spot;
+            }
+            markBad(spot.pos, now);
+        }
+        return null;
     }
 
     private static int taken(BlockPos pos) {

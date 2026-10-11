@@ -73,18 +73,26 @@ public final class SiegeAI {
     private static final long HOP_TICKS = 40;
     /** Creepers do not try to blow up blocks this explosion resistant (obsidian, siege stone ...). */
     private static final float BREACH_MAX_RESISTANCE = 100.0F;
+    /** Mobs stuck at least this far from the Core are recalled (see config recallSeconds). */
+    private static final double RECALL_DISTANCE = 24.0;
+    /** Only work this close to the Core makes the siege spawn missing roles. */
+    private static final double NEED_RANGE = 40.0;
+    /** A spider that got no closer for this long tries a detour. */
+    private static final long CLIMBER_STUCK_TICKS = 100;
+    /** Riders get off a spider that is this close to the Core, or stuck. */
+    private static final double DISMOUNT_RANGE = 4.0;
 
     /** Scoreboard tag on creepers that blow themselves up right next to the Core. */
     public static final String CORE_BOMBER_TAG = "incursion_core_bomber";
 
-    enum Mode { NONE, ROUTE, HOLD, GOTO }
+    enum Mode { NONE, ROUTE, HOLD, GOTO, DIRECT }
 
     enum Kind {
         NONE(false, false),
         MELEE(true, false),
         CREEPER(true, false),
         ENDERMAN(true, false),
-        BUILDER(false, true);
+        BUILDER(true, true);
 
         final boolean canDig;
         final boolean canBuild;
@@ -133,6 +141,10 @@ public final class SiegeAI {
         int pathFailures;
         long noSpotUntil;
         int blockedShots;
+        // Spiders
+        @Nullable
+        Vec3 directTarget;
+        long detourUntil;
         // Debug display
         String status = "idle";
         Object[] statusArgs = new Object[0];
@@ -257,6 +269,12 @@ public final class SiegeAI {
             return;
         }
 
+        // Carried by a phantom or riding a spider: the vehicle does the walking.
+        if (mob.isPassenger()) {
+            tickRider(level, mob, state, siege, now);
+            return;
+        }
+
         // Is this mob doing anything useful?
         LivingEntity target = mob.getTarget();
         if (target instanceof Player player && mob.distanceToSqr(player) < 16 * 16) {
@@ -264,6 +282,13 @@ public final class SiegeAI {
         }
         if (SiegeProgress.recentActionNear(mob.blockPosition(), ESCORT_RADIUS, now)) {
             state.lastUseful = now; // escorting the workers
+        }
+        double distance = mob.distanceTo(siege.target);
+        int recall = Config.RECALL_SECONDS.get();
+        if (recall > 0 && now - state.lastUseful > recall * 20L && distance > RECALL_DISTANCE
+                && mob.getTags().contains(SiegeManager.SIEGE_TAG)) {
+            recall(level, mob); // stuck far away (e.g. in a cave): make room for a new attacker
+            return;
         }
         int selfDestruct = Config.SELF_DESTRUCT_SECONDS.get();
         if (selfDestruct > 0 && now - state.lastUseful > selfDestruct * 20L) {
@@ -276,24 +301,36 @@ public final class SiegeAI {
             return;
         }
 
-        double distance = mob.distanceTo(siege.target);
         if (target != siege.target) {
             dropRoute(state, now, distance);
             state.status(target instanceof Player ? "player" : "other_target");
             return;
         }
 
-        if (Targeting.isRanged(mob)) {
-            dropRoute(state, now, distance);
-            SiegeArchers.tick(level, mob, state, siege, now);
+        boolean ranged = Targeting.isRanged(mob);
+        if (ranged) {
+            if (SiegeArchers.tick(level, mob, state, siege, now)) {
+                leaveRoute(state);
+                return; // shooting, or walking to a firing position
+            }
+            // No firing position it can walk to: follow the siege's routes like everybody else.
+            if (state.mode == Mode.GOTO && state.approach == null) {
+                state.mode = Mode.NONE;
+            }
+        } else if (tryAttackCore(level, mob, state, siege, now, distance)) {
             return;
         }
 
-        if (tryAttackCore(level, mob, state, siege, now, distance)) {
+        if (mob instanceof Spider) {
+            tickClimber(level, mob, state, siege, now, distance);
+            return;
+        }
+        if (mob instanceof EnderMan enderman && state.route == null
+                && tryTeleportToCore(level, enderman, state, siege, now, distance)) {
             return;
         }
 
-        Kind kind = kindOf(mob, role);
+        Kind kind = ranged ? Kind.NONE : kindOf(mob, role);
         if (state.route == null) {
             if (state.approach != null) {
                 if (!tickApproach(mob, state, siege, now)) {
@@ -383,7 +420,8 @@ public final class SiegeAI {
         if (role == Role.BUILDER) {
             return Config.BUILDING_ENABLED.get() ? Kind.BUILDER : Kind.NONE;
         }
-        if (role == Role.WARRIOR || role.isArcher() || !Config.DIGGING_ENABLED.get() || SiegeRules.isNonDigger(mob)) {
+        // Every zombie digs (warriors too, while no player is around), so nobody waits for a digger.
+        if (role.isArcher() || !Config.DIGGING_ENABLED.get() || SiegeRules.isNonDigger(mob)) {
             return Kind.NONE;
         }
         if (mob instanceof Creeper) {
@@ -468,6 +506,12 @@ public final class SiegeAI {
         return false;
     }
 
+    /** Forget the route without touching the movement order (an archer found something better to do). */
+    private static void leaveRoute(MobState state) {
+        state.approach = null;
+        state.route = null;
+    }
+
     private static void dropRoute(MobState state, long now, double distance) {
         state.approach = null;
         if (state.route != null) {
@@ -528,7 +572,10 @@ public final class SiegeAI {
         control(state, Mode.ROUTE, now);
         if (!capable) {
             // Somebody else has to do this; wait a few steps behind and let the siege know what is missing.
-            SiegeProgress.need(action.dig() ? SiegeProgress.Need.DIGGER : SiegeProgress.Need.BUILDER, now);
+            // Only work near the Core makes the siege send new workers (not a mob lost in a cave far away).
+            if (Vec3.atCenterOf(action.pos()).distanceTo(Vec3.atCenterOf(siege.corePos)) <= NEED_RANGE) {
+                SiegeProgress.need(action.dig() ? SiegeProgress.Need.DIGGER : SiegeProgress.Need.BUILDER, now);
+            }
             route.markNeed(pending, action.dig(), now);
             state.walkLimit = Math.max(index, pending - 4);
             state.lookAt = null;
@@ -550,7 +597,11 @@ public final class SiegeAI {
             state.actionPos = action.pos();
             state.actionTicks = 0;
         }
-        state.status(action.dig() ? "dig" : "build");
+        state.status(switch (action.work()) {
+            case DIG -> "dig";
+            case BLOCK -> "build";
+            case LADDER -> "ladder";
+        });
         if (perform(level, mob, kind, action, state, now)) {
             state.lastUseful = now;
             state.actionPos = null;
@@ -603,6 +654,9 @@ public final class SiegeAI {
     }
 
     private static boolean perform(ServerLevel level, Mob mob, Kind kind, Route.Action action, MobState state, long now) {
+        if (action.work() == Route.Work.LADDER) {
+            return placeLadder(level, mob, action.pos(), state);
+        }
         if (!action.dig()) {
             return build(level, mob, action.pos(), state);
         }
@@ -630,6 +684,29 @@ public final class SiegeAI {
         }
         level.setBlockAndUpdate(pos, block);
         level.playSound(null, pos, block.getSoundType().getPlaceSound(), SoundSource.HOSTILE, 1.0F, 0.9F);
+        return true;
+    }
+
+    /**
+     * Builder: a siege ladder in the cell a mob climbs up from (usually where the builder itself stands).
+     * Ladders have no collision, so nobody has to move out of the way.
+     */
+    private static boolean placeLadder(ServerLevel level, Mob mob, BlockPos pos, MobState state) {
+        state.actionTicks += INTERVAL;
+        mob.swing(InteractionHand.MAIN_HAND);
+        if (state.actionTicks < Config.BUILD_TICKS.get()) {
+            return false;
+        }
+        BlockState current = level.getBlockState(pos);
+        if (!current.getCollisionShape(level, pos).isEmpty()) {
+            return false; // somebody put a block here; the route will ask for digging
+        }
+        if (!current.isAir() && current.getFluidState().isEmpty() && !current.canBeReplaced()) {
+            level.destroyBlock(pos, true, mob); // a torch, a flower ...
+        }
+        BlockState ladder = ModBlocks.SIEGE_LADDER.get().defaultBlockState();
+        level.setBlockAndUpdate(pos, ladder);
+        level.playSound(null, pos, SoundEvents.LADDER_PLACE, SoundSource.HOSTILE, 1.0F, 0.9F);
         return true;
     }
 
@@ -705,8 +782,16 @@ public final class SiegeAI {
             }
             return;
         }
+        if (state.mode == Mode.DIRECT && state.directTarget != null) {
+            // Spiders: straight towards the target, climbing every wall on the way.
+            mob.getNavigation().stop();
+            Vec3 t = state.directTarget;
+            mob.getMoveControl().setWantedPosition(t.x, t.y, t.z, 1.0);
+            return;
+        }
         if (state.mode != Mode.ROUTE || state.route == null) {
             mob.getNavigation().stop();
+            holdOnLadder(mob);
             return;
         }
         Route route = state.route;
@@ -724,12 +809,34 @@ public final class SiegeAI {
             goal = route.node(limit);
         }
         mob.getNavigation().stop();
+        double dx = goal.getX() + 0.5 - mob.getX();
+        double dz = goal.getZ() + 0.5 - mob.getZ();
+        boolean sameColumn = goal.getX() == mob.getBlockX() && goal.getZ() == mob.getBlockZ();
+        if (sameColumn && goal.getY() > mob.getY() + 0.1) {
+            // Ladder: stay in the shaft and keep "jumping", which makes a mob climb.
+            if (dx * dx + dz * dz > 0.03) {
+                mob.getMoveControl().setWantedPosition(goal.getX() + 0.5, mob.getY(), goal.getZ() + 0.5, 0.5);
+            } else {
+                mob.getMoveControl().setWantedPosition(mob.getX(), mob.getY(), mob.getZ(), 0.0);
+            }
+            mob.getJumpControl().jump();
+            return;
+        }
         if (!isAt(mob, goal)) {
             mob.getMoveControl().setWantedPosition(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0);
-            double dx = goal.getX() + 0.5 - mob.getX();
-            double dz = goal.getZ() + 0.5 - mob.getZ();
             if (goal.getY() > mob.getY() + 0.5 && dx * dx + dz * dz < 1.6 * 1.6 && mob.onGround()) {
                 mob.getJumpControl().jump(); // step up the stairs
+            }
+        }
+        holdOnLadder(mob);
+    }
+
+    /** A mob on a ladder that should not climb does not slide down (it waits, digs, builds or attacks). */
+    private static void holdOnLadder(Mob mob) {
+        if (mob.onClimbable() && !mob.onGround()) {
+            Vec3 motion = mob.getDeltaMovement();
+            if (motion.y < 0.0) {
+                mob.setDeltaMovement(motion.x, 0.0, motion.z);
             }
         }
     }
@@ -738,6 +845,117 @@ public final class SiegeAI {
         double dx = node.getX() + 0.5 - mob.getX();
         double dz = node.getZ() + 0.5 - mob.getZ();
         return dx * dx + dz * dz < 0.2 && Math.abs(node.getY() - mob.getY()) < 0.8;
+    }
+
+    // ------------------------------------------------------------------
+    // Riders, spiders, endermen, recall
+    // ------------------------------------------------------------------
+
+    /** A mob carried by a phantom or riding a spider: attack the Core if it is in reach, otherwise wait. */
+    private static void tickRider(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
+        state.route = null;
+        state.approach = null;
+        state.mode = Mode.NONE;
+        state.lastUseful = now;
+        state.lastCloser = now;
+        state.bestDistance = Double.MAX_VALUE;
+        Entity vehicle = mob.getVehicle();
+        boolean carried = vehicle != null && vehicle.getTags().contains(SiegeAirDrop.CARRIER_TAG);
+        state.status(carried ? "carried" : "riding");
+        if (carried || mob.getTarget() != siege.target) {
+            return;
+        }
+        if (Targeting.isRanged(mob)) {
+            SiegeArchers.shootFromHere(level, mob, state, siege, now);
+        } else {
+            tryAttackCore(level, mob, state, siege, now, mob.distanceTo(siege.target));
+        }
+    }
+
+    /**
+     * Spiders walk straight at the Core and climb every wall on the way (vanilla spiders climb when they
+     * bump into a wall). Under an overhang they try a detour. Riders get off near the Core or when the spider
+     * is stuck, and continue on foot (digging, building ...).
+     */
+    private static void tickClimber(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now,
+                                    double distance) {
+        state.route = null;
+        state.approach = null;
+        if (distance < state.bestDistance - 0.5) {
+            state.bestDistance = distance;
+            state.lastCloser = now;
+            state.lastUseful = now;
+        }
+        long stuck = now - state.lastCloser;
+        Vec3 core = Vec3.atCenterOf(siege.corePos);
+        if (mob.isVehicle() && (mob.position().distanceTo(core) <= DISMOUNT_RANGE || stuck > CLIMBER_STUCK_TICKS * 2)) {
+            mob.ejectPassengers();
+        }
+        if (now < state.detourUntil && state.directTarget != null) {
+            state.status("detour");
+        } else if (stuck > CLIMBER_STUCK_TICKS) {
+            // Stuck (overhang, corner): walk sideways for a moment, then try again.
+            double angle = Math.atan2(mob.getZ() - core.z, mob.getX() - core.x)
+                    + (mob.getRandom().nextBoolean() ? 1.0 : -1.0) * (Math.PI / 2.0);
+            double length = 6.0 + mob.getRandom().nextDouble() * 4.0;
+            state.directTarget = new Vec3(mob.getX() + Math.cos(angle) * length, mob.getY(),
+                    mob.getZ() + Math.sin(angle) * length);
+            state.detourUntil = now + 60;
+            state.lastCloser = now;
+            state.bestDistance = distance;
+            state.status("detour");
+        } else {
+            state.directTarget = core;
+            state.status("climb");
+        }
+        control(state, Mode.DIRECT, now);
+        state.lookAt = null;
+    }
+
+    /** Endermen that got stuck teleport right next to the Core (they are endermen after all). */
+    private static boolean tryTeleportToCore(ServerLevel level, EnderMan enderman, MobState state, ActiveSiege siege,
+                                             long now, double distance) {
+        if (distance < state.bestDistance - 1.0) {
+            return false; // still getting closer the normal way
+        }
+        if (now - state.lastCloser < Config.STUCK_SECONDS.get() * 20L || now < state.nextTeleport) {
+            return false;
+        }
+        state.nextTeleport = now + 100;
+        BlockPos core = siege.corePos;
+        java.util.List<BlockPos> spots = new java.util.ArrayList<>();
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                for (int dy = -2; dy <= 2; dy++) {
+                    BlockPos pos = core.offset(dx, dy, dz);
+                    if (!pos.equals(core) && SiegeArchers.isStandable(level, pos)
+                            && RoutePlanner.isPassable(level, pos.above(2))) {
+                        spots.add(pos);
+                    }
+                }
+            }
+        }
+        spots.sort(java.util.Comparator.comparingDouble(pos -> pos.distSqr(core)));
+        for (int i = 0; i < Math.min(4, spots.size()); i++) {
+            BlockPos spot = spots.get(i);
+            if (enderman.randomTeleport(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, true)) {
+                level.playSound(null, spot, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.0F, 1.0F);
+                state.lastCloser = now;
+                state.lastUseful = now;
+                state.bestDistance = enderman.distanceTo(siege.target);
+                state.status("teleport");
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A siege mob stuck far away disappears; the siege spawns a new one in a better place. */
+    private static void recall(ServerLevel level, Mob mob) {
+        MOBS.remove(mob);
+        level.sendParticles(ParticleTypes.PORTAL, mob.getX(), mob.getY() + 1.0, mob.getZ(), 30, 0.4, 0.8, 0.4, 0.2);
+        mob.ejectPassengers();
+        mob.discard();
     }
 
     // ------------------------------------------------------------------

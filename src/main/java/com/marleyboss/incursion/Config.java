@@ -419,9 +419,35 @@ public final class Config {
             .comment("If true, builders place blocks (stairs, bridges) on the way to the Core.")
             .define("buildingEnabled", true);
 
+    public static final ModConfigSpec.BooleanValue LADDERS_ENABLED = BUILDER
+            .comment("If true, builders also place siege ladders, so the siege can climb straight up (e.g. to a Core high up).")
+            .define("laddersEnabled", true);
+
     public static final ModConfigSpec.IntValue PLANNER_MAX_NODES = BUILDER
             .comment("How many positions the route planner may check for one route. Higher = smarter over long distances, but more lag.")
-            .defineInRange("plannerMaxNodes", 8000, 500, 100000);
+            .defineInRange("plannerMaxNodes", 12000, 500, 100000);
+
+    public static final ModConfigSpec.BooleanValue AIR_DROPS = BUILDER
+            .comment("If true, phantoms carry siege mobs to a free spot next to the Core when the Core is high above the ground,",
+                    "when the siege is stuck, or when no spawn spot on the ground is found.")
+            .define("airDrops", true);
+
+    public static final ModConfigSpec.DoubleValue AIR_DROP_CHANCE = BUILDER
+            .comment("Chance that a new attacker comes by air while the Core is high up or the siege is stuck.")
+            .defineInRange("airDropChance", 0.5, 0.0, 1.0);
+
+    public static final ModConfigSpec.IntValue AIR_DROP_ELEVATION = BUILDER
+            .comment("The Core counts as \"high up\" when it is at least this many blocks above the ground around it.")
+            .defineInRange("airDropElevation", 8, 1, 512);
+
+    public static final ModConfigSpec.DoubleValue SPIDER_RIDER_CHANCE = BUILDER
+            .comment("Chance that a siege spider carries a zombie or skeleton up the walls.")
+            .defineInRange("spiderRiderChance", 0.5, 0.0, 1.0);
+
+    public static final ModConfigSpec.IntValue RECALL_SECONDS = BUILDER
+            .comment("A siege mob more than 24 blocks from the Core that achieved nothing for this many seconds disappears",
+                    "(e.g. stuck in a cave); a new one spawns in a better place. 0 = off.")
+            .defineInRange("recallSeconds", 90, 0, 36000);
 
     public static final ModConfigSpec.IntValue GUARD_RANGE = BUILDER
             .comment("Warriors attack players within this many blocks, in every zone (also next to the Core).",

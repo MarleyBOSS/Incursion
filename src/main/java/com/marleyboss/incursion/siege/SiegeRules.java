@@ -72,6 +72,7 @@ public final class SiegeRules {
     public static boolean isAttacker(Mob mob) {
         return mob instanceof Enemy
                 && mob.isAlive()
+                && !mob.getTags().contains(SiegeAirDrop.CARRIER_TAG)
                 && !mob.getType().is(Tags.EntityTypes.BOSSES)
                 && !exempt.contains(mob.getType());
     }

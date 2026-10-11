@@ -15,13 +15,14 @@ import java.util.Locale;
 
 /**
  * Optional "AI view" (toggled in the Core GUI): every attacker shows its role and what it is doing above its
- * head, and the planned routes are drawn with particles (white = way, red = block to dig, blue = block to build).
+ * head, and the planned routes are drawn with particles (white = way, red = block to dig, blue = block to build, yellow = ladder).
  */
 public final class SiegeDebug {
     private static final String TAG = "incursion_debug_name";
     private static final DustParticleOptions PATH = new DustParticleOptions(new Vector3f(0.9F, 0.9F, 0.9F), 0.9F);
     private static final DustParticleOptions DIG = new DustParticleOptions(new Vector3f(1.0F, 0.15F, 0.1F), 2.0F);
     private static final DustParticleOptions BUILD = new DustParticleOptions(new Vector3f(0.2F, 0.45F, 1.0F), 2.0F);
+    private static final DustParticleOptions LADDER = new DustParticleOptions(new Vector3f(1.0F, 0.85F, 0.1F), 2.0F);
 
     private SiegeDebug() {
     }
@@ -62,7 +63,12 @@ public final class SiegeDebug {
                 Route.Action action = route.action(level, pending);
                 if (action != null) {
                     BlockPos pos = action.pos();
-                    SpawnRings.send(level, action.dig() ? DIG : BUILD, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                    DustParticleOptions color = switch (action.work()) {
+                        case DIG -> DIG;
+                        case BLOCK -> BUILD;
+                        case LADDER -> LADDER;
+                    };
+                    SpawnRings.send(level, color, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
                 }
             }
         }

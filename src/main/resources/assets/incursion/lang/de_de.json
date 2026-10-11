@@ -163,5 +163,18 @@
   "debug.incursion.status.seek_spot": "sucht Schussposition",
   "debug.incursion.status.no_spot": "keine Schussposition",
   "debug.incursion.status.sapper": "bringt TNT",
-  "debug.incursion.status.fuse": "Selbstzerstörung!"
+  "debug.incursion.status.fuse": "Selbstzerstörung!",
+  "incursion.configuration.laddersEnabled": "Baumeister bauen Leitern",
+  "incursion.configuration.airDrops": "Luftlandung mit Phantomen",
+  "incursion.configuration.airDropChance": "Luftlandung: Chance",
+  "incursion.configuration.airDropElevation": "Luftlandung ab Kernhöhe über Boden",
+  "incursion.configuration.spiderRiderChance": "Spinnenreiter: Chance",
+  "incursion.configuration.recallSeconds": "Feststeckende Mobs zurückrufen nach (Sekunden)",
+  "block.incursion.siege_ladder": "Belagerungsleiter",
+  "debug.incursion.status.ladder": "baut Leiter",
+  "debug.incursion.status.climb": "klettert zum Kern",
+  "debug.incursion.status.detour": "Umweg",
+  "debug.incursion.status.riding": "reitet",
+  "debug.incursion.status.carried": "wird eingeflogen",
+  "debug.incursion.status.teleport": "teleportiert zum Kern"
 }
