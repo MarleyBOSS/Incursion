@@ -32,7 +32,8 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   - **Schlafen** nur, wenn die Nacht pausiert ist oder Waffenruhe läuft (Annahme: sonst in der ganzen Welt blockiert, damit man nicht woanders schläft).
   - **Waffenruhe** (Button im Kern-GUI, gratis): 3 Tage + Nächte Ruhe. Danach müssen **7 Nächte verteidigt** werden, bis sie wieder aufgeladen ist. Pausierte Nächte, Waffenruhe-Nächte und Zeit im entschärften Zustand zählen nicht.
   - **Entschärfen** = unbegrenzte Pause: kostet **80 % der Stufe** (Stufe 20 → 4; Annahme: abrunden). Ersetzt die alte Idee „Kern pausieren kostet 2 Stufen“ und den bisherigen Reset auf Stufe 0.
-  - Offen: Was machen Mobs tagsüber (verschwinden / Belagerungslager / stehen)? Brennen in der Sonne? Dimensionen ohne Nacht (Nether/End)? Was heißt „×2“ (Mobanzahl, Limit, Stärke)? Gibt es im entschärften Zustand noch Belohnungen (Items/Energie/Buffs)?
+  - Offen: Was machen Mobs tagsüber (verschwinden / Belagerungslager / stehen)? Brennen in der Sonne? Dimensionen ohne Nacht (Nether/End)? Was heißt „×2“ (Mobanzahl, Limit, Stärke)?
+  - **Belohnungen:** entschärft keine Items/Energie/Buffs. Während pausierter Nacht und Waffenruhe Ausgabe **−20 %**.
 - Neue Nutzer-Ideen (nach v0.10): **Wächter** ab bestimmter Kernstufe; **stufenabhängige Mob-Auswahl** statt „alle Mobs auf jeder Stufe, nur mehr“ (einzelne Mobs evtl. ganz raus).
 - `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
 - KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
