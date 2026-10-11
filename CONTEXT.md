@@ -8,7 +8,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - **Claude schreibt den gesamten Code.** Der Nutzer baut nichts lokal und hat keine IDE. Er lädt die fertige `.jar` herunter und testet im Spiel.
 - **Ehrlichkeit vor allem:** Der Nutzer hatte mit einer anderen KI schlechte Erfahrungen mit nicht funktionierendem Code. Unsicherheiten offen sagen, nichts als fertig melden, was nicht gebaut und geprüft ist.
 - **Nutzungslimit schonen:** knapp antworten, keine langen Zusammenfassungen, nur relevante Dateien lesen. Pro Version am besten ein neuer Chat.
-- **Versionsnummern:** Solange das Mob-/KI-Problem (Kern zuverlässig erreichen und zerstören) nicht gelöst ist, keine neue Hauptversion, sondern nur Patch-Versionen: 0.7.1, 0.7.2, 0.7.3 … (`mod_version` in `gradle.properties`). Erst wenn der Nutzer das Problem als gelöst bestätigt, geht es mit v0.8 (Schild) weiter.
+- **Versionsnummern:** Solange das Mob-/KI-Problem (Kern zuverlässig erreichen und zerstören) nicht gelöst ist, keine neue Hauptversion, sondern nur Patch-Versionen: 0.7.1, 0.7.2, 0.7.3, 0.7.4 … (`mod_version` in `gradle.properties`). Erst wenn der Nutzer das Problem als gelöst bestätigt, geht es mit v0.8 (Schild) weiter.
 - Nach jeder Version: kurze Testanleitung (was craften, was klicken, was sollte passieren).
 - **Diese Datei aktuell halten:** Nach jedem Änderungswunsch, jeder Entscheidung, jedem Testergebnis und jeder fertigen Version die passenden Abschnitte hier aktualisieren (Roadmap-Status, offene Entscheidungen, Code-Struktur, „Letzter Stand“), dann committen und pushen. Kurz halten, nur das Nötige. Der Nutzer startet jeden neuen Chat nur mit: „Lies CONTEXT.md und mach weiter.“
 
@@ -22,7 +22,9 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - Ungetestet/riskant: Laufen auf 1 breiter Treppe (Hüpf-Fallback vorhanden), Plattformbau, zweite Front, Rechenzeit großer Pläne (läuft verteilt, 20 000 Knoten/s).
 - **v0.7.2** getestet: **viel besser.** Keine Mobs mehr unter der Erde, viele Mobs, gut gemischt, 3 Treppen gebaut und benutzt, Baumeister zuverlässig. Mängel: keine Plattform gebaut (nur Treppen); Skelette positionieren sich unzuverlässig; Baumeister bauen scheinbar nur diagonal (Treppen), nicht horizontal; Sprengschützen (Explosivpfeile) tun nichts (weder Spieler noch Kern). Wünsche: Zwischenplattformen entlang der Treppe (Schussposition für Skelette, Spieler abhalten) und oben am Kern (nicht einfach runterschießbar); Baumeister sollen abwägen (4. Treppe oder Plattformen zum Ausbau einer vorhandenen Treppe); Teams: eines jagt/verteidigt gegen den Spieler, das andere geht auf den Kern, mit Leibwächtern, die nahe Spieler angreifen.
 - **v0.7.3** gebaut (**lokal nicht kompilierbar, nur Syntax-Check mit javac; CI prüfen**), **Test ausstehend**: Zwischenplattformen („Landings“, alle 6 Stufen, `landingsEnabled`/`landingSpacing`); Plattform am Kern 5×3 nur auf freien Feldern (kein Obsidian-Abbau mehr); zusätzlicher Baumeister baut die Landings, ab der 3. Front erst Ausbau, dann weitere Treppe; Teams Jäger (`hunterPercent` 40 %, `hunterRange` 32) / Leibwächter (`bodyguardRange` 10), Arbeiter immer Kern-Team; Jäger-Schützen halten Posten auf Landings; Schützen bevorzugen Landings; Sprengschützen geben jetzt Deckungsfeuer (Ursache: bei Obsidian-Kern keine Aufgabe). Details in DESIGN.md.
-- Offen/nächste Ideen, falls v0.7.3 nicht reicht: echte Türme für Spinnen, Skelette auf erhöhter Plattform, Spawn-Gewichtung (Skelette/Creeper) prüfen.
+- **v0.7.3** getestet: Kern wird zuverlässig zerstört, keine Mobs in Höhlen; **aber immer noch keine Plattformen** (weder am Kern noch Zwischenplattformen). Wünsche: Angriff und Plattformbau **gleichzeitig** (kein Warten, Baumeister haben Vorrang beim Bauen, nicht beim Kern-Angriff); Spieler-Team mit **eigenem Baumeister** (Spieler im Turm/Bunker erreichen), Spieler egal wo **in Kernnähe** jagen, nicht auf Tour; Teams **dynamisch**: Ohne Spieler in Kernnähe gehen alle ins Kern-Team, kommt ein Spieler, splitten sie sich wieder auf; niemand soll sinnlos herumstehen.
+- **v0.7.4** gebaut (**lokal nicht kompilierbar, CI prüfen**), **Test ausstehend**: Ursache der fehlenden Plattformen nicht sicher gefunden (Vermutung: Kern stirbt, bevor der Baumeister fertig ist; Baumeister überspringen Landings hinter sich). Änderungen: Baumeister bauen Landings zum nächstgelegenen Landing auch **treppab** (Laufen Stufe für Stufe in `SiegeAI.drive`), greifen den Kern nie an, solange Plattform-/Landing-Arbeit offen ist, zweiter Baumeister früher (ab Limit 6, offene Front mit ≥ 8 Feldern Arbeit). Bei eingeschalteter KI-Anzeige meldet der Plan jetzt Plattformfelder/Landings/Felder (`message.incursion.plan.extras`): **Wenn dort 0 steht, liegt der Fehler im Planer (`RoutePlanner.platform/landings/usableSpot`)**. Neu: `PlayerHunt` (Jagd): in Kernnähe (`huntRadius` 48, max `huntMaxPlayers` 2) plant ein Planer-Lauf einen Weg zum Spieler (Ziel = Spielerposition), Jäger-Baumeister/-Gräber (Tag `incursion_hunt_worker`, max `huntWorkers` 3 pro Spieler, zusätzlich zum Mob-Limit) bauen/graben ihn, die Jäger laufen normal (Vanilla-Pfad findet die fertige Treppe). Teams dynamisch (`MobRoles.rebalanceTeams`, 1×/s): Spieler in Kernnähe → `hunterPercent` der Kämpfer sind Jäger, sonst alle Kern-Team. Jäger-Arbeiter ohne Aufgabe gehen ins Kern-Team über (Tag weg, Kommandant gibt ihnen eine Kern-Front). Jäger jagen auch ohne Sichtkontakt, Reichweite 96.
+- Offen/nächste Ideen, falls v0.7.4 nicht reicht: echte Türme für Spinnen, Skelette auf erhöhter Plattform, Spawn-Gewichtung (Skelette/Creeper) prüfen.
 - `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
 - KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
 
@@ -41,7 +43,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   `gh api repos/MarleyBOSS/Incursion/releases/tags/dev` → Asset-ID → `gh api -H "Accept: application/octet-stream" repos/MarleyBOSS/Incursion/releases/assets/<id> > incursion.jar`
 - Commit-Nachrichten enden mit den Attributionszeilen, die die Umgebung vorgibt.
 
-## Code-Struktur (Stand v0.7.3)
+## Code-Struktur (Stand v0.7.4)
 
 | Datei | Zweck |
 |---|---|
@@ -57,6 +59,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 | `siege/Targeting.java` | Wer greift was an: Arbeiter → Kern; Jäger → Spieler (32 Blöcke, nahe am Kern bis 64); Leibwächter → nur Spieler ≤ 10; Schützen → Kern (Deckungsfeuer nur ohne Schussposition) |
 | `siege/MobRoles.java` | Rollen und Teams (Tag `incursion_hunter` = Jäger, sonst Leibwächter/Kern-Team) per Scoreboard-Tag (Zombie: Krieger/Gräber/Brecher/Baumeister; Skelett: Spreng/Feuer/normal; Enderman: Pionier), ausgewogene Vergabe, Ausrüstung |
 | `siege/SiegeCommander.java` | Zentraler Plan (1/s): Fronten planen (verteilt), prüfen, neu planen; Arbeit zählen; welche Rolle als Nächstes spawnt; Zombies umschulen; Chat-Meldung bei KI-Anzeige |
+| `siege/PlayerHunt.java` | Spielerjagd: pro Spieler in Kernnähe ein Weg (Planer mit Spielerposition als Ziel), Jäger-Baumeister/-Gräber spawnen/zählen/ins Kern-Team übergeben, Teams per `MobRoles.rebalanceTeams` |
 | `siege/SiegeFront.java` | Eine Angriffslinie: Route, Seite, Plattform, Landings (Zwischenplattformen), Arbeits- und Rollenzähler |
 | `siege/SiegeAI.java` | Pro Mob alle 5 Ticks: Reiter, direkter Kernangriff, Spinnen, Endermen-Teleport, Front zuordnen → zum Sammelplatz laufen (sonst nach 30 s weg) → Weg abarbeiten (graben, bauen + Anheben, Creeper-Durchbruch), Warten/Sammeln, Plattform, Hüpfen bei Hängern, Pionier-TNT, Selbstzerstörung |
 | `siege/SiegeTeam.java` | Scoreboard-Team `incursion_siege` (kein Schieben untereinander), Aufräumen beim Entfernen |
@@ -104,7 +107,8 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.7 | Einheit: kein Schieben, Sammeln/Stürmen, mehrere Wege, Leitern, verirrte Mobs, Oberflächen-Spawns, seltene Luftlandung | getestet: schlechter (Kern nicht zerstört) |
 | v0.7.1 | Kommandant: zentraler Plan, Treppe + Plattform, Spawns am Sammelplatz nach Bedarf, Umschulen, Höhlen-Mobs weg | getestet: baut sicher, aber 1 Treppe, zu wenige Mobs, Höhlen |
 | v0.7.2 | Mehrere Fronten gleichzeitig, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | getestet: viel besser; Plattformen fehlen, Skelette unzuverlässig |
-| v0.7.3 | Zwischenplattformen, Ausbau durch Baumeister, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | gebaut, **Test ausstehend** |
+| v0.7.3 | Zwischenplattformen, Ausbau durch Baumeister, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | getestet: Kern fällt zuverlässig, aber keine Plattformen |
+| v0.7.4 | Plattformbau parallel zum Angriff (Vorrang für Baumeister), Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | gebaut, **Test ausstehend** |
 | v0.8 | Schildkuppel, Puls, Reparatur | erst wenn Kern zuverlässig zerstört wird |
 | v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Integration | |

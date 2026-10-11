@@ -205,5 +205,8 @@
   "message.incursion.plan.front": "Belagerungsplan: Angriff von %s. Zu bauen: %s Blöcke, abzubauen: %s (%s harte). Sammelplatz: %s %s %s",
   "message.incursion.plan.replan": "Belagerungsplan: Weg blockiert oder festgefahren, plane neu.",
   "message.incursion.plan.failed": "Belagerungsplan: kein Weg zum Kern gefunden. Angreifer kommen aus der Luft.",
-  "incursion.configuration.fronts": "Gleichzeitige Angriffslinien"
+  "incursion.configuration.fronts": "Gleichzeitige Angriffslinien",
+  "message.incursion.plan.extras": "Belagerungsplan: Plattformfelder: %s, Zwischenplattformen: %s (%s Felder).",
+  "message.incursion.plan.hunt": "Jagdplan: Jäger gehen auf %s. Zu bauen: %s Blöcke, zu graben: %s. Sammelplatz: %s %s %s",
+  "message.incursion.plan.hunt_open": "Jagdplan: Der Weg zu %s ist offen."
 }

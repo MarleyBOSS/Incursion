@@ -205,5 +205,8 @@
   "message.incursion.plan.front": "Siege plan: attack from the %s. To build: %s blocks, to dig: %s (%s hard). Assembly point: %s %s %s",
   "message.incursion.plan.replan": "Siege plan: the way is blocked or stuck, planning again.",
   "message.incursion.plan.failed": "Siege plan: no way to the Core found. Attackers come by air.",
-  "incursion.configuration.fronts": "Simultaneous lines of attack"
+  "incursion.configuration.fronts": "Simultaneous lines of attack",
+  "message.incursion.plan.extras": "Siege plan: platform cells: %s, landings: %s (%s cells).",
+  "message.incursion.plan.hunt": "Hunt plan: hunters go for %s. To build: %s blocks, to dig: %s. Assembly point: %s %s %s",
+  "message.incursion.plan.hunt_open": "Hunt plan: the way to %s is open."
 }

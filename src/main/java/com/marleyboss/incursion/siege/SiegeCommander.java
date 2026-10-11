@@ -188,6 +188,12 @@ public final class SiegeCommander {
                 announce(level, siege, Component.translatable("message.incursion.plan.front",
                         Component.translatable("debug.incursion.side." + front.side.getName().toLowerCase(Locale.ROOT)),
                         work[0], work[1], work[2], at.getX(), at.getY(), at.getZ()));
+                int landingSpots = 0;
+                for (SiegeFront.Landing landing : front.landings) {
+                    landingSpots += landing.spots().size();
+                }
+                announce(level, siege, Component.translatable("message.incursion.plan.extras",
+                        front.platform.size(), front.landings.size(), landingSpots));
             } else {
                 failed = true;
                 nextAttempt = now + RETRY_TICKS;
@@ -203,6 +209,32 @@ public final class SiegeCommander {
         LongOpenHashSet avoidSupport = new LongOpenHashSet();
         LongOpenHashSet otherNodes = new LongOpenHashSet();
         Set<Direction> usedSides = EnumSet.noneOf(Direction.class);
+        collectAvoid(avoidClear, avoidSupport, otherNodes, usedSides);
+        double assemblyDistance = Config.coreZoneRadius(siege.coreLevel) + 6.0;
+        int bound = Math.max(12, siege.siegeRadius - 2);
+        assemblyDistance = Math.min(assemblyDistance, bound - 4.0);
+        return new RoutePlanner(level, siege.corePos, siege.coreLevel, bound, assemblyDistance, siege.elevation,
+                siege.underground, wards, Config.WARD_RADIUS.get(), avoidClear, avoidSupport, otherNodes, usedSides,
+                now);
+    }
+
+    /**
+     * A planner for a way to a player (the hunt): the "Core" of the search is the player's position. It keeps away
+     * from the ways to the Core (never builds into them, never digs their floors away).
+     */
+    static RoutePlanner newHuntPlanner(ServerLevel level, BlockPos target, int coreLevel, int bound,
+                                       double assemblyDistance, boolean underground, List<BlockPos> wards, long now) {
+        LongOpenHashSet avoidClear = new LongOpenHashSet();
+        LongOpenHashSet avoidSupport = new LongOpenHashSet();
+        LongOpenHashSet otherNodes = new LongOpenHashSet();
+        collectAvoid(avoidClear, avoidSupport, otherNodes, EnumSet.noneOf(Direction.class));
+        return new RoutePlanner(level, target, coreLevel, bound, assemblyDistance, 0, underground, wards,
+                Config.WARD_RADIUS.get(), avoidClear, avoidSupport, otherNodes, EnumSet.noneOf(Direction.class), now);
+    }
+
+    /** Cells of the existing ways to the Core that a new plan must not use (see {@link RoutePlanner}). */
+    private static void collectAvoid(LongOpenHashSet avoidClear, LongOpenHashSet avoidSupport,
+                                     LongOpenHashSet otherNodes, Set<Direction> usedSides) {
         for (SiegeFront front : FRONTS) {
             usedSides.add(front.side);
             Route route = front.route;
@@ -232,15 +264,9 @@ public final class SiegeCommander {
                 }
             }
         }
-        double assemblyDistance = Config.coreZoneRadius(siege.coreLevel) + 6.0;
-        int bound = Math.max(12, siege.siegeRadius - 2);
-        assemblyDistance = Math.min(assemblyDistance, bound - 4.0);
-        return new RoutePlanner(level, siege.corePos, siege.coreLevel, bound, assemblyDistance, siege.elevation,
-                siege.underground, wards, Config.WARD_RADIUS.get(), avoidClear, avoidSupport, otherNodes, usedSides,
-                now);
     }
 
-    private static void announce(ServerLevel level, ActiveSiege siege, Component message) {
+    static void announce(ServerLevel level, ActiveSiege siege, Component message) {
         if (!siege.showDebug) {
             return;
         }
@@ -259,7 +285,7 @@ public final class SiegeCommander {
 
     /** The worker this front is missing right now (builder or miner), or null. */
     @Nullable
-    private static Role neededWorker(SiegeFront front, int maxMobs) {
+    static Role neededWorker(SiegeFront front, int maxMobs) {
         if (!Config.ZOMBIE_ROLES.get()) {
             return null;
         }
@@ -267,8 +293,11 @@ public final class SiegeCommander {
         int builders = 0;
         if (buildersPossible() && (front.pendingBuild > 0 || front.platformWork > 0 || front.landingWork > 0)) {
             builders = front.pendingBuild >= 10 && maxMobs >= 6 ? 2 : 1;
-            if (front.landingWork > 0 && front.pendingBuild > 0 && maxMobs >= 8) {
+            if (front.landingWork > 0 && front.pendingBuild > 0 && maxMobs >= 6) {
                 builders++; // one more builder expands the way (landings) while the others build the stairs
+            }
+            if (front.pendingBuild == 0 && front.platformWork + front.landingWork >= 8 && maxMobs >= 6) {
+                builders = 2; // the way is open: two builders finish the platforms while the attack goes on
             }
         }
         int miners = 0;

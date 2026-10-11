@@ -106,19 +106,25 @@ final class SiegeFront {
         if (!Config.LANDINGS_ENABLED.get()) {
             return null;
         }
+        // The landing closest to the builder (along the way) that still needs work. Builders walk down the
+        // stairs to a landing, so landings behind them count too.
+        LandingJob best = null;
+        int bestDistance = Integer.MAX_VALUE;
         for (Landing landing : landings) {
             if (route.firstPending(level, 1, landing.index()) >= 0) {
                 break; // the way up to this landing (and so to all further ones) is not finished
             }
-            if (landing.index() < fromIndex - 2) {
-                continue; // behind the builder: walking back down the stairs is not worth it
+            int distance = Math.abs(landing.index() - fromIndex);
+            if (distance >= bestDistance) {
+                continue;
             }
             Route.Action action = spotsAction(level, landing.spots(), false, canBuild);
             if (action != null) {
-                return new LandingJob(landing, action);
+                best = new LandingJob(landing, action);
+                bestDistance = distance;
             }
         }
-        return null;
+        return best;
     }
 
     /** Counts the landing work left on landings that can be reached. */

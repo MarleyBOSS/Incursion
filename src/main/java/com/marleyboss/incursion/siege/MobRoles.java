@@ -142,6 +142,59 @@ public final class MobRoles {
         return COUNTS[role.ordinal()];
     }
 
+    /** Living hunters (fighters of the hunter team), counted once per second. */
+    public static int hunterCount() {
+        return hunters;
+    }
+
+    /**
+     * Once per second: splits the fighters into hunters and the Core team. While players are close to the Core, the
+     * configured share are hunters (the ones closest to a player); without players everybody belongs to the Core
+     * team (nobody stands around waiting), and they split up again as soon as a player comes close.
+     */
+    static void rebalanceTeams(List<Mob> attackers, List<? extends net.minecraft.world.entity.player.Player> hunted) {
+        List<Mob> fighters = new ArrayList<>();
+        List<Mob> hunterList = new ArrayList<>();
+        for (Mob mob : attackers) {
+            if (!isFighter(of(mob)) || !mob.getTags().contains(SiegeManager.SIEGE_TAG)) {
+                continue;
+            }
+            fighters.add(mob);
+            if (isHunter(mob)) {
+                hunterList.add(mob);
+            }
+        }
+        int wanted = 0;
+        int percent = Config.HUNTER_PERCENT.get();
+        if (!hunted.isEmpty() && !fighters.isEmpty() && percent > 0) {
+            wanted = Math.max(1, (int) Math.round(percent / 100.0 * fighters.size()));
+        }
+        if (hunterList.size() > wanted) {
+            // Back to the Core team: the hunters farthest from any player first.
+            hunterList.sort(java.util.Comparator.comparingDouble((Mob m) -> -nearestPlayerDistance(m, hunted)));
+            for (int i = 0; i < hunterList.size() - wanted; i++) {
+                hunterList.get(i).removeTag(HUNTER_TAG);
+            }
+        } else if (hunterList.size() < wanted) {
+            // Split off: the bodyguards closest to a player become hunters.
+            List<Mob> others = new ArrayList<>(fighters);
+            others.removeAll(hunterList);
+            others.sort(java.util.Comparator.comparingDouble((Mob m) -> nearestPlayerDistance(m, hunted)));
+            for (int i = 0; i < wanted - hunterList.size() && i < others.size(); i++) {
+                others.get(i).addTag(HUNTER_TAG);
+            }
+        }
+        hunters = Math.min(wanted, fighters.size());
+    }
+
+    private static double nearestPlayerDistance(Mob mob, List<? extends net.minecraft.world.entity.player.Player> players) {
+        double best = Double.MAX_VALUE;
+        for (net.minecraft.world.entity.player.Player player : players) {
+            best = Math.min(best, player.distanceToSqr(mob));
+        }
+        return best;
+    }
+
     // ------------------------------------------------------------------
     // Assignment
     // ------------------------------------------------------------------

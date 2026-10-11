@@ -34,8 +34,8 @@ public final class SiegeDebug {
         MutableComponent name = role == Role.NONE
                 ? mob.getType().getDescription().copy()
                 : Component.translatable("debug.incursion.role." + role.name().toLowerCase(Locale.ROOT));
-        if (MobRoles.isFighter(role)) {
-            name.append(Component.translatable(MobRoles.isHunter(mob) ? "debug.incursion.team.hunter"
+        if (MobRoles.isFighter(role) || PlayerHunt.isWorker(mob)) {
+            name.append(Component.translatable(MobRoles.isHunter(mob) || PlayerHunt.isWorker(mob) ? "debug.incursion.team.hunter"
                     : "debug.incursion.team.bodyguard").withStyle(ChatFormatting.AQUA));
         }
         name.withStyle(ChatFormatting.GOLD).append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
@@ -60,7 +60,9 @@ public final class SiegeDebug {
 
     /** Once per second: draw the planned way of every front, the next job on it and the platform. */
     static void drawRoutes(ServerLevel level, ActiveSiege siege, long now) {
-        for (SiegeFront front : SiegeCommander.fronts()) {
+        java.util.List<SiegeFront> all = new java.util.ArrayList<>(SiegeCommander.fronts());
+        all.addAll(PlayerHunt.fronts());
+        for (SiegeFront front : all) {
             Route route = front.route;
             for (int i = 0; i < route.size(); i++) {
                 BlockPos node = route.node(i);

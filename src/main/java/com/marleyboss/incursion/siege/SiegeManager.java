@@ -141,6 +141,9 @@ public final class SiegeManager {
             Targeting.update(mob, siege, zone);
             if (mob.getTarget() == target) {
                 ensureFollowRange(mob, target);
+            } else if (mob.getTarget() instanceof net.minecraft.world.entity.player.Player hunted
+                    && MobRoles.isHunter(mob)) {
+                ensureFollowRange(mob, hunted); // hunters can see the player they chase from far away
             }
         }
         core.setSiegeMobCount(siegeMobs);
@@ -156,6 +159,7 @@ public final class SiegeManager {
             max += max * Config.STALL_EXTRA_MOBS_PERCENT.get() / 100;
         }
         SiegeCommander.tick(level, siege, attackers, wards, max, now);
+        PlayerHunt.tick(level, siege, attackers, wards, max, now);
 
         // 8. Show where mobs cannot spawn (and the AI view), if switched on in the Core GUI.
         int minDistance = Config.coreZoneRadius(coreLevel) + 6;
@@ -199,6 +203,42 @@ public final class SiegeManager {
                 }
                 core.setSiegeMobCount(siegeMobs + spawned);
             }
+            // The hunter team's own builders and miners (they come on top of the siege's mob limit).
+            spawnHuntWorkers(level, coreLevel, target, now, max);
+        }
+    }
+
+    /**
+     * Spawns the builders and miners the hunt needs at the assembly point of its way (a few blocks from the hunted
+     * player). They carry {@link PlayerHunt#WORKER_TAG} and belong to the hunter team.
+     */
+    private static void spawnHuntWorkers(ServerLevel level, int coreLevel, CoreTargetEntity target, long now,
+                                         int max) {
+        List<EntityType<?>> pool = SiegeRules.spawnPool(coreLevel);
+        RandomSource random = level.getRandom();
+        for (int i = 0; i < 2; i++) {
+            PlayerHunt.SpawnOrder order = PlayerHunt.nextSpawn(max);
+            if (order == null) {
+                return;
+            }
+            BlockPos spawnPos = assemblySpot(level, order.front().assembly(), random);
+            if (spawnPos == null) {
+                return;
+            }
+            Mob mob = createSiegeMob(level, zombieType(pool, random), spawnPos, coreLevel, random, now, order.role(), true);
+            if (mob == null) {
+                return;
+            }
+            if (!level.noCollision(mob) || level.containsAnyLiquid(mob.getBoundingBox())) {
+                mob.discard();
+                return;
+            }
+            mob.addTag(PlayerHunt.WORKER_TAG);
+            level.addFreshEntityWithPassengers(mob);
+            aimAtCore(mob, target);
+            SiegeAI.assign(mob, order.front(), now);
+            level.sendParticles(ParticleTypes.PORTAL, mob.getX(), mob.getY() + 1.0, mob.getZ(), 30, 0.4, 0.8, 0.4, 0.2);
+            PlayerHunt.noteOrdered(order);
         }
     }
 
@@ -214,7 +254,7 @@ public final class SiegeManager {
     }
 
     /** Lets the mob "see" the Core from far away so it can path towards it. */
-    private static void ensureFollowRange(Mob mob, CoreTargetEntity target) {
+    private static void ensureFollowRange(Mob mob, net.minecraft.world.entity.LivingEntity target) {
         AttributeInstance followRange = mob.getAttribute(Attributes.FOLLOW_RANGE);
         if (followRange == null) {
             return;
@@ -529,7 +569,7 @@ public final class SiegeManager {
      * The Core is underground (e.g. a cave base): below sea level, rock above it, far below the surface.
      * Only then may the siege use caves; a Core higher up is always attacked from the surface.
      */
-    private static boolean isUnderground(ServerLevel level, BlockPos core) {
+    static boolean isUnderground(ServerLevel level, BlockPos core) {
         if (core.getY() >= level.getSeaLevel() - UNDERGROUND_BELOW_SEA) {
             return false;
         }
@@ -548,7 +588,7 @@ public final class SiegeManager {
      * front's way (e.g. a tunnel the miners dug) do not count.
      */
     private static boolean inCave(ServerLevel level, ActiveSiege siege, Mob mob, int zone) {
-        if (siege.underground || zone == ActiveSiege.ZONE_CORE || mob.isPassenger()) {
+        if (siege.underground || zone == ActiveSiege.ZONE_CORE || mob.isPassenger() || PlayerHunt.isWorker(mob)) {
             return false;
         }
         BlockPos pos = mob.blockPosition();

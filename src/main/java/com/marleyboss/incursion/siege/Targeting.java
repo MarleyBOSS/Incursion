@@ -27,7 +27,7 @@ public final class Targeting {
     private static final double WARRIOR_BLIND_RANGE = 12.0;
     /** Hunters also go for players this close to the Core (beyond the Core zone), from this far away. */
     private static final double DEFEND_MARGIN = 12.0;
-    private static final double DEFEND_RANGE = 64.0;
+    private static final double DEFEND_RANGE = 96.0;
 
     private Targeting() {
     }
@@ -43,7 +43,9 @@ public final class Targeting {
 
     /** Is the player close to the Core (within the Core zone plus a margin)? */
     private static boolean nearCore(Player player, ActiveSiege siege) {
-        double reach = siege.coreZoneRadius + DEFEND_MARGIN;
+        // The same area in which the hunt builds ways to players (see PlayerHunt).
+        double reach = Math.max(siege.coreZoneRadius + DEFEND_MARGIN,
+                Math.max(16.0, Math.min(Config.HUNT_RADIUS.get(), siege.siegeRadius - 12.0)));
         double dx = player.getX() - (siege.corePos.getX() + 0.5);
         double dz = player.getZ() - (siege.corePos.getZ() + 0.5);
         double dy = player.getY() - siege.corePos.getY();
@@ -92,6 +94,7 @@ public final class Targeting {
             range = Math.max(range, DEFEND_RANGE);
         }
         boolean ranged = isRanged(mob);
+        boolean hunter = MobRoles.isHunter(mob);
         boolean warrior = MobRoles.of(mob) == Role.WARRIOR;
         Player best = null;
         double bestDistance = range * range;
@@ -101,10 +104,10 @@ public final class Targeting {
                 continue;
             }
             boolean visible = mob.getSensing().hasLineOfSight(player);
-            if (ranged && !visible) {
-                continue;
+            if (ranged && !visible && !hunter) {
+                continue; // hunters hunt through walls (towers, bunkers): their builders make the way
             }
-            if (warrior && !visible && distance > WARRIOR_BLIND_RANGE * WARRIOR_BLIND_RANGE) {
+            if (warrior && !hunter && !visible && distance > WARRIOR_BLIND_RANGE * WARRIOR_BLIND_RANGE) {
                 continue; // do not chase players hiding behind walls far away
             }
             best = player;

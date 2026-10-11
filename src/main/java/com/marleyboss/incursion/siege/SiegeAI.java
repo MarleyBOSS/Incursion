@@ -266,6 +266,7 @@ public final class SiegeAI {
         SiegeProgress.clear();
         SiegeArchers.clear();
         SiegeCommander.clear();
+        PlayerHunt.clear();
     }
 
     // ------------------------------------------------------------------
@@ -372,12 +373,13 @@ public final class SiegeAI {
         }
 
         SiegeFront front = state.front;
-        if (!SiegeCommander.contains(front)) {
+        boolean huntWorker = PlayerHunt.isWorker(mob);
+        if (huntWorker ? !PlayerHunt.contains(front) : !SiegeCommander.contains(front)) {
             Route old = state.route();
             if (old != null) {
                 old.removeMember(mob.getId());
             }
-            front = SiegeCommander.assign(mob);
+            front = huntWorker ? PlayerHunt.assign(mob) : SiegeCommander.assign(mob);
             state.front = front;
             state.routeIndex = -1;
             state.footBest = Double.MAX_VALUE;
@@ -396,10 +398,13 @@ public final class SiegeAI {
         followFront(level, mob, state, kind, front, siege, now);
     }
 
-    /** Once the way is open, builders first finish the platform (and landings) before they join the attack. */
+    /**
+     * Builders always build first (platform and landings) and only hit the Core when nothing is left to build.
+     * The attack of the others goes on at the same time.
+     */
     private static boolean buildsPlatform(Role role, MobState state) {
         SiegeFront front = state.front;
-        return role == Role.BUILDER && SiegeCommander.contains(front) && front.open
+        return role == Role.BUILDER && SiegeCommander.contains(front)
                 && (front.platformWork > 0 || front.landingWork > 0);
     }
 
@@ -537,7 +542,7 @@ public final class SiegeAI {
                     return; // nothing left to build here: hit the Core
                 }
                 control(state, Mode.HOLD, now);
-                state.lookAt = Vec3.atCenterOf(siege.corePos);
+                state.lookAt = Vec3.atCenterOf(route.corePos); // the Core, or the hunted player
                 state.status("attack_wait");
                 return;
             }
@@ -655,9 +660,10 @@ public final class SiegeAI {
             state.status("landing");
             return true;
         }
-        if (index >= job.landing().index()) {
-            return false; // standing at the landing but cannot reach the block: leave it
+        if (index == job.landing().index() && now - state.lastAdvance > HOP_TICKS * 3) {
+            return false; // standing at the landing for a long time but cannot reach the block: leave it
         }
+        // Walk up or down the stairs to the landing (the builder stops at its step and builds from there).
         control(state, Mode.ROUTE, now);
         state.walkLimit = Math.min(job.landing().index(), route.last());
         state.lookAt = null;
@@ -903,6 +909,14 @@ public final class SiegeAI {
                 next = route.node(Math.min(index + 2, limit));
             }
             goal = next;
+        } else if (index > limit) {
+            // Back down the stairs, one step at a time (a straight line to a lower step could leave the stairs).
+            BlockPos previous = route.node(index - 1);
+            if (isAt(mob, previous)) {
+                state.routeIndex = index - 1;
+                previous = route.node(Math.max(limit, index - 2));
+            }
+            goal = previous;
         } else {
             goal = route.node(limit);
         }

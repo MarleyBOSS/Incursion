@@ -507,6 +507,24 @@ public final class Config {
             .comment("A landing every this many steps of a staircase (the last one is right below the platform at the Core).")
             .defineInRange("landingSpacing", 6, 3, 30);
 
+    public static final ModConfigSpec.BooleanValue HUNT_ENABLED = BUILDER
+            .comment("If true, the hunter team has its own builders and miners: while a player is close to the Core",
+                    "(see huntRadius), they build or dig a way to the player (a tower, a hole, a bunker ...) so the hunters can reach him.")
+            .define("huntEnabled", true);
+
+    public static final ModConfigSpec.IntValue HUNT_RADIUS = BUILDER
+            .comment("Players within this many blocks of the Core are hunted with their own way (never farther than the",
+                    "siege area allows). Players on tour farther away are left alone.")
+            .defineInRange("huntRadius", 48, 8, 128);
+
+    public static final ModConfigSpec.IntValue HUNT_MAX_PLAYERS = BUILDER
+            .comment("How many players are hunted with their own way at the same time (closest to the Core first).")
+            .defineInRange("huntMaxPlayers", 2, 1, 8);
+
+    public static final ModConfigSpec.IntValue HUNT_WORKERS = BUILDER
+            .comment("At most this many hunter builders and miners per hunted player (on top of the siege's mob limit).")
+            .defineInRange("huntWorkers", 3, 1, 8);
+
     public static final ModConfigSpec.BooleanValue SIEGE_EXPLOSIONS_SPARE_MOBS = BUILDER
             .comment("If true, explosions caused by siege mobs (creepers, explosive arrows, their TNT, self-destruct)",
                     "do not hurt other siege mobs.")
