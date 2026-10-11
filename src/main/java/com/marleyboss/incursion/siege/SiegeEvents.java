@@ -104,6 +104,16 @@ public final class SiegeEvents {
                 event.getAffectedBlocks().clear();
             }
         }
+        if (source instanceof Creeper creeper && creeper.getTags().contains(SiegeAI.CORE_BOMBER_TAG)) {
+            // A creeper that blew itself up right next to the Core: full damage, even if the Core is half covered.
+            event.getAffectedEntities().removeIf(entity -> entity instanceof CoreTargetEntity);
+            float radius = creeper.isPowered() ? 6.0F : 3.0F;
+            double diameter = radius * 2.0;
+            double distance = creeper.position().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(siege.corePos));
+            double impact = Math.max(0.0, 1.0 - distance / diameter);
+            float damage = (float) ((impact * impact + impact) / 2.0 * 7.0 * diameter + 1.0);
+            siege.target.hurt(creeper.damageSources().mobAttack(creeper), damage);
+        }
         Level level = event.getLevel();
         event.getAffectedBlocks().removeIf(pos -> pos.equals(siege.corePos) || level.getBlockState(pos).is(Digging.SIEGE_PROOF));
 

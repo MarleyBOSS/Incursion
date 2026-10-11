@@ -3,6 +3,7 @@ package com.marleyboss.incursion.registry;
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlock;
 import com.marleyboss.incursion.block.WardBlock;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
@@ -30,6 +31,17 @@ public final class ModBlocks {
                     .sound(SoundType.STONE)
                     .lightLevel(state -> 7)
                     .noOcclusion()));
+
+    /**
+     * Placed by builder zombies (stairs and bridges). Explosions cannot break it, so creepers and blast arrows
+     * do not destroy the siege's own stairs. Drops nothing, so the siege is no free stone farm.
+     */
+    public static final DeferredBlock<Block> SIEGE_STONE = BLOCKS.registerSimpleBlock("siege_stone",
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_GRAY)
+                    .strength(1.5F, 1200.0F)
+                    .sound(SoundType.STONE)
+                    .noLootTable());
 
     private ModBlocks() {
     }

@@ -216,6 +216,11 @@ public final class Route {
         return best;
     }
 
+    /** All routes the siege currently knows (for the AI view). */
+    public static List<Route> active() {
+        return java.util.Collections.unmodifiableList(ACTIVE);
+    }
+
     public static boolean canPlan(long now) {
         return now - lastPlan >= PLAN_GAP_TICKS || now < lastPlan;
     }

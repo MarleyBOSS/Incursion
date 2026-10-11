@@ -1,6 +1,8 @@
 package com.marleyboss.incursion.siege;
 
 import com.marleyboss.incursion.Config;
+import com.marleyboss.incursion.entity.CoreTargetEntity;
+import com.marleyboss.incursion.registry.ModBlocks;
 import com.marleyboss.incursion.siege.MobRoles.Role;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -26,13 +28,11 @@ import net.minecraft.world.entity.monster.Spider;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileWeaponItem;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
@@ -45,16 +45,22 @@ import java.util.WeakHashMap;
 /**
  * Per-mob siege behaviour, evaluated every few ticks for every attacker in the siege area:
  * <ul>
+ *     <li>Mobs next to the Core hit it directly (no vanilla line of sight needed, see {@link SiegeAim}).</li>
+ *     <li>Archers look for a firing position and shoot from there ({@link SiegeArchers}).</li>
  *     <li>Stuck mobs (no progress towards the Core for a few seconds) join or plan a {@link Route}.
- *     Along the route, diggers dig, builders place floor blocks, creepers blow up walls,
- *     endermen take blocks away. Mobs that cannot do the next job wait a few steps behind.</li>
- *     <li>Sapper endermen place their TNT next to the Core; blast archers shoot explosive arrows at walls.</li>
+ *     Along the route, diggers dig, builders place siege stone, creepers blow up walls,
+ *     endermen take blocks away. Mobs that cannot do the next job wait a few steps behind.
+ *     A mob that does not get from one route step to the next hops there.</li>
+ *     <li>Sapper endermen place their TNT next to the Core.</li>
  *     <li>A mob that achieved nothing for a long time blows itself up.</li>
  * </ul>
  */
 public final class SiegeAI {
-    private static final int INTERVAL = 5;
-    private static final double REACH = 4.0;
+    static final int INTERVAL = 5;
+    private static final double REACH = 4.5;
+    private static final double FAR_REACH = 6.0;
+    private static final double MELEE_REACH = 2.3;
+    private static final double CREEPER_REACH = 2.5;
     private static final int LOOKAHEAD = 24;
     private static final double ESCORT_RADIUS = 12.0;
     private static final int FUSE_TICKS = 40;
@@ -63,6 +69,13 @@ public final class SiegeAI {
     private static final double HELP_RANGE = 40.0;
     /** Give up walking to another route after this many ticks. */
     private static final long APPROACH_TICKS = 400;
+    /** A mob that should walk but has not reached the next route step for this long hops there. */
+    private static final long HOP_TICKS = 40;
+    /** Creepers do not try to blow up blocks this explosion resistant (obsidian, siege stone ...). */
+    private static final float BREACH_MAX_RESISTANCE = 100.0F;
+
+    /** Scoreboard tag on creepers that blow themselves up right next to the Core. */
+    public static final String CORE_BOMBER_TAG = "incursion_core_bomber";
 
     enum Mode { NONE, ROUTE, HOLD, GOTO }
 
@@ -91,24 +104,48 @@ public final class SiegeAI {
         int routeIndex;
         int bestIndex;
         int walkLimit;
+        int lastIndex = -1;
+        long lastAdvance;
         @Nullable
         BlockPos actionPos;
         int actionTicks;
         @Nullable
-        BlockPos lookPos;
+        Vec3 lookAt;
         Mode mode = Mode.NONE;
         long controlUntil;
+        @Nullable
+        BlockPos gotoPos;
         @Nullable
         Route approach;
         long approachStart;
         long noApproachUntil;
         long fuseStart = -1;
         long nextShot;
+        long nextAttack;
         long nextTeleport;
+        // Archers
+        @Nullable
+        BlockPos spot;
+        @Nullable
+        BlockPos spotWall;
+        long spotSince;
+        long nextSpotSearch;
+        int pathFailures;
+        long noSpotUntil;
+        int blockedShots;
+        // Debug display
+        String status = "idle";
+        Object[] statusArgs = new Object[0];
 
         MobState(long now) {
             this.lastCloser = now;
             this.lastUseful = now;
+            this.lastAdvance = now;
+        }
+
+        void status(String key, Object... args) {
+            this.status = key;
+            this.statusArgs = args;
         }
     }
 
@@ -148,6 +185,11 @@ public final class SiegeAI {
         return state != null && state.mode != Mode.NONE && mob.level().getGameTime() <= state.controlUntil;
     }
 
+    @Nullable
+    static MobState stateOf(Mob mob) {
+        return MOBS.get(mob);
+    }
+
     /** The attacker hit the Core or a player. */
     public static void markUseful(@Nullable Entity attacker, long now) {
         if (attacker instanceof Mob mob) {
@@ -176,6 +218,7 @@ public final class SiegeAI {
         Digging.clear();
         SiegeExplosives.clear();
         SiegeProgress.clear();
+        SiegeArchers.clear();
     }
 
     // ------------------------------------------------------------------
@@ -192,11 +235,21 @@ public final class SiegeAI {
         ActiveSiege siege = ActiveSiege.get(level);
         if (siege == null || !SiegeRules.isAttacker(mob) || siege.zoneOf(mob) == ActiveSiege.ZONE_OUTSIDE) {
             MOBS.remove(mob);
+            SiegeDebug.clearName(mob);
             return;
         }
         long now = level.getGameTime();
         Digging.cleanup(level, now);
         MobState state = MOBS.computeIfAbsent(mob, m -> new MobState(now));
+        tickMob(level, mob, state, siege, now);
+        if (siege.showDebug) {
+            SiegeDebug.showName(mob, state);
+        } else {
+            SiegeDebug.clearName(mob);
+        }
+    }
+
+    private static void tickMob(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
         Role role = MobRoles.of(mob);
 
         if (state.fuseStart >= 0) {
@@ -226,17 +279,17 @@ public final class SiegeAI {
         double distance = mob.distanceTo(siege.target);
         if (target != siege.target) {
             dropRoute(state, now, distance);
+            state.status(target instanceof Player ? "player" : "other_target");
             return;
         }
-        if (role == Role.BLAST_ARCHER) {
-            blastShot(level, mob, state, siege, now);
+
+        if (Targeting.isRanged(mob)) {
+            dropRoute(state, now, distance);
+            SiegeArchers.tick(level, mob, state, siege, now);
+            return;
         }
 
-        if (canHitCore(mob, siege, distance)) {
-            dropRoute(state, now, distance);
-            state.bestDistance = distance;
-            state.lastCloser = now;
-            state.lastUseful = now;
+        if (tryAttackCore(level, mob, state, siege, now, distance)) {
             return;
         }
 
@@ -247,13 +300,19 @@ public final class SiegeAI {
                     return;
                 }
             } else {
+                if (state.mode == Mode.HOLD) {
+                    state.mode = Mode.NONE; // was attacking the Core, which is no longer in reach
+                }
                 if (distance < state.bestDistance - 1.0) {
                     state.bestDistance = distance;
                     state.lastCloser = now;
                     state.lastUseful = now;
+                    state.status("approach");
                     return;
                 }
-                if (now - state.lastCloser < Config.STUCK_SECONDS.get() * 20L || !canUseRoutes(mob)) {
+                long stuck = now - state.lastCloser;
+                if (stuck < Config.STUCK_SECONDS.get() * 20L || !canUseRoutes(mob)) {
+                    state.status(stuck > 40 ? "stuck" : "approach", stuck / 20);
                     return;
                 }
                 Route route = acquireRoute(level, mob, state, kind, siege, now);
@@ -263,23 +322,57 @@ public final class SiegeAI {
                 state.route = route;
             }
             state.bestIndex = state.routeIndex;
+            state.lastIndex = state.routeIndex;
+            state.lastAdvance = now;
             state.actionPos = null;
             state.actionTicks = 0;
         }
         followRoute(level, mob, state, kind, siege, now, distance);
     }
 
-    private static boolean canHitCore(Mob mob, ActiveSiege siege, double distance) {
-        if (!mob.getSensing().hasLineOfSight(siege.target)) {
+    // ------------------------------------------------------------------
+    // Hitting the Core
+    // ------------------------------------------------------------------
+
+    /**
+     * A melee mob (or creeper) close enough to an exposed face of the Core attacks it directly.
+     * This does not depend on vanilla line of sight, so a Core with a block on top can still be hit.
+     */
+    private static boolean tryAttackCore(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now,
+                                         double distance) {
+        Vec3 eyes = mob.getEyePosition();
+        double reach = (mob instanceof Creeper ? CREEPER_REACH : MELEE_REACH) + mob.getBbWidth() * 0.5;
+        if (SiegeAim.distanceToCore(eyes, siege.corePos) > reach) {
             return false;
         }
-        if (Targeting.isRanged(mob)) {
-            return distance <= 20.0;
+        Vec3 point = SiegeAim.visibleCorePoint(level, eyes, siege.corePos, mob);
+        if (point == null) {
+            return false;
         }
-        if (mob instanceof Creeper) {
-            return distance <= 3.0;
+        dropRoute(state, now, distance);
+        control(state, Mode.HOLD, now);
+        state.lookAt = point;
+        state.bestDistance = Math.min(state.bestDistance, distance);
+        state.lastCloser = now;
+        state.lastUseful = now;
+        state.status("attack");
+        if (mob instanceof Creeper creeper) {
+            creeper.addTag(CORE_BOMBER_TAG);
+            if (!creeper.isIgnited()) {
+                creeper.ignite();
+            }
+            return true;
         }
-        return mob.isWithinMeleeAttackRange(siege.target);
+        AttributeInstance damage = mob.getAttribute(Attributes.ATTACK_DAMAGE);
+        if (damage == null || damage.getValue() <= 0) {
+            return true; // cannot hurt anything, just stands there
+        }
+        if (now >= state.nextAttack) {
+            mob.swing(InteractionHand.MAIN_HAND);
+            mob.doHurtTarget(siege.target);
+            state.nextAttack = now + 20;
+        }
+        return true;
     }
 
     private static boolean canUseRoutes(Mob mob) {
@@ -328,15 +421,18 @@ public final class SiegeAI {
             if (wanted != null) {
                 state.approach = wanted;
                 state.approachStart = now;
+                state.status("help");
                 return null;
             }
         }
         if (!Route.canPlan(now)) {
+            state.status("planning");
             return null; // the planner is busy, try again in a moment
         }
         Route route = Route.plan(level, mob.blockPosition(), siege.corePos, siege.coreLevel, siege.siegeRadius + 8, now);
         if (route == null) {
             state.lastCloser = now; // no way at all from here; try again later
+            state.status("no_route");
             return null;
         }
         state.routeIndex = 0;
@@ -366,7 +462,9 @@ public final class SiegeAI {
             return false;
         }
         control(state, Mode.GOTO, now);
-        state.lookPos = null;
+        state.gotoPos = route.meetingPoint();
+        state.lookAt = null;
+        state.status("help");
         return false;
     }
 
@@ -379,7 +477,8 @@ public final class SiegeAI {
             state.bestDistance = distance;
         }
         state.mode = Mode.NONE;
-        state.lookPos = null;
+        state.lookAt = null;
+        state.gotoPos = null;
     }
 
     private static void followRoute(ServerLevel level, Mob mob, MobState state, Kind kind, ActiveSiege siege,
@@ -395,6 +494,10 @@ public final class SiegeAI {
             return;
         }
         state.routeIndex = index;
+        if (index != state.lastIndex) {
+            state.lastIndex = index;
+            state.lastAdvance = now;
+        }
         if (index > state.bestIndex) {
             state.bestIndex = index;
             state.lastUseful = now;
@@ -407,39 +510,47 @@ public final class SiegeAI {
         }
         if (pending < 0) {
             if (index >= last) {
-                dropRoute(state, now, distance); // arrived; the normal attack takes over
+                dropRoute(state, now, distance); // arrived; plan again if the Core is still out of reach
                 return;
             }
             control(state, Mode.ROUTE, now);
             state.walkLimit = Math.min(last, index + LOOKAHEAD);
-            state.lookPos = null;
+            state.lookAt = null;
+            state.status("walk", index, last);
+            hopIfStuck(level, mob, state, route, now);
             return;
         }
         Route.Action action = route.action(level, pending);
         if (action == null) {
             return;
         }
-        boolean capable = action.dig() ? kind.canDig : kind.canBuild;
+        boolean capable = action.dig() ? canDig(level, kind, action.pos()) : kind.canBuild;
         control(state, Mode.ROUTE, now);
         if (!capable) {
             // Somebody else has to do this; wait a few steps behind and let the siege know what is missing.
             SiegeProgress.need(action.dig() ? SiegeProgress.Need.DIGGER : SiegeProgress.Need.BUILDER, now);
             route.markNeed(pending, action.dig(), now);
-            state.walkLimit = Math.max(index, pending - 3);
-            state.lookPos = null;
+            state.walkLimit = Math.max(index, pending - 4);
+            state.lookAt = null;
+            state.status(action.dig() ? "wait_digger" : "wait_builder");
+            hopIfStuck(level, mob, state, route, now);
             return;
         }
         state.walkLimit = pending - 1;
-        state.lookPos = action.pos();
+        state.lookAt = Vec3.atCenterOf(action.pos());
         route.markWork(pending, now);
         double reach = mob.getEyePosition().distanceTo(Vec3.atCenterOf(action.pos()));
-        if (reach > REACH) {
+        boolean waitedLong = index >= state.walkLimit && now - state.lastAdvance > HOP_TICKS;
+        if (reach > REACH && !(waitedLong && reach <= FAR_REACH)) {
+            state.status("walk", index, last);
+            hopIfStuck(level, mob, state, route, now);
             return; // still walking up to the work spot
         }
         if (!action.pos().equals(state.actionPos)) {
             state.actionPos = action.pos();
             state.actionTicks = 0;
         }
+        state.status(action.dig() ? "dig" : "build");
         if (perform(level, mob, kind, action, state, now)) {
             state.lastUseful = now;
             state.actionPos = null;
@@ -448,7 +559,45 @@ public final class SiegeAI {
         }
     }
 
-    private static void control(MobState state, Mode mode, long now) {
+    private static boolean canDig(Level level, Kind kind, BlockPos pos) {
+        if (!kind.canDig) {
+            return false;
+        }
+        if (kind == Kind.CREEPER) {
+            BlockState state = level.getBlockState(pos);
+            return state.getBlock().getExplosionResistance() < BREACH_MAX_RESISTANCE;
+        }
+        return true;
+    }
+
+    /**
+     * Vanilla movement sometimes gets caught on block edges or other mobs. A mob that should walk along the
+     * route but has not reached the next step for two seconds hops onto it.
+     */
+    private static void hopIfStuck(ServerLevel level, Mob mob, MobState state, Route route, long now) {
+        int index = state.routeIndex;
+        if (index >= state.walkLimit || index >= route.size() - 1 || now - state.lastAdvance < HOP_TICKS) {
+            return;
+        }
+        BlockPos next = route.node(index + 1);
+        Vec3 target = Vec3.atBottomCenterOf(next);
+        if (mob.position().distanceTo(target) > 2.5) {
+            state.lastAdvance = now;
+            return;
+        }
+        AABB box = mob.getBoundingBox().move(target.subtract(mob.position()));
+        if (!level.noCollision(mob, box)) {
+            state.lastAdvance = now - HOP_TICKS / 2; // try again a bit later
+            return;
+        }
+        mob.getNavigation().stop();
+        mob.teleportTo(target.x, target.y, target.z);
+        state.routeIndex = index + 1;
+        state.lastIndex = index + 1;
+        state.lastAdvance = now;
+    }
+
+    static void control(MobState state, Mode mode, long now) {
         state.mode = mode;
         state.controlUntil = now + INTERVAL * 2L;
     }
@@ -464,16 +613,16 @@ public final class SiegeAI {
         };
     }
 
-    /** Builder: after a short moment the floor block appears. */
+    /** Builder: after a short moment a siege stone appears. Mobs standing in the way are lifted onto it. */
     private static boolean build(ServerLevel level, Mob mob, BlockPos pos, MobState state) {
         state.actionTicks += INTERVAL;
         mob.swing(InteractionHand.MAIN_HAND);
         if (state.actionTicks < Config.BUILD_TICKS.get()) {
             return false;
         }
-        BlockState block = Config.builderBlock();
-        if (!level.isUnobstructed(block, pos, CollisionContext.empty())) {
-            return false; // somebody is standing there
+        BlockState block = ModBlocks.SIEGE_STONE.get().defaultBlockState();
+        if (!level.isUnobstructed(block, pos, CollisionContext.empty()) && !clearSpot(level, pos)) {
+            return false; // somebody is standing there and cannot be moved
         }
         BlockState current = level.getBlockState(pos);
         if (!current.isAir() && current.getFluidState().isEmpty() && !current.canBeReplaced()) {
@@ -482,6 +631,24 @@ public final class SiegeAI {
         level.setBlockAndUpdate(pos, block);
         level.playSound(null, pos, block.getSoundType().getPlaceSound(), SoundSource.HOSTILE, 1.0F, 0.9F);
         return true;
+    }
+
+    /** Lifts everybody standing in this block onto it (like pillaring up). True if the block is free afterwards. */
+    private static boolean clearSpot(ServerLevel level, BlockPos pos) {
+        for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, new AABB(pos),
+                e -> e.isAlive() && !(e instanceof CoreTargetEntity))) {
+            double lift = pos.getY() + 1.0 - entity.getY();
+            if (lift > 0.0 && lift <= 1.25 && level.noCollision(entity, entity.getBoundingBox().move(0.0, lift, 0.0))) {
+                entity.teleportTo(entity.getX(), pos.getY() + 1.0, entity.getZ());
+            } else {
+                // Cannot lift (ceiling): push it out sideways.
+                double dx = entity.getX() - (pos.getX() + 0.5);
+                double dz = entity.getZ() - (pos.getZ() + 0.5);
+                double length = Math.max(0.1, Math.sqrt(dx * dx + dz * dz));
+                entity.push(dx / length * 0.4, 0.1, dz / length * 0.4);
+            }
+        }
+        return level.isUnobstructed(ModBlocks.SIEGE_STONE.get().defaultBlockState(), pos, CollisionContext.empty());
     }
 
     /** Creeper sacrifice: ignite next to the wall. The explosion handler lets it destroy blocks. */
@@ -511,7 +678,7 @@ public final class SiegeAI {
             Block.popResource(level, enderman.blockPosition(), new ItemStack(carried.getBlock()));
         }
         level.removeBlock(pos, false);
-        enderman.setCarriedBlock(blockState);
+        enderman.setCarriedBlock(blockState.is(ModBlocks.SIEGE_STONE.get()) ? null : blockState);
         enderman.swing(InteractionHand.MAIN_HAND);
         level.playSound(null, pos, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 0.8F, 1.2F);
         return true;
@@ -526,13 +693,15 @@ public final class SiegeAI {
         if (state == null) {
             return;
         }
-        if (state.lookPos != null) {
-            mob.getLookControl().setLookAt(state.lookPos.getX() + 0.5, state.lookPos.getY() + 0.5, state.lookPos.getZ() + 0.5);
+        if (state.lookAt != null) {
+            mob.getLookControl().setLookAt(state.lookAt.x, state.lookAt.y, state.lookAt.z);
         }
-        if (state.mode == Mode.GOTO && state.approach != null) {
+        if (state.mode == Mode.GOTO && state.gotoPos != null) {
             if (mob.getNavigation().isDone() || mob.tickCount % 20 == 0) {
-                BlockPos meet = state.approach.meetingPoint();
-                mob.getNavigation().moveTo(meet.getX() + 0.5, meet.getY(), meet.getZ() + 0.5, 1.0);
+                BlockPos pos = state.gotoPos;
+                if (!mob.getNavigation().moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 1.0)) {
+                    state.pathFailures++;
+                }
             }
             return;
         }
@@ -557,6 +726,11 @@ public final class SiegeAI {
         mob.getNavigation().stop();
         if (!isAt(mob, goal)) {
             mob.getMoveControl().setWantedPosition(goal.getX() + 0.5, goal.getY(), goal.getZ() + 0.5, 1.0);
+            double dx = goal.getX() + 0.5 - mob.getX();
+            double dz = goal.getZ() + 0.5 - mob.getZ();
+            if (goal.getY() > mob.getY() + 0.5 && dx * dx + dz * dz < 1.6 * 1.6 && mob.onGround()) {
+                mob.getJumpControl().jump(); // step up the stairs
+            }
         }
     }
 
@@ -576,6 +750,7 @@ public final class SiegeAI {
     }
 
     private static void tickSapper(ServerLevel level, EnderMan enderman, MobState state, ActiveSiege siege, long now) {
+        state.status("sapper");
         double distance = enderman.distanceTo(siege.target);
         if (distance < state.bestDistance - 1.0) {
             state.bestDistance = distance;
@@ -617,7 +792,7 @@ public final class SiegeAI {
             return;
         }
         control(state, Mode.HOLD, now);
-        state.lookPos = spot;
+        state.lookAt = Vec3.atCenterOf(spot);
         if (enderman.getEyePosition().distanceTo(Vec3.atCenterOf(spot)) <= REACH + 0.5) {
             BlockState old = level.getBlockState(spot);
             if (!old.isAir() && old.getFluidState().isEmpty() && !old.canBeReplaced()) {
@@ -632,7 +807,7 @@ public final class SiegeAI {
             state.lastUseful = now;
             state.actionPos = null;
             state.mode = Mode.NONE;
-            state.lookPos = null;
+            state.lookAt = null;
             return;
         }
         if (now >= state.nextTeleport) {
@@ -704,33 +879,13 @@ public final class SiegeAI {
     }
 
     // ------------------------------------------------------------------
-    // Blast archers
-    // ------------------------------------------------------------------
-
-    /** A blast archer that cannot see the Core shoots an explosive arrow at the wall in the way. */
-    private static void blastShot(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
-        if (now < state.nextShot || mob.distanceTo(siege.target) > 24.0 || mob.getSensing().hasLineOfSight(siege.target)) {
-            return;
-        }
-        Vec3 eyes = mob.getEyePosition();
-        Vec3 aim = Vec3.atCenterOf(siege.corePos);
-        BlockHitResult hit = level.clip(new ClipContext(eyes, aim, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mob));
-        if (hit.getType() == HitResult.Type.BLOCK && eyes.distanceTo(hit.getLocation()) >= 3.5) {
-            SiegeExplosives.shoot(level, mob, aim);
-            state.nextShot = now + Config.BLAST_SHOT_SECONDS.get() * 20L;
-        } else {
-            state.nextShot = now + 20;
-        }
-    }
-
-    // ------------------------------------------------------------------
     // Self-destruct
     // ------------------------------------------------------------------
 
     private static void startFuse(ServerLevel level, Mob mob, MobState state, long now) {
         state.fuseStart = now;
         state.route = null;
-        state.lookPos = null;
+        state.lookAt = null;
         control(state, Mode.HOLD, now);
         mob.getNavigation().stop();
         level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.TNT_PRIMED, SoundSource.HOSTILE, 1.0F, 0.7F);
@@ -738,6 +893,7 @@ public final class SiegeAI {
 
     private static void tickFuse(ServerLevel level, Mob mob, MobState state, long now) {
         control(state, Mode.HOLD, now);
+        state.status("fuse");
         level.sendParticles(ParticleTypes.SMOKE, mob.getX(), mob.getY() + mob.getBbHeight() * 0.6, mob.getZ(),
                 6, 0.3, 0.4, 0.3, 0.02);
         if (now - state.fuseStart < FUSE_TICKS) {

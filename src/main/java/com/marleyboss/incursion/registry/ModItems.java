@@ -16,6 +16,9 @@ public final class ModItems {
     public static final DeferredItem<BlockItem> WARD = ITEMS.registerSimpleBlockItem(
             "ward", ModBlocks.WARD, new Item.Properties().rarity(Rarity.UNCOMMON));
 
+    public static final DeferredItem<BlockItem> SIEGE_STONE = ITEMS.registerSimpleBlockItem(
+            "siege_stone", ModBlocks.SIEGE_STONE, new Item.Properties());
+
     private ModItems() {
     }
 }

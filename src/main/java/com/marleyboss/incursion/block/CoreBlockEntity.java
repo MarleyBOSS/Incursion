@@ -33,11 +33,17 @@ public class CoreBlockEntity extends BlockEntity {
     private static final String TAG_LEVEL = "CoreLevel";
     private static final String TAG_HEALTH = "CoreHealth";
     private static final String TAG_LOADED_RADIUS = "LoadedChunkRadius";
+    private static final String TAG_SHOW_BORDERS = "ShowBorders";
+    private static final String TAG_SHOW_AI = "ShowAI";
 
     private int coreLevel = 0;
     private float health = 0;
     /** Chunk radius currently force-loaded for this core, or -1 if none. */
     private int loadedChunkRadius = -1;
+    /** Draw the spawn borders (Core and ward totems) as particle rings. */
+    private boolean showBorders = false;
+    /** AI view: name tags with what every attacker is doing, routes as particles. */
+    private boolean showAi = false;
 
     // Runtime only (not saved)
     @Nullable
@@ -280,6 +286,8 @@ public class CoreBlockEntity extends BlockEntity {
         tag.putInt(TAG_LEVEL, coreLevel);
         tag.putFloat(TAG_HEALTH, health);
         tag.putInt(TAG_LOADED_RADIUS, loadedChunkRadius);
+        tag.putBoolean(TAG_SHOW_BORDERS, showBorders);
+        tag.putBoolean(TAG_SHOW_AI, showAi);
     }
 
     @Override
@@ -289,6 +297,26 @@ public class CoreBlockEntity extends BlockEntity {
         // Cores from v0.1 have no health yet: start them at full health.
         health = tag.contains(TAG_HEALTH) ? tag.getFloat(TAG_HEALTH) : -1;
         loadedChunkRadius = tag.contains(TAG_LOADED_RADIUS) ? tag.getInt(TAG_LOADED_RADIUS) : -1;
+        showBorders = tag.getBoolean(TAG_SHOW_BORDERS);
+        showAi = tag.getBoolean(TAG_SHOW_AI);
+    }
+
+    public boolean isShowBorders() {
+        return showBorders;
+    }
+
+    public void toggleShowBorders() {
+        showBorders = !showBorders;
+        setChanged();
+    }
+
+    public boolean isShowAi() {
+        return showAi;
+    }
+
+    public void toggleShowAi() {
+        showAi = !showAi;
+        setChanged();
     }
 
     /** Called by the siege manager once per second; fixes up values that could not be set while loading. */

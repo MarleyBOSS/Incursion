@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -19,6 +20,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
@@ -71,6 +73,12 @@ public final class SiegeExplosives {
             return;
         }
         HitResult hit = event.getRayTraceResult();
+        // Siege arrows fly through other siege mobs (no friendly fire, no blocked shots in a crowd).
+        if (hit instanceof EntityHitResult entityHit && entityHit.getEntity() instanceof Mob victim
+                && projectile.getOwner() instanceof Mob owner && SiegeRules.isAttacker(owner) && SiegeRules.isAttacker(victim)) {
+            event.setCanceled(true);
+            return;
+        }
         if (projectile.getTags().contains(EXPLOSIVE_ARROW_TAG)) {
             projectile.removeTag(EXPLOSIVE_ARROW_TAG);
             Vec3 at = hit.getLocation();
@@ -90,15 +98,25 @@ public final class SiegeExplosives {
 
     /** Shoots one arrow from the mob at a point (the arrow gets its class effect when it joins the level). */
     public static void shoot(ServerLevel level, Mob shooter, Vec3 aim) {
+        Vec3 from = new Vec3(shooter.getX(), shooter.getEyeY() - 0.1, shooter.getZ());
+        double speed = 2.4;
+        Vec3 direction = SiegeAim.solve(from, aim, speed);
+        if (direction == null) {
+            double dx = aim.x - from.x;
+            double dz = aim.z - from.z;
+            direction = new Vec3(dx, aim.y - from.y + Math.sqrt(dx * dx + dz * dz) * 0.2, dz);
+        }
+        shoot(level, shooter, direction, speed, aim);
+    }
+
+    /** Shoots one arrow in a given direction (see {@link SiegeAim#solve}). */
+    public static void shoot(ServerLevel level, Mob shooter, Vec3 direction, double speed, Vec3 lookAt) {
         ItemStack weapon = shooter.getMainHandItem();
         Arrow arrow = new Arrow(level, shooter, new ItemStack(Items.ARROW), weapon.isEmpty() ? null : weapon.copy());
-        double dx = aim.x - shooter.getX();
-        double dy = aim.y - arrow.getY();
-        double dz = aim.z - shooter.getZ();
-        double horizontal = Math.sqrt(dx * dx + dz * dz);
-        arrow.shoot(dx, dy + horizontal * 0.2, dz, 1.6F, 1.0F);
+        arrow.shoot(direction.x, direction.y, direction.z, (float) speed, 1.0F);
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
-        shooter.getLookControl().setLookAt(aim.x, aim.y, aim.z);
+        shooter.getLookControl().setLookAt(lookAt.x, lookAt.y, lookAt.z);
+        shooter.swing(InteractionHand.MAIN_HAND);
         level.addFreshEntity(arrow);
         level.playSound(null, shooter.getX(), shooter.getY(), shooter.getZ(), SoundEvents.SKELETON_SHOOT,
                 SoundSource.HOSTILE, 1.0F, 1.0F / (level.getRandom().nextFloat() * 0.4F + 0.8F));

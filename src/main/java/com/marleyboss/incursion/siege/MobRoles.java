@@ -1,6 +1,7 @@
 package com.marleyboss.incursion.siege;
 
 import com.marleyboss.incursion.Config;
+import com.marleyboss.incursion.registry.ModItems;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -213,10 +214,7 @@ public final class MobRoles {
             case WARRIOR -> new ItemStack(SWORDS[tier]);
             case MINER -> new ItemStack(PICKAXES[tier]);
             case BREAKER -> new ItemStack(AXES[tier]);
-            case BUILDER -> {
-                Item block = Config.builderBlock().getBlock().asItem();
-                yield new ItemStack(block == Items.AIR ? Items.COBBLESTONE : block);
-            }
+            case BUILDER -> new ItemStack(ModItems.SIEGE_STONE.get());
             default -> ItemStack.EMPTY;
         };
         zombie.setItemSlot(EquipmentSlot.MAINHAND, stack);

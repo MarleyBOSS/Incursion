@@ -243,10 +243,6 @@ public final class Config {
                     "towards the Core. They never build straight pillars.")
             .defineInRange("builderWeight", 25, 0, 1000);
 
-    public static final ModConfigSpec.ConfigValue<String> BUILDER_BLOCK = BUILDER
-            .comment("Block that builders place.")
-            .define("builderBlock", "minecraft:cobblestone", Config::isValidBlock);
-
     public static final ModConfigSpec.IntValue BUILD_TICKS = BUILDER
             .comment("Ticks a builder needs to place one block (20 ticks = 1 second).")
             .defineInRange("buildTicks", 15, 1, 200);
@@ -380,7 +376,7 @@ public final class Config {
 
     public static final ModConfigSpec.DoubleValue BLAST_ARROW_POWER = BUILDER
             .comment("Explosion power of explosive arrows (creeper = 3, TNT = 4).")
-            .defineInRange("blastArrowPower", 1.8, 0.5, 6.0);
+            .defineInRange("blastArrowPower", 2.5, 0.5, 6.0);
 
     public static final ModConfigSpec.IntValue BLAST_SHOT_SECONDS = BUILDER
             .comment("Blast archers that cannot see the Core shoot an explosive arrow at the wall in the way every X seconds.")
@@ -478,10 +474,6 @@ public final class Config {
             .comment("Every ward totem in the siege area raises the maximum number of siege mobs by this much.")
             .defineInRange("wardExtraMobs", 2, 0, 100);
 
-    public static final ModConfigSpec.BooleanValue SHOW_SPAWN_RINGS = BUILDER
-            .comment("Show particle rings: green around ward totems, purple around the Core (no spawns inside).")
-            .define("showSpawnRings", true);
-
     static {
         BUILDER.pop();
     }
@@ -542,16 +534,6 @@ public final class Config {
     // ------------------------------------------------------------------
     // Derived values
     // ------------------------------------------------------------------
-
-    public static net.minecraft.world.level.block.state.BlockState builderBlock() {
-        ResourceLocation location = ResourceLocation.tryParse(BUILDER_BLOCK.get());
-        net.minecraft.world.level.block.Block block = location != null && BuiltInRegistries.BLOCK.containsKey(location)
-                ? BuiltInRegistries.BLOCK.get(location) : net.minecraft.world.level.block.Blocks.COBBLESTONE;
-        if (block.defaultBlockState().isAir()) {
-            block = net.minecraft.world.level.block.Blocks.COBBLESTONE;
-        }
-        return block.defaultBlockState();
-    }
 
     public static Item activationItem() {
         return resolveItem(ACTIVATION_ITEM.get(), Items.BLAZE_ROD);

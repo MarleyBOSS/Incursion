@@ -25,6 +25,7 @@ import java.util.PriorityQueue;
  * walk, step up one block (a stair step), step down one block, drop down 2-4 blocks. There are no
  * straight vertical moves, so the siege builds stairs and bridges instead of pillars.
  * <p>
+ * The goal is any spot from which a mob can hit an exposed face of the Core (next to it, on top, below).
  * If the Core cannot be reached within the search budget, the route leads to the closest position found;
  * mobs follow it and plan again from there.
  */
@@ -134,13 +135,7 @@ public final class RoutePlanner {
         }
         Node end = goal != null ? goal : best;
         if (end == first) {
-            if (goal == null) {
-                return null;
-            }
-            // Already next to the Core but cannot hit it: only the block on top of the Core is in the way.
-            BlockPos here = start.immutable();
-            return new Route(core, new BlockPos[]{here, here}, new BlockPos[][]{new BlockPos[0], new BlockPos[]{core.above()}},
-                    new BlockPos[]{null, null}, true, now);
+            return null; // no step gets closer (or already there)
         }
         return build(end, goal != null, now);
     }
@@ -149,14 +144,18 @@ public final class RoutePlanner {
     // Search
     // ------------------------------------------------------------------
 
+    /**
+     * Feet positions from which a mob can hit the Core: next to it (feet or head at the Core's height),
+     * on top of it, or right below it.
+     */
     private boolean isGoal(int x, int y, int z) {
         int dx = x - core.getX();
         int dy = y - core.getY();
         int dz = z - core.getZ();
         if (dx == 0 && dz == 0) {
-            return dy == 1; // standing on top of the Core
+            return dy == 1 || dy == -2;
         }
-        return Math.abs(dx) + Math.abs(dz) == 1 && dy == 0;
+        return Math.abs(dx) + Math.abs(dz) == 1 && (dy == 0 || dy == -1);
     }
 
     private float heuristic(int x, int y, int z) {
@@ -331,13 +330,6 @@ public final class RoutePlanner {
             if (n.move == MOVE_START) {
                 supports[i] = null;
             }
-        }
-        if (complete) {
-            // Mobs aim at the Core's upper half: the block on top of the Core must not block their view.
-            BlockPos[] lastClears = clears[size - 1];
-            BlockPos[] withTop = java.util.Arrays.copyOf(lastClears, lastClears.length + 1);
-            withTop[lastClears.length] = core.above();
-            clears[size - 1] = withTop;
         }
         return new Route(core, positions, clears, supports, complete, now);
     }

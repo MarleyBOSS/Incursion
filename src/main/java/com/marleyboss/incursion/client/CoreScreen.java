@@ -27,11 +27,13 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
 
     private Button actionButton;
     private Button defuseButton;
+    private Button bordersButton;
+    private Button aiButton;
 
     public CoreScreen(CoreMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 216;
-        this.imageHeight = 216;
+        this.imageHeight = 240;
     }
 
     @Override
@@ -42,6 +44,15 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
                 .build());
         defuseButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_DEFUSE))
                 .bounds(leftPos + 10, topPos + imageHeight - 24, imageWidth - 20, 20)
+                .build());
+        int half = (imageWidth - 24) / 2;
+        bordersButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_BORDERS))
+                .bounds(leftPos + 10, topPos + imageHeight - 72, half, 20)
+                .tooltip(Tooltip.create(Component.translatable("gui.incursion.core.borders_tooltip")))
+                .build());
+        aiButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_AI_VIEW))
+                .bounds(leftPos + 14 + half, topPos + imageHeight - 72, half, 20)
+                .tooltip(Tooltip.create(Component.translatable("gui.incursion.core.ai_view_tooltip")))
                 .build());
         updateButton();
     }
@@ -64,11 +75,17 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     }
 
     private void updateButton() {
-        if (actionButton == null || defuseButton == null) {
+        if (actionButton == null || defuseButton == null || bordersButton == null || aiButton == null) {
             return;
         }
         boolean active = menu.isActive();
         defuseButton.visible = active;
+        bordersButton.visible = active;
+        aiButton.visible = active;
+        bordersButton.setMessage(Component.translatable(menu.get(CoreMenu.DATA_SHOW_BORDERS) != 0
+                ? "gui.incursion.core.button.borders_on" : "gui.incursion.core.button.borders_off"));
+        aiButton.setMessage(Component.translatable(menu.get(CoreMenu.DATA_SHOW_AI) != 0
+                ? "gui.incursion.core.button.ai_on" : "gui.incursion.core.button.ai_off"));
         // Inactive: the single button sits at the bottom.
         actionButton.setY(topPos + imageHeight - (active ? 48 : 24));
         if (active) {

@@ -27,6 +27,8 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int BUTTON_ACTIVATE = 0;
     public static final int BUTTON_UPGRADE = 1;
     public static final int BUTTON_DEFUSE = 2;
+    public static final int BUTTON_BORDERS = 3;
+    public static final int BUTTON_AI_VIEW = 4;
 
     public static final int DATA_ACTIVE = 0;
     public static final int DATA_LEVEL = 1;
@@ -44,7 +46,9 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int DATA_DEFUSE_TOTAL = 13;
     public static final int DATA_EXPLOSION_RADIUS = 14;
     public static final int DATA_DEFUSE_SECONDS = 15;
-    public static final int DATA_COUNT = 16;
+    public static final int DATA_SHOW_BORDERS = 16;
+    public static final int DATA_SHOW_AI = 17;
+    public static final int DATA_COUNT = 18;
 
     private final ContainerData data;
     private final ContainerLevelAccess access;
@@ -96,6 +100,8 @@ public class CoreMenu extends AbstractContainerMenu {
                     case DATA_DEFUSE_TOTAL -> core.getDefuseTicksTotal();
                     case DATA_EXPLOSION_RADIUS -> Config.craterRadius(Math.max(1, level));
                     case DATA_DEFUSE_SECONDS -> Config.defuseTicks(level) / 20;
+                    case DATA_SHOW_BORDERS -> core.isShowBorders() ? 1 : 0;
+                    case DATA_SHOW_AI -> core.isShowAi() ? 1 : 0;
                     default -> 0;
                 };
                 // Data slots are synced as 16-bit numbers.
@@ -149,6 +155,14 @@ public class CoreMenu extends AbstractContainerMenu {
         }
         if (id == BUTTON_DEFUSE) {
             core.toggleDefuse(level, player);
+            return true;
+        }
+        if (id == BUTTON_BORDERS) {
+            core.toggleShowBorders();
+            return true;
+        }
+        if (id == BUTTON_AI_VIEW) {
+            core.toggleShowAi();
             return true;
         }
         return false;

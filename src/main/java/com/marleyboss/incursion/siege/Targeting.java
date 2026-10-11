@@ -14,14 +14,13 @@ import org.jetbrains.annotations.Nullable;
  * <ul>
  *     <li>Workers (miners, breakers, builders, sappers) always go for the Core.</li>
  *     <li>Warriors hunt players within the guard range in every zone, also right next to the Core.</li>
- *     <li>Archers shoot the Core when they can see it. While they cannot, they give cover fire on players.
+ *     <li>Archers shoot the Core (they search a firing position). While they find none, they give cover fire on players.
  *     Players that come very close are always shot. Blast archers keep shooting at the Core.</li>
  *     <li>Everybody else: Core zone = Core only, siege area = nearby players, otherwise the Core.</li>
  * </ul>
  */
 public final class Targeting {
     private static final double SELF_DEFENCE_RANGE = 8.0;
-    private static final double CORE_SHOT_RANGE = 24.0;
     private static final double WARRIOR_BLIND_RANGE = 12.0;
 
     private Targeting() {
@@ -57,9 +56,8 @@ public final class Targeting {
             if (role == Role.BLAST_ARCHER || distance > guardRange) {
                 return false;
             }
-            boolean coreInSight = mob.distanceToSqr(siege.target) <= CORE_SHOT_RANGE * CORE_SHOT_RANGE
-                    && mob.getSensing().hasLineOfSight(siege.target);
-            return !coreInSight;
+            // Cover fire only while the archer has found no way to shoot at the Core.
+            return SiegeArchers.mayGiveCoverFire(mob, mob.level().getGameTime());
         }
         if (zone == ActiveSiege.ZONE_CORE) {
             return false;

@@ -93,7 +93,8 @@ public final class SiegeManager {
         int coreZone = Config.coreZoneRadius(coreLevel);
         int siegeRadius = Config.siegeRadiusBlocks(coreLevel);
         int aggroRange = Config.PLAYER_AGGRO_RANGE.get();
-        ActiveSiege.update(level, pos, target, coreZone, siegeRadius, aggroRange, coreLevel);
+        ActiveSiege.update(level, pos, target, coreZone, siegeRadius, aggroRange, coreLevel,
+                core.isShowBorders(), core.isShowAi());
         ActiveSiege siege = ActiveSiege.get(level);
         if (siege == null) {
             return;
@@ -130,11 +131,17 @@ public final class SiegeManager {
         // 6. Fire archers ignite TNT placed by sappers.
         SiegeExplosives.tickTnt(level, fireArchers, now);
 
-        // 7. Show where mobs cannot spawn.
+        // 7. Show where mobs cannot spawn (and the AI view), if switched on in the Core GUI.
         List<BlockPos> wards = WardBlockEntity.wardsNear(level, pos, siegeRadius);
         int minDistance = Config.coreZoneRadius(coreLevel) + 6;
-        if (Config.SHOW_SPAWN_RINGS.get() && (tickCounter / 20) % 2 == 0) {
+        if (siege.showBorders) {
             SpawnRings.drawCore(level, pos, minDistance);
+            for (BlockPos ward : wards) {
+                SpawnRings.drawWard(level, ward, Config.WARD_RADIUS.get());
+            }
+        }
+        if (siege.showDebug) {
+            SiegeDebug.drawRoutes(level, siege, now);
         }
 
         // 8. Spawn new attackers. If the siege is stuck, reinforcements may exceed the normal limit.

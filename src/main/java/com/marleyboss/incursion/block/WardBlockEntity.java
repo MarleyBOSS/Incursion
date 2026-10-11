@@ -1,10 +1,7 @@
 package com.marleyboss.incursion.block;
 
-import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.registry.ModBlockEntities;
-import com.marleyboss.incursion.siege.SpawnRings;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -15,7 +12,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-/** Keeps track of loaded ward totems and draws their ring every two seconds. */
+/** Keeps track of loaded ward totems (their ring is drawn by the siege). */
 public class WardBlockEntity extends BlockEntity {
     private static final Set<WardBlockEntity> LOADED = Collections.newSetFromMap(new WeakHashMap<>());
 
@@ -24,11 +21,8 @@ public class WardBlockEntity extends BlockEntity {
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, WardBlockEntity ward) {
+        // The rings are drawn by the siege (switch in the Core GUI).
         LOADED.add(ward);
-        if (level instanceof ServerLevel serverLevel && (level.getGameTime() + pos.hashCode()) % 40 == 0
-                && Config.SHOW_SPAWN_RINGS.get()) {
-            SpawnRings.drawWard(serverLevel, pos, Config.WARD_RADIUS.get());
-        }
     }
 
     @Override
