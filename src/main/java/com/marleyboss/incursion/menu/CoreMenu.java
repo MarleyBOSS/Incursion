@@ -26,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 public class CoreMenu extends AbstractContainerMenu {
     public static final int BUTTON_ACTIVATE = 0;
     public static final int BUTTON_UPGRADE = 1;
+    public static final int BUTTON_DEFUSE = 2;
 
     public static final int DATA_ACTIVE = 0;
     public static final int DATA_LEVEL = 1;
@@ -39,7 +40,11 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int DATA_MAX_SIEGE_MOBS = 9;
     public static final int DATA_CORE_ZONE = 10;
     public static final int DATA_SIEGE_RADIUS = 11;
-    public static final int DATA_COUNT = 12;
+    public static final int DATA_DEFUSE_LEFT = 12;
+    public static final int DATA_DEFUSE_TOTAL = 13;
+    public static final int DATA_EXPLOSION_RADIUS = 14;
+    public static final int DATA_DEFUSE_SECONDS = 15;
+    public static final int DATA_COUNT = 16;
 
     private final ContainerData data;
     private final ContainerLevelAccess access;
@@ -87,6 +92,10 @@ public class CoreMenu extends AbstractContainerMenu {
                     case DATA_MAX_SIEGE_MOBS -> Config.maxSiegeMobs(Math.max(1, level));
                     case DATA_CORE_ZONE -> Config.coreZoneRadius(Math.max(1, level));
                     case DATA_SIEGE_RADIUS -> Config.siegeRadiusBlocks(Math.max(1, level));
+                    case DATA_DEFUSE_LEFT -> core.getDefuseTicksLeft();
+                    case DATA_DEFUSE_TOTAL -> core.getDefuseTicksTotal();
+                    case DATA_EXPLOSION_RADIUS -> Config.craterRadius(Math.max(1, level));
+                    case DATA_DEFUSE_SECONDS -> Config.defuseTicks(level) / 20;
                     default -> 0;
                 };
                 // Data slots are synced as 16-bit numbers.
@@ -136,6 +145,10 @@ public class CoreMenu extends AbstractContainerMenu {
         }
         if (id == BUTTON_UPGRADE) {
             CoreActions.tryUpgrade(level, pos, player);
+            return true;
+        }
+        if (id == BUTTON_DEFUSE) {
+            core.toggleDefuse(level, player);
             return true;
         }
         return false;

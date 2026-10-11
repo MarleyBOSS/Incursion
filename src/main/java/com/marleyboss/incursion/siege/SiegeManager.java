@@ -14,6 +14,8 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
@@ -29,7 +31,6 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -201,6 +202,7 @@ public final class SiegeManager {
                 }
                 EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(spawnPos), MobSpawnType.EVENT, null);
                 prepareSiegeMob(mob, coreLevel);
+                ZombieRoles.apply(mob, coreLevel, random);
                 level.addFreshEntityWithPassengers(mob);
                 mob.setTarget(target);
                 ensureFollowRange(mob, target);
@@ -275,20 +277,33 @@ public final class SiegeManager {
         ActiveSiege.clear();
     }
 
-    /**
-     * The attackers brought the Core's health to 0.
-     * Placeholder until v0.3 (big explosion): small explosion without block damage, core falls back to level 0.
-     */
+    /** Removes all mobs spawned by the siege around the Core (the incursion is over). */
+    public static void clearSiegeMobs(ServerLevel level, BlockPos pos, int coreLevel) {
+        int radius = Config.siegeRadiusBlocks(Math.max(1, coreLevel)) + 16;
+        AABB area = new AABB(pos).inflate(radius, 96, radius);
+        for (Mob mob : level.getEntitiesOfClass(Mob.class, area, m -> m.getTags().contains(SIEGE_TAG))) {
+            level.sendParticles(ParticleTypes.POOF, mob.getX(), mob.getY() + 0.5, mob.getZ(), 10, 0.3, 0.5, 0.3, 0.02);
+            mob.discard();
+        }
+    }
+
+    /** The attackers brought the Core's health to 0: remove the block, which triggers the big explosion. */
     public static void destroyCore(ServerLevel level, BlockPos pos, CoreBlockEntity core) {
+        level.removeBlock(pos, false);
+    }
+
+    /** Defusing finished: the Core falls back to level 0 without an explosion. */
+    public static void defuse(ServerLevel level, BlockPos pos, CoreBlockEntity core) {
         stopSiege(level, pos, core);
+        clearSiegeMobs(level, pos, core.getCoreLevel());
         core.setCoreLevel(0);
         core.setHealth(0);
         BlockState state = level.getBlockState(pos);
         if (state.getBlock() instanceof CoreBlock) {
             level.setBlock(pos, state.setValue(CoreBlock.ACTIVE, false), Block.UPDATE_ALL);
         }
-        level.explode(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 3.0F, Level.ExplosionInteraction.NONE);
-        level.getServer().getPlayerList().broadcastSystemMessage(Component.translatable("message.incursion.core.destroyed",
-                pos.getX(), pos.getY(), pos.getZ()).withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD), false);
+        level.playSound(null, pos, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.0F, 0.8F);
+        level.getServer().getPlayerList().broadcastSystemMessage(Component.translatable("message.incursion.core.defused",
+                pos.getX(), pos.getY(), pos.getZ()).withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD), false);
     }
 }

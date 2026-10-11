@@ -20,23 +20,28 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     private static final int COLOR_TEXT = 0xFFE0E0E0;
     private static final int COLOR_MUTED = 0xFF9A90A8;
     private static final int COLOR_TITLE = 0xFFFFC040;
+    private static final int COLOR_DEFUSE = 0xFFFFD040;
 
     private static final int BAR_X = 10;
     private static final int BAR_WIDTH = 196;
 
     private Button actionButton;
+    private Button defuseButton;
 
     public CoreScreen(CoreMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 216;
-        this.imageHeight = 182;
+        this.imageHeight = 216;
     }
 
     @Override
     protected void init() {
         super.init();
         actionButton = addRenderableWidget(Button.builder(Component.empty(), button -> onAction())
-                .bounds(leftPos + 10, topPos + imageHeight - 28, imageWidth - 20, 20)
+                .bounds(leftPos + 10, topPos + imageHeight - 48, imageWidth - 20, 20)
+                .build());
+        defuseButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_DEFUSE))
+                .bounds(leftPos + 10, topPos + imageHeight - 24, imageWidth - 20, 20)
                 .build());
         updateButton();
     }
@@ -48,18 +53,32 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     }
 
     private void onAction() {
+        click(menu.isActive() ? CoreMenu.BUTTON_UPGRADE : CoreMenu.BUTTON_ACTIVATE);
+    }
+
+    private void click(int id) {
         if (minecraft == null || minecraft.gameMode == null) {
             return;
         }
-        int id = menu.isActive() ? CoreMenu.BUTTON_UPGRADE : CoreMenu.BUTTON_ACTIVATE;
         minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id);
     }
 
     private void updateButton() {
-        if (actionButton == null) {
+        if (actionButton == null || defuseButton == null) {
             return;
         }
-        if (!menu.isActive()) {
+        boolean active = menu.isActive();
+        defuseButton.visible = active;
+        // Inactive: the single button sits at the bottom.
+        actionButton.setY(topPos + imageHeight - (active ? 48 : 24));
+        if (active) {
+            boolean defusing = menu.get(CoreMenu.DATA_DEFUSE_LEFT) > 0;
+            defuseButton.setMessage(Component.translatable(defusing
+                    ? "gui.incursion.core.button.defuse_cancel" : "gui.incursion.core.button.defuse"));
+            defuseButton.setTooltip(defusing ? null : Tooltip.create(Component.translatable(
+                    "gui.incursion.core.defuse_tooltip", menu.get(CoreMenu.DATA_DEFUSE_SECONDS))));
+        }
+        if (!active) {
             boolean canPay = menu.get(CoreMenu.DATA_ACTIVATION_ITEMS_OWNED) >= 1;
             actionButton.setMessage(Component.translatable("gui.incursion.core.button.activate"));
             actionButton.active = canPay;
@@ -104,6 +123,12 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
         int maxHealth = Math.max(1, menu.get(CoreMenu.DATA_MAX_HEALTH));
         float health = menu.isActive() ? menu.get(CoreMenu.DATA_HEALTH) / (float) maxHealth : 0.0F;
         drawBar(graphics, x + BAR_X, y + 68, health, COLOR_HEALTH);
+
+        int defuseTotal = menu.get(CoreMenu.DATA_DEFUSE_TOTAL);
+        int defuseLeft = menu.get(CoreMenu.DATA_DEFUSE_LEFT);
+        if (menu.isActive() && defuseLeft > 0 && defuseTotal > 0) {
+            drawBar(graphics, x + BAR_X, y + 159, 1.0F - defuseLeft / (float) defuseTotal, COLOR_DEFUSE);
+        }
     }
 
     private static void drawBar(GuiGraphics graphics, int x, int y, float fraction, int color) {
@@ -141,9 +166,11 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
                 menu.get(CoreMenu.DATA_SIEGE_RADIUS)), 10, 93, infoColor, false);
         graphics.drawString(font, Component.translatable("gui.incursion.core.attackers",
                 menu.get(CoreMenu.DATA_SIEGE_MOBS), menu.get(CoreMenu.DATA_MAX_SIEGE_MOBS)), 10, 104, infoColor, false);
+        graphics.drawString(font, Component.translatable("gui.incursion.core.explosion_radius",
+                menu.get(CoreMenu.DATA_EXPLOSION_RADIUS)), 10, 115, infoColor, false);
 
         // Cost line with item icon
-        int costY = 120;
+        int costY = 128;
         if (!active) {
             Component label = Component.translatable("gui.incursion.core.activation_cost");
             graphics.drawString(font, label, 10, costY + 4, COLOR_TEXT, false);
@@ -161,7 +188,13 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
                     iconX + 18, costY + 4, COLOR_TEXT, false);
         }
 
-        graphics.drawString(font, Component.translatable(active
-                ? "gui.incursion.core.rewards" : "gui.incursion.core.inactive_hint"), 10, 140, COLOR_MUTED, false);
+        int defuseLeft = menu.get(CoreMenu.DATA_DEFUSE_LEFT);
+        if (active && defuseLeft > 0) {
+            graphics.drawString(font, Component.translatable("gui.incursion.core.defusing",
+                    (defuseLeft + 19) / 20), 10, 148, COLOR_DEFUSE, false);
+        } else {
+            graphics.drawString(font, Component.translatable(active
+                    ? "gui.incursion.core.rewards" : "gui.incursion.core.inactive_hint"), 10, 148, COLOR_MUTED, false);
+        }
     }
 }

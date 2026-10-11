@@ -12,8 +12,10 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -21,6 +23,7 @@ import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Stores the state of an Incursion Core. Whether the core is active is kept in the
@@ -42,6 +45,11 @@ public class CoreBlockEntity extends BlockEntity {
     private int tickCounter = 0;
     private long lastWarningTick = Long.MIN_VALUE / 2;
     private int siegeMobCount = 0;
+    /** Remaining ticks of a running defusal (0 = not defusing). */
+    private int defuseTicksLeft = 0;
+    private int defuseTicksTotal = 0;
+    @Nullable
+    private UUID defuser;
 
     public CoreBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.CORE.get(), pos, state);
@@ -52,6 +60,12 @@ public class CoreBlockEntity extends BlockEntity {
             return;
         }
         core.tickCounter++;
+        if (core.defuseTicksLeft > 0) {
+            core.tickDefuse(serverLevel);
+            if (!core.isActive()) {
+                return;
+            }
+        }
         if (core.tickCounter % 20 == 0) {
             SiegeManager.tickCore(serverLevel, pos, core, core.tickCounter);
         }
@@ -103,6 +117,75 @@ public class CoreBlockEntity extends BlockEntity {
 
     public void setSiegeMobCount(int siegeMobCount) {
         this.siegeMobCount = siegeMobCount;
+    }
+
+    // ------------------------------------------------------------------
+    // Defusing
+    // ------------------------------------------------------------------
+
+    public boolean isDefusing() {
+        return defuseTicksLeft > 0;
+    }
+
+    public int getDefuseTicksLeft() {
+        return defuseTicksLeft;
+    }
+
+    public int getDefuseTicksTotal() {
+        return defuseTicksTotal;
+    }
+
+    /** Starts defusing, or cancels a running defusal. */
+    public void toggleDefuse(ServerLevel level, Player player) {
+        if (!isActive()) {
+            return;
+        }
+        if (isDefusing()) {
+            stopDefuse();
+            player.displayClientMessage(Component.translatable("message.incursion.core.defuse_cancelled")
+                    .withStyle(ChatFormatting.YELLOW), true);
+            return;
+        }
+        defuseTicksTotal = Math.max(1, Config.defuseTicks(coreLevel));
+        defuseTicksLeft = defuseTicksTotal;
+        defuser = player.getUUID();
+        BlockPos pos = getBlockPos();
+        level.playSound(null, pos, SoundEvents.BEACON_AMBIENT, SoundSource.BLOCKS, 1.0F, 0.5F);
+        player.displayClientMessage(Component.translatable("message.incursion.core.defuse_started",
+                defuseTicksTotal / 20, Config.DEFUSE_MAX_DISTANCE.get()).withStyle(ChatFormatting.YELLOW), false);
+    }
+
+    private void stopDefuse() {
+        defuseTicksLeft = 0;
+        defuseTicksTotal = 0;
+        defuser = null;
+    }
+
+    private void tickDefuse(ServerLevel level) {
+        BlockPos pos = getBlockPos();
+        ServerPlayer player = defuser == null ? null : level.getServer().getPlayerList().getPlayer(defuser);
+        double maxDistance = Config.DEFUSE_MAX_DISTANCE.get();
+        if (player == null || player.level() != level
+                || player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) > maxDistance * maxDistance) {
+            stopDefuse();
+            if (player != null) {
+                player.displayClientMessage(Component.translatable("message.incursion.core.defuse_too_far")
+                        .withStyle(ChatFormatting.RED), false);
+            }
+            level.playSound(null, pos, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 0.6F, 1.5F);
+            return;
+        }
+        defuseTicksLeft--;
+        if (defuseTicksLeft <= 0) {
+            stopDefuse();
+            SiegeManager.defuse(level, pos, this);
+            return;
+        }
+        if (defuseTicksLeft % 20 == 0) {
+            level.playSound(null, pos, SoundEvents.NOTE_BLOCK_HAT.value(), SoundSource.BLOCKS, 0.8F, 1.6F);
+            player.displayClientMessage(Component.translatable("message.incursion.core.defuse_progress",
+                    defuseTicksLeft / 20).withStyle(ChatFormatting.YELLOW), true);
+        }
     }
 
     // ------------------------------------------------------------------

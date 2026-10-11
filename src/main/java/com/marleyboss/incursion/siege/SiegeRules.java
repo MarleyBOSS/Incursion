@@ -19,6 +19,7 @@ public final class SiegeRules {
     }
 
     private static Set<EntityType<?>> exempt = Set.of();
+    private static Set<EntityType<?>> nonDiggers = Set.of();
     private static List<PoolEntry> pool = List.of();
 
     private SiegeRules() {
@@ -26,13 +27,8 @@ public final class SiegeRules {
 
     /** Re-reads the config lists. Called once per second by the active core. */
     public static void refresh() {
-        Set<EntityType<?>> newExempt = new HashSet<>();
-        for (String id : Config.EXEMPT_MOBS.get()) {
-            ResourceLocation location = ResourceLocation.tryParse(id.trim());
-            if (location != null) {
-                BuiltInRegistries.ENTITY_TYPE.getOptional(location).ifPresent(newExempt::add);
-            }
-        }
+        Set<EntityType<?>> newExempt = parseTypes(Config.EXEMPT_MOBS.get());
+        Set<EntityType<?>> newNonDiggers = parseTypes(Config.NON_DIGGING_MOBS.get());
         List<PoolEntry> newPool = new ArrayList<>();
         for (String entry : Config.MOB_POOL.get()) {
             int eq = entry.indexOf('=');
@@ -52,7 +48,24 @@ public final class SiegeRules {
             }
         }
         exempt = newExempt;
+        nonDiggers = newNonDiggers;
         pool = newPool;
+    }
+
+    private static Set<EntityType<?>> parseTypes(List<? extends String> ids) {
+        Set<EntityType<?>> result = new HashSet<>();
+        for (String id : ids) {
+            ResourceLocation location = ResourceLocation.tryParse(id.trim());
+            if (location != null) {
+                BuiltInRegistries.ENTITY_TYPE.getOptional(location).ifPresent(result::add);
+            }
+        }
+        return result;
+    }
+
+    /** True for mob types listed in the config as "never dig". */
+    public static boolean isNonDigger(Mob mob) {
+        return nonDiggers.contains(mob.getType());
     }
 
     /** True for hostile mobs that take part in the siege (attack the Core). */

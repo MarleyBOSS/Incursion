@@ -1,5 +1,6 @@
 package com.marleyboss.incursion;
 
+import com.marleyboss.incursion.fallout.Fallout;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModBlocks;
 import com.marleyboss.incursion.registry.ModEntities;
@@ -31,7 +32,9 @@ public class Incursion {
         modEventBus.addListener(this::addCreative);
         modEventBus.addListener(ModEntities::registerAttributes);
         modEventBus.addListener(ChunkLoading::register);
+        modEventBus.addListener(Fallout::registerTickets);
         SiegeEvents.register();
+        Fallout.register();
 
         // Server config: stored per world in <world>/serverconfig/incursion-server.toml
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SPEC);

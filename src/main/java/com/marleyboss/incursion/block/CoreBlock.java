@@ -2,6 +2,7 @@ package com.marleyboss.incursion.block;
 
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.data.CoreWorldData;
+import com.marleyboss.incursion.fallout.Fallout;
 import com.marleyboss.incursion.menu.CoreMenu;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.siege.SiegeManager;
@@ -39,7 +40,8 @@ import org.jetbrains.annotations.Nullable;
  *     <li>Right-click with the upgrade item while active: pays the cost and gains a level.</li>
  *     <li>Right-click with anything else: opens the Core GUI (status, upgrade button).</li>
  *     <li>While active, the block entity runs the siege (see SiegeManager).</li>
- *     <li>Active cores cannot be mined in survival (the explosion on removal follows in v0.3).</li>
+ *     <li>Active cores cannot be mined in survival. If an active core is removed in any other way
+ *     (creative mode, commands, other mods) or its health drops to 0, it explodes (see Fallout).</li>
  * </ul>
  */
 public class CoreBlock extends BaseEntityBlock {
@@ -143,11 +145,16 @@ public class CoreBlock extends BaseEntityBlock {
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
         if (!state.is(newState.getBlock()) && !level.isClientSide && state.getValue(ACTIVE)
                 && level instanceof ServerLevel serverLevel) {
+            // An active core that is removed in any way explodes.
+            int coreLevel = 1;
             if (level.getBlockEntity(pos) instanceof CoreBlockEntity core) {
+                coreLevel = core.getCoreLevel();
                 SiegeManager.stopSiege(serverLevel, pos, core);
+                SiegeManager.clearSiegeMobs(serverLevel, pos, coreLevel);
             } else {
                 CoreWorldData.get(serverLevel.getServer()).clearIfMatches(level.dimension(), pos);
             }
+            Fallout.detonate(serverLevel, pos, coreLevel);
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
     }

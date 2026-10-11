@@ -2,6 +2,7 @@ package com.marleyboss.incursion.entity;
 
 import com.marleyboss.incursion.block.CoreBlock;
 import com.marleyboss.incursion.block.CoreBlockEntity;
+import com.marleyboss.incursion.siege.ZombieRoles;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
@@ -72,7 +73,7 @@ public class CoreTargetEntity extends LivingEntity {
         if (core == null || !(level() instanceof ServerLevel serverLevel)) {
             return false;
         }
-        core.damageCore(serverLevel, amount);
+        core.damageCore(serverLevel, amount * ZombieRoles.coreDamageMultiplier(attacker));
         return true;
     }
 

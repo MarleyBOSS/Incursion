@@ -8,6 +8,7 @@ import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
@@ -20,6 +21,22 @@ public final class SiegeEvents {
         NeoForge.EVENT_BUS.addListener(SiegeEvents::onChangeTarget);
         NeoForge.EVENT_BUS.addListener(SiegeEvents::onExplosion);
         NeoForge.EVENT_BUS.addListener(SiegeEvents::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(SiegeEvents::onIncomingDamage);
+        NeoForge.EVENT_BUS.addListener(Digging::onEntityTick);
+    }
+
+    /** Zombie roles: warriors hit players harder, breakers softer. */
+    private static void onIncomingDamage(LivingIncomingDamageEvent event) {
+        if (!(event.getEntity() instanceof Player) || event.getEntity().level().isClientSide) {
+            return;
+        }
+        Entity attacker = event.getSource().getEntity();
+        if (attacker instanceof Mob) {
+            float multiplier = ZombieRoles.playerDamageMultiplier(attacker);
+            if (multiplier != 1.0F) {
+                event.setAmount(event.getAmount() * multiplier);
+            }
+        }
     }
 
     /**
@@ -55,22 +72,27 @@ public final class SiegeEvents {
         }
     }
 
-    /** Creepers inside the core zone do not destroy blocks (unless enabled in the config). */
+    /**
+     * Creepers inside the core zone do not destroy blocks (unless enabled in the config).
+     * Breach creepers (stuck at a wall) always do, so they clear the way. No explosion removes the Core block.
+     */
     private static void onExplosion(ExplosionEvent.Detonate event) {
-        if (Config.CREEPER_BLOCK_DAMAGE.get()) {
-            return;
-        }
         ActiveSiege siege = ActiveSiege.get(event.getLevel());
         if (siege == null) {
             return;
         }
         Entity source = event.getExplosion().getDirectSourceEntity();
-        if (source instanceof Creeper && siege.zoneOf(source) == ActiveSiege.ZONE_CORE) {
-            event.getAffectedBlocks().clear();
+        if (source instanceof Creeper) {
+            boolean breach = source.getTags().contains(Digging.BREACH_TAG);
+            if (!breach && !Config.CREEPER_BLOCK_DAMAGE.get() && siege.zoneOf(source) == ActiveSiege.ZONE_CORE) {
+                event.getAffectedBlocks().clear();
+            }
         }
+        event.getAffectedBlocks().removeIf(pos -> pos.equals(siege.corePos));
     }
 
     private static void onServerStopping(ServerStoppingEvent event) {
         ActiveSiege.clear();
+        Digging.clear();
     }
 }
