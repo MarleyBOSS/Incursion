@@ -24,7 +24,9 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - **v0.7.3** gebaut (**lokal nicht kompilierbar, nur Syntax-Check mit javac; CI prüfen**), **Test ausstehend**: Zwischenplattformen („Landings“, alle 6 Stufen, `landingsEnabled`/`landingSpacing`); Plattform am Kern 5×3 nur auf freien Feldern (kein Obsidian-Abbau mehr); zusätzlicher Baumeister baut die Landings, ab der 3. Front erst Ausbau, dann weitere Treppe; Teams Jäger (`hunterPercent` 40 %, `hunterRange` 32) / Leibwächter (`bodyguardRange` 10), Arbeiter immer Kern-Team; Jäger-Schützen halten Posten auf Landings; Schützen bevorzugen Landings; Sprengschützen geben jetzt Deckungsfeuer (Ursache: bei Obsidian-Kern keine Aufgabe). Details in DESIGN.md.
 - **v0.7.3** getestet: Kern wird zuverlässig zerstört, keine Mobs in Höhlen; **aber immer noch keine Plattformen** (weder am Kern noch Zwischenplattformen). Wünsche: Angriff und Plattformbau **gleichzeitig** (kein Warten, Baumeister haben Vorrang beim Bauen, nicht beim Kern-Angriff); Spieler-Team mit **eigenem Baumeister** (Spieler im Turm/Bunker erreichen), Spieler egal wo **in Kernnähe** jagen, nicht auf Tour; Teams **dynamisch**: Ohne Spieler in Kernnähe gehen alle ins Kern-Team, kommt ein Spieler, splitten sie sich wieder auf; niemand soll sinnlos herumstehen.
 - **v0.7.4** gebaut (**lokal nicht kompilierbar, CI prüfen**), **Test ausstehend**: Ursache der fehlenden Plattformen nicht sicher gefunden (Vermutung: Kern stirbt, bevor der Baumeister fertig ist; Baumeister überspringen Landings hinter sich). Änderungen: Baumeister bauen Landings zum nächstgelegenen Landing auch **treppab** (Laufen Stufe für Stufe in `SiegeAI.drive`), greifen den Kern nie an, solange Plattform-/Landing-Arbeit offen ist, zweiter Baumeister früher (ab Limit 6, offene Front mit ≥ 8 Feldern Arbeit). Bei eingeschalteter KI-Anzeige meldet der Plan jetzt Plattformfelder/Landings/Felder (`message.incursion.plan.extras`): **Wenn dort 0 steht, liegt der Fehler im Planer (`RoutePlanner.platform/landings/usableSpot`)**. Neu: `PlayerHunt` (Jagd): in Kernnähe (`huntRadius` 48, max `huntMaxPlayers` 2) plant ein Planer-Lauf einen Weg zum Spieler (Ziel = Spielerposition), Jäger-Baumeister/-Gräber (Tag `incursion_hunt_worker`, max `huntWorkers` 3 pro Spieler, zusätzlich zum Mob-Limit) bauen/graben ihn, die Jäger laufen normal (Vanilla-Pfad findet die fertige Treppe). Teams dynamisch (`MobRoles.rebalanceTeams`, 1×/s): Spieler in Kernnähe → `hunterPercent` der Kämpfer sind Jäger, sonst alle Kern-Team. Jäger-Arbeiter ohne Aufgabe gehen ins Kern-Team über (Tag weg, Kommandant gibt ihnen eine Kern-Front). Jäger jagen auch ohne Sichtkontakt, Reichweite 96.
-- Offen/nächste Ideen, falls v0.7.4 nicht reicht: echte Türme für Spinnen, Skelette auf erhöhter Plattform, Spawn-Gewichtung (Skelette/Creeper) prüfen.
+- **v0.7.4** getestet: **Kern wird immer zerstört → KI-Problem vom Nutzer als gelöst bestätigt.** Plattformen werden weiterhin nicht gebaut; Nutzer will das **nicht weiter verfolgen** (zu viel Zeit). Spielerjagd/dynamische Teams: kein gesondertes Feedback.
+- **Nächster Schritt: v0.8 (Schild).** Balancing erst nach v0.9 (siehe Roadmap „Belagerungs-Ausbau“).
+- Neue Nutzer-Ideen (nach v0.9): **Wächter** ab bestimmter Kernstufe; **stufenabhängige Mob-Auswahl** statt „alle Mobs auf jeder Stufe, nur mehr“ (einzelne Mobs evtl. ganz raus).
 - `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
 - KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
 
@@ -108,10 +110,11 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.7.1 | Kommandant: zentraler Plan, Treppe + Plattform, Spawns am Sammelplatz nach Bedarf, Umschulen, Höhlen-Mobs weg | getestet: baut sicher, aber 1 Treppe, zu wenige Mobs, Höhlen |
 | v0.7.2 | Mehrere Fronten gleichzeitig, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | getestet: viel besser; Plattformen fehlen, Skelette unzuverlässig |
 | v0.7.3 | Zwischenplattformen, Ausbau durch Baumeister, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | getestet: Kern fällt zuverlässig, aber keine Plattformen |
-| v0.7.4 | Plattformbau parallel zum Angriff (Vorrang für Baumeister), Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | gebaut, **Test ausstehend** |
-| v0.8 | Schildkuppel, Puls, Reparatur | erst wenn Kern zuverlässig zerstört wird |
+| v0.7.4 | Plattformbau parallel zum Angriff (Vorrang für Baumeister), Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | getestet ✔ Kern fällt immer (Plattformen fehlen, akzeptiert) |
+| v0.8 | Schildkuppel, Puls, Reparatur | **als Nächstes** |
 | v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
-| danach | Config-Feinschliff, Balancing, Brennstoff, Create-Integration | |
+| v0.10 | Belagerungs-Ausbau: Wächter ab Stufe X, Mob-Pool pro Stufe (welche Mobs ab welcher Stufe, per Config) | Idee |
+| danach | Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen
 
@@ -120,3 +123,5 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 - Brennstoff ja/nein
 - Schutztotem-Rezept und Preis (vorerst günstig, +2 Mobs pro Totem)
 - Lizenz
+- Wächter: was genau (Boss-Mob? Anführer der Belagerung?), ab welcher Stufe
+- Welche Mobs ab welcher Stufe bzw. ganz raus
