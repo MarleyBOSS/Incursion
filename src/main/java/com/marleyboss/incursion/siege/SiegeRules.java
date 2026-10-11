@@ -18,6 +18,9 @@ public final class SiegeRules {
     private record PoolEntry(EntityType<?> type, int minLevel) {
     }
 
+    /** Scoreboard tag on naturally spawned mobs that got lost (e.g. in a cave) and left the siege. */
+    public static final String RELEASED_TAG = "incursion_released";
+
     private static Set<EntityType<?>> exempt = Set.of();
     private static Set<EntityType<?>> nonDiggers = Set.of();
     private static List<PoolEntry> pool = List.of();
@@ -73,6 +76,7 @@ public final class SiegeRules {
         return mob instanceof Enemy
                 && mob.isAlive()
                 && !mob.getTags().contains(SiegeAirDrop.CARRIER_TAG)
+                && !mob.getTags().contains(RELEASED_TAG)
                 && !mob.getType().is(Tags.EntityTypes.BOSSES)
                 && !exempt.contains(mob.getType());
     }

@@ -15,6 +15,10 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.EntityTeleportEvent;
 import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.entity.monster.Enemy;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
@@ -34,6 +38,33 @@ public final class SiegeEvents {
         NeoForge.EVENT_BUS.addListener(SiegeExplosives::onImpact);
         NeoForge.EVENT_BUS.addListener(SiegeAirDrop::onEntityTick);
         NeoForge.EVENT_BUS.addListener(SiegeEvents::onEnderTeleport);
+        NeoForge.EVENT_BUS.addListener(SiegeEvents::onSpawnCheck);
+        NeoForge.EVENT_BUS.addListener(SiegeTeam::onLeaveLevel);
+    }
+
+    /** Monsters in caves are no use to the siege (unless the cave is at about the Core's height). */
+    private static final int CAVE_BAND = 10;
+
+    /**
+     * No natural monster spawns in caves inside the siege area: they cannot reach the Core, cost performance and
+     * fill the area. Caves at about the Core's height (e.g. a cave base) are left alone.
+     */
+    private static void onSpawnCheck(MobSpawnEvent.PositionCheck event) {
+        if (event.getSpawnType() != MobSpawnType.NATURAL || !Config.BLOCK_CAVE_SPAWNS.get()) {
+            return;
+        }
+        Mob mob = event.getEntity();
+        if (!(mob instanceof Enemy)) {
+            return;
+        }
+        ActiveSiege siege = ActiveSiege.get(mob.level());
+        if (siege == null || siege.zoneOf(mob) == ActiveSiege.ZONE_OUTSIDE) {
+            return;
+        }
+        BlockPos pos = BlockPos.containing(event.getX(), event.getY(), event.getZ());
+        if (Math.abs(pos.getY() - siege.corePos.getY()) > CAVE_BAND && !mob.level().canSeeSky(pos)) {
+            event.setResult(MobSpawnEvent.PositionCheck.Result.FAIL);
+        }
     }
 
     /**

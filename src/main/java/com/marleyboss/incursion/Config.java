@@ -428,26 +428,51 @@ public final class Config {
             .defineInRange("plannerMaxNodes", 12000, 500, 100000);
 
     public static final ModConfigSpec.BooleanValue AIR_DROPS = BUILDER
-            .comment("If true, phantoms carry siege mobs to a free spot next to the Core when the Core is high above the ground,",
-                    "when the siege is stuck, or when no spawn spot on the ground is found.")
+            .comment("If true, phantoms sometimes carry siege mobs to a free spot next to the Core (rarely at low levels,",
+                    "more often at high levels), often when the siege is stuck, and always when no spawn spot on the ground is found.")
             .define("airDrops", true);
 
-    public static final ModConfigSpec.DoubleValue AIR_DROP_CHANCE = BUILDER
-            .comment("Chance that a new attacker comes by air while the Core is high up or the siege is stuck.")
-            .defineInRange("airDropChance", 0.5, 0.0, 1.0);
+    public static final ModConfigSpec.DoubleValue AIR_DROP_BASE_CHANCE = BUILDER
+            .comment("Chance that a new attacker comes by air (at Core level 0).")
+            .defineInRange("airDropBaseChance", 0.03, 0.0, 1.0);
 
-    public static final ModConfigSpec.IntValue AIR_DROP_ELEVATION = BUILDER
-            .comment("The Core counts as \"high up\" when it is at least this many blocks above the ground around it.")
-            .defineInRange("airDropElevation", 8, 1, 512);
+    public static final ModConfigSpec.DoubleValue AIR_DROP_CHANCE_PER_LEVEL = BUILDER
+            .comment("Added to the air drop chance per Core level (e.g. 0.03 + 20 x 0.01 = 23 % at level 20).")
+            .defineInRange("airDropChancePerLevel", 0.01, 0.0, 1.0);
+
+    public static final ModConfigSpec.DoubleValue AIR_DROP_STALL_CHANCE = BUILDER
+            .comment("Chance that a new attacker comes by air while the siege is stuck (no other way to the Core).")
+            .defineInRange("airDropStallChance", 0.5, 0.0, 1.0);
 
     public static final ModConfigSpec.DoubleValue SPIDER_RIDER_CHANCE = BUILDER
             .comment("Chance that a siege spider carries a zombie or skeleton up the walls.")
             .defineInRange("spiderRiderChance", 0.5, 0.0, 1.0);
 
-    public static final ModConfigSpec.IntValue RECALL_SECONDS = BUILDER
-            .comment("A siege mob more than 24 blocks from the Core that achieved nothing for this many seconds disappears",
-                    "(e.g. stuck in a cave); a new one spawns in a better place. 0 = off.")
-            .defineInRange("recallSeconds", 90, 0, 36000);
+    public static final ModConfigSpec.IntValue LOST_SECONDS = BUILDER
+            .comment("A mob more than 24 blocks from the Core that got no closer for this many seconds (and whose route made",
+                    "no progress) counts as lost, e.g. stuck in a cave: siege mobs disappear (a new one spawns in a better place),",
+                    "naturally spawned mobs leave the siege and behave normally again (so they can despawn). 0 = off.")
+            .defineInRange("lostSeconds", 60, 0, 36000);
+
+    public static final ModConfigSpec.IntValue ROUTE_CAPACITY = BUILDER
+            .comment("At most this many mobs use one route (staircase, ladder ...). Further mobs plan their own route next to it,",
+                    "so the siege builds several ways up and splits up.")
+            .defineInRange("routeCapacity", 8, 2, 64);
+
+    public static final ModConfigSpec.IntValue FRONT_WAITERS = BUILDER
+            .comment("While a route is still being built, only this many mobs wait right behind the workers.",
+                    "All others gather at the foot of the route and storm up together once the way is open.")
+            .defineInRange("frontWaiters", 2, 0, 32);
+
+    public static final ModConfigSpec.BooleanValue NO_MOB_COLLISION = BUILDER
+            .comment("If true, siege mobs do not push each other (they put themselves on the scoreboard team \"incursion_siege\"),",
+                    "so they cannot block each other on narrow stairs and ladders.")
+            .define("noMobCollision", true);
+
+    public static final ModConfigSpec.BooleanValue BLOCK_CAVE_SPAWNS = BUILDER
+            .comment("If true, no monsters spawn naturally in caves inside the siege area, unless the cave is at about the",
+                    "Core's height (e.g. a cave base). Saves performance; such mobs could not reach the Core anyway.")
+            .define("blockCaveSpawns", true);
 
     public static final ModConfigSpec.IntValue GUARD_RANGE = BUILDER
             .comment("Warriors attack players within this many blocks, in every zone (also next to the Core).",

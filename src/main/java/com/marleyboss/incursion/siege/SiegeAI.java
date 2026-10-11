@@ -79,6 +79,8 @@ public final class SiegeAI {
     private static final double NEED_RANGE = 40.0;
     /** A spider that got no closer for this long tries a detour. */
     private static final long CLIMBER_STUCK_TICKS = 100;
+    /** At most this many workers work at the front of one route at the same time. */
+    private static final int MAX_FRONT_WORKERS = 2;
     /** Riders get off a spider that is this close to the Core, or stuck. */
     private static final double DISMOUNT_RANGE = 4.0;
 
@@ -107,6 +109,10 @@ public final class SiegeAI {
         double bestDistance = Double.MAX_VALUE;
         long lastCloser;
         long lastUseful;
+        /** Closest distance to the Core so far, and when it was reached. */
+        double nearest = Double.MAX_VALUE;
+        /** Last time the mob really achieved something (got closer than ever, hit, shot, dug, built). */
+        long lastEffective;
         @Nullable
         Route route;
         int routeIndex;
@@ -153,6 +159,12 @@ public final class SiegeAI {
             this.lastCloser = now;
             this.lastUseful = now;
             this.lastAdvance = now;
+            this.lastEffective = now;
+        }
+
+        void effective(long now) {
+            this.lastUseful = now;
+            this.lastEffective = now;
         }
 
         void status(String key, Object... args) {
@@ -207,7 +219,7 @@ public final class SiegeAI {
         if (attacker instanceof Mob mob) {
             MobState state = MOBS.get(mob);
             if (state != null) {
-                state.lastUseful = now;
+                state.effective(now);
             }
         }
     }
@@ -246,8 +258,12 @@ public final class SiegeAI {
         }
         ActiveSiege siege = ActiveSiege.get(level);
         if (siege == null || !SiegeRules.isAttacker(mob) || siege.zoneOf(mob) == ActiveSiege.ZONE_OUTSIDE) {
-            MOBS.remove(mob);
+            forget(mob);
             SiegeDebug.clearName(mob);
+            if (siege != null && mob.getTags().contains(SiegeManager.SIEGE_TAG) && !mob.isPassenger()
+                    && siege.zoneOf(mob) == ActiveSiege.ZONE_OUTSIDE) {
+                recall(level, mob); // wandered out of the siege area: it would stay there forever
+            }
             return;
         }
         long now = level.getGameTime();
@@ -284,10 +300,12 @@ public final class SiegeAI {
             state.lastUseful = now; // escorting the workers
         }
         double distance = mob.distanceTo(siege.target);
-        int recall = Config.RECALL_SECONDS.get();
-        if (recall > 0 && now - state.lastUseful > recall * 20L && distance > RECALL_DISTANCE
-                && mob.getTags().contains(SiegeManager.SIEGE_TAG)) {
-            recall(level, mob); // stuck far away (e.g. in a cave): make room for a new attacker
+        if (isLost(mob, state, distance, now)) {
+            if (mob.getTags().contains(SiegeManager.SIEGE_TAG)) {
+                recall(level, mob); // stuck far away (e.g. in a cave): make room for a new attacker
+            } else {
+                release(mob, siege); // a natural mob: let it go, it may despawn normally
+            }
             return;
         }
         int selfDestruct = Config.SELF_DESTRUCT_SECONDS.get();
@@ -310,7 +328,7 @@ public final class SiegeAI {
         boolean ranged = Targeting.isRanged(mob);
         if (ranged) {
             if (SiegeArchers.tick(level, mob, state, siege, now)) {
-                leaveRoute(state);
+                leaveRoute(mob, state);
                 return; // shooting, or walking to a firing position
             }
             // No firing position it can walk to: follow the siege's routes like everybody else.
@@ -391,7 +409,7 @@ public final class SiegeAI {
         state.lookAt = point;
         state.bestDistance = Math.min(state.bestDistance, distance);
         state.lastCloser = now;
-        state.lastUseful = now;
+        state.effective(now);
         state.status("attack");
         if (mob instanceof Creeper creeper) {
             creeper.addTag(CORE_BOMBER_TAG);
@@ -455,7 +473,8 @@ public final class SiegeAI {
         }
         if (now >= state.noApproachUntil) {
             // Go and help where help is wanted, instead of starting a new hole somewhere else.
-            Route wanted = Route.findHelpWanted(mob.position(), siege.corePos, kind.canDig, kind.canBuild, HELP_RANGE, now);
+            Route wanted = Route.findHelpWanted(mob.position(), siege.corePos, kind.canDig, kind.canBuild, HELP_RANGE,
+                    now, null);
             if (wanted != null) {
                 state.approach = wanted;
                 state.approachStart = now;
@@ -467,7 +486,10 @@ public final class SiegeAI {
             state.status("planning");
             return null; // the planner is busy, try again in a moment
         }
-        Route route = Route.plan(level, mob.blockPosition(), siege.corePos, siege.coreLevel, siege.siegeRadius + 8, now);
+        // The route here is full: build a second way next to it, so the siege splits up.
+        boolean newLane = Route.crowdedNear(mob.position(), siege.corePos, now);
+        Route route = Route.plan(level, mob.blockPosition(), siege.corePos, siege.coreLevel, siege.siegeRadius + 8, now,
+                newLane);
         if (route == null) {
             state.lastCloser = now; // no way at all from here; try again later
             state.status("no_route");
@@ -507,8 +529,11 @@ public final class SiegeAI {
     }
 
     /** Forget the route without touching the movement order (an archer found something better to do). */
-    private static void leaveRoute(MobState state) {
+    private static void leaveRoute(Mob mob, MobState state) {
         state.approach = null;
+        if (state.route != null) {
+            state.route.removeMember(mob.getId());
+        }
         state.route = null;
     }
 
@@ -553,6 +578,8 @@ public final class SiegeAI {
             return;
         }
         if (pending < 0) {
+            // The way is open: everybody storms up together.
+            route.noteMember(mob.getId(), index, false, now);
             if (index >= last) {
                 dropRoute(state, now, distance); // arrived; plan again if the Core is still out of reach
                 return;
@@ -569,17 +596,39 @@ public final class SiegeAI {
             return;
         }
         boolean capable = action.dig() ? canDig(level, kind, action.pos()) : kind.canBuild;
+        // Only a few workers at the front; more would only stand in each other's way.
+        if (capable && route.countAhead(mob.getId(), index, true, now) >= MAX_FRONT_WORKERS) {
+            capable = false;
+            if (kind.canBuild && now >= state.noApproachUntil) {
+                // A spare builder starts a second way (another route that waits for a builder).
+                Route other = Route.findHelpWanted(mob.position(), siege.corePos, false, true, HELP_RANGE, now, route);
+                if (other != null) {
+                    leaveRoute(mob, state);
+                    state.approach = other;
+                    state.approachStart = now;
+                    state.status("help");
+                    return;
+                }
+            }
+        }
+        route.noteMember(mob.getId(), index, capable, now);
         control(state, Mode.ROUTE, now);
         if (!capable) {
-            // Somebody else has to do this; wait a few steps behind and let the siege know what is missing.
+            // Somebody else has to do this; let the siege know what is missing.
             // Only work near the Core makes the siege send new workers (not a mob lost in a cave far away).
             if (Vec3.atCenterOf(action.pos()).distanceTo(Vec3.atCenterOf(siege.corePos)) <= NEED_RANGE) {
                 SiegeProgress.need(action.dig() ? SiegeProgress.Need.DIGGER : SiegeProgress.Need.BUILDER, now);
             }
             route.markNeed(pending, action.dig(), now);
-            state.walkLimit = Math.max(index, pending - 4);
+            // A few wait right behind the work, the rest gathers at the foot of the route (the group waits
+            // together and storms up once the way is open). Nobody walks back down.
+            int front = Math.max(0, pending - 4);
+            boolean nearFront = route.countAhead(mob.getId(), index, false, now) < Config.FRONT_WAITERS.get();
+            int wait = nearFront ? front : Math.min(front, route.stagingIndex(level, front));
+            state.walkLimit = nearFront ? Math.max(index, front) : Math.max(Math.min(index, front), wait);
             state.lookAt = null;
-            state.status(action.dig() ? "wait_digger" : "wait_builder");
+            boolean gathering = !nearFront && index <= wait;
+            state.status(gathering ? "gather" : action.dig() ? "wait_digger" : "wait_builder");
             hopIfStuck(level, mob, state, route, now);
             return;
         }
@@ -603,9 +652,10 @@ public final class SiegeAI {
             case LADDER -> "ladder";
         });
         if (perform(level, mob, kind, action, state, now)) {
-            state.lastUseful = now;
+            state.effective(now);
             state.actionPos = null;
             state.actionTicks = 0;
+            route.noteProgress(now, !action.dig());
             SiegeProgress.progress(action.pos(), now);
         }
     }
@@ -856,7 +906,7 @@ public final class SiegeAI {
         state.route = null;
         state.approach = null;
         state.mode = Mode.NONE;
-        state.lastUseful = now;
+        state.effective(now);
         state.lastCloser = now;
         state.bestDistance = Double.MAX_VALUE;
         Entity vehicle = mob.getVehicle();
@@ -941,7 +991,7 @@ public final class SiegeAI {
             if (enderman.randomTeleport(spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, true)) {
                 level.playSound(null, spot, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.0F, 1.0F);
                 state.lastCloser = now;
-                state.lastUseful = now;
+                state.effective(now);
                 state.bestDistance = enderman.distanceTo(siege.target);
                 state.status("teleport");
                 return true;
@@ -950,9 +1000,56 @@ public final class SiegeAI {
         return false;
     }
 
+    /**
+     * Lost: more than {@link #RECALL_DISTANCE} from the Core and for {@code lostSeconds} it neither got closer
+     * than ever before, nor hit or shot anything, nor did its route make progress (e.g. stuck in a cave, a
+     * spider under an overhang, waiting on a route nobody works on).
+     */
+    private static boolean isLost(Mob mob, MobState state, double distance, long now) {
+        if (distance < state.nearest - 1.5) {
+            state.nearest = distance;
+            state.lastEffective = now;
+        }
+        LivingEntity target = mob.getTarget();
+        if (distance <= RECALL_DISTANCE || (target instanceof Player && mob.distanceToSqr(target) < 16 * 16)) {
+            state.lastEffective = now;
+            return false;
+        }
+        int seconds = Config.LOST_SECONDS.get();
+        if (seconds <= 0) {
+            return false;
+        }
+        long since = now - seconds * 20L;
+        if (state.lastEffective >= since) {
+            return false;
+        }
+        Route route = state.route != null ? state.route : state.approach;
+        return route == null || (!route.progressedSince(since) && !route.hasWorker(now));
+    }
+
+    /** A naturally spawned mob that got lost leaves the siege and behaves normally again (it may despawn). */
+    private static void release(Mob mob, ActiveSiege siege) {
+        forget(mob);
+        mob.addTag(SiegeRules.RELEASED_TAG);
+        SiegeTeam.leave(mob);
+        SiegeManager.clearFollowRange(mob);
+        SiegeDebug.clearName(mob);
+        if (mob.getTarget() == siege.target) {
+            mob.setTarget(null);
+        }
+        mob.getNavigation().stop();
+    }
+
+    private static void forget(Mob mob) {
+        MobState state = MOBS.remove(mob);
+        if (state != null && state.route != null) {
+            state.route.removeMember(mob.getId());
+        }
+    }
+
     /** A siege mob stuck far away disappears; the siege spawns a new one in a better place. */
     private static void recall(ServerLevel level, Mob mob) {
-        MOBS.remove(mob);
+        forget(mob);
         level.sendParticles(ParticleTypes.PORTAL, mob.getX(), mob.getY() + 1.0, mob.getZ(), 30, 0.4, 0.8, 0.4, 0.2);
         mob.ejectPassengers();
         mob.discard();
@@ -1022,7 +1119,7 @@ public final class SiegeAI {
             level.playSound(null, spot, SoundEvents.GRASS_PLACE, SoundSource.HOSTILE, 1.0F, 0.8F);
             SiegeExplosives.trackTnt(spot, now);
             SiegeProgress.progress(spot, now);
-            state.lastUseful = now;
+            state.effective(now);
             state.actionPos = null;
             state.mode = Mode.NONE;
             state.lookAt = null;

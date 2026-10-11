@@ -7,8 +7,15 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
+import com.marleyboss.incursion.Config;
+import com.marleyboss.incursion.registry.ModBlocks;
+import net.minecraft.world.level.block.state.BlockState;
+
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A planned way to the Core: a list of feet positions. Each step may need blocks dug out (the cells the mob
@@ -57,6 +64,11 @@ public final class Route {
     private long lastWork = Long.MIN_VALUE / 2;
     private long lastNeedDig = Long.MIN_VALUE / 2;
     private long lastNeedBuild = Long.MIN_VALUE / 2;
+    private long lastBuilderWork = Long.MIN_VALUE / 2;
+    private long lastProgress;
+    /** Mobs on this route: entity id -> {route index, 1 if working, last seen}. */
+    private final Map<Integer, long[]> members = new HashMap<>();
+    private static final long MEMBER_TICKS = 30;
 
     Route(BlockPos corePos, BlockPos[] nodes, BlockPos[][] clears, BlockPos[] supports, byte[] supportKinds,
           boolean complete, long created) {
@@ -67,6 +79,103 @@ public final class Route {
         this.supportKinds = supportKinds;
         this.complete = complete;
         this.created = created;
+        this.lastProgress = created;
+    }
+
+    // ------------------------------------------------------------------
+    // Members (who is on this route, and where)
+    // ------------------------------------------------------------------
+
+    /** A mob on this route reports where it is (every few ticks). */
+    public void noteMember(int id, int index, boolean worker, long now) {
+        members.put(id, new long[]{index, worker ? 1 : 0, now});
+    }
+
+    public void removeMember(int id) {
+        members.remove(id);
+    }
+
+    private void pruneMembers(long now) {
+        Iterator<long[]> iterator = members.values().iterator();
+        while (iterator.hasNext()) {
+            if (now - iterator.next()[2] > MEMBER_TICKS) {
+                iterator.remove();
+            }
+        }
+    }
+
+    public int memberCount(long now) {
+        pruneMembers(now);
+        return members.size();
+    }
+
+    public boolean isFull(long now) {
+        return memberCount(now) >= Config.ROUTE_CAPACITY.get();
+    }
+
+    /** How many other mobs on this route are further ahead (only workers, if asked). */
+    public int countAhead(int id, int index, boolean workersOnly, long now) {
+        pruneMembers(now);
+        int count = 0;
+        for (Map.Entry<Integer, long[]> entry : members.entrySet()) {
+            long[] member = entry.getValue();
+            if (entry.getKey() == id || (workersOnly && member[1] == 0)) {
+                continue;
+            }
+            if (member[0] > index || (member[0] == index && entry.getKey() < id)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /** True if a mob that can do the next piece of work is on this route right now. */
+    public boolean hasWorker(long now) {
+        pruneMembers(now);
+        for (long[] member : members.values()) {
+            if (member[1] != 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Work on this route got done (a block dug or placed). */
+    public void noteProgress(long now, boolean builder) {
+        lastProgress = now;
+        if (builder) {
+            lastBuilderWork = now;
+        }
+    }
+
+    /** True if work on this route got done recently, so waiting for it is not hopeless. */
+    public boolean progressedSince(long since) {
+        return lastProgress >= since;
+    }
+
+    /**
+     * Where mobs gather while the way is still being built: the last step before {@code limit} that stands on
+     * natural ground (the foot of the stairs or ladder). Mobs on the built part only get in each other's way.
+     */
+    public int stagingIndex(Level level, int limit) {
+        int i = Math.min(limit, nodes.length - 1);
+        while (i > 0 && isBuilt(level, i)) {
+            i--;
+        }
+        return Math.max(0, i);
+    }
+
+    private boolean isBuilt(Level level, int index) {
+        if (supportKinds[index] == SUPPORT_LADDER) {
+            return true;
+        }
+        BlockPos support = supports[index];
+        if (support == null) {
+            return false;
+        }
+        BlockState state = level.getBlockState(support);
+        return state.is(ModBlocks.SIEGE_STONE.get()) || state.is(ModBlocks.SIEGE_LADDER.get())
+                || !RoutePlanner.isSupport(level, support);
     }
 
     public int size() {
@@ -207,18 +316,22 @@ public final class Route {
      */
     @Nullable
     public static Route findHelpWanted(Vec3 position, BlockPos core, boolean canDig, boolean canBuild, double range,
-                                       long now) {
+                                       long now, @Nullable Route exclude) {
         Route best = null;
         double bestDistance = range * range;
         Vec3 coreCenter = Vec3.atCenterOf(core);
         double helperToCore = position.distanceTo(coreCenter);
         for (Route route : ACTIVE) {
-            if (!route.isUsable(core, now)) {
+            if (route == exclude || !route.isUsable(core, now)) {
                 continue;
             }
             boolean wanted;
             if (canDig || canBuild) {
-                wanted = (canDig && now - route.lastNeedDig < 200) || (canBuild && now - route.lastNeedBuild < 200);
+                // Builders spread out: a route that already has a builder at work does not need a second one.
+                boolean needsBuilder = canBuild && now - route.lastNeedBuild < 200 && now - route.lastBuilderWork > 100;
+                wanted = (canDig && now - route.lastNeedDig < 200) || needsBuilder;
+            } else if (route.isFull(now)) {
+                wanted = false;
             } else {
                 wanted = now - route.lastWork < 600;
             }
@@ -242,14 +355,14 @@ public final class Route {
     // Shared registry
     // ------------------------------------------------------------------
 
-    /** An existing route that passes right by the mob, or null. */
+    /** An existing route that passes right by the mob and has room, or null. */
     @Nullable
     public static Route share(Vec3 position, BlockPos core, long now) {
         ACTIVE.removeIf(route -> !route.isUsable(core, now));
         Route best = null;
         int bestIndex = -1;
         for (Route route : ACTIVE) {
-            if (now - route.created > SHARE_TICKS) {
+            if (now - route.created > SHARE_TICKS || route.isFull(now)) {
                 continue;
             }
             int index = route.joinIndex(position);
@@ -259,6 +372,29 @@ public final class Route {
             }
         }
         return best;
+    }
+
+    /** True if a route passes right by the mob but is full (the mob should build a second way next to it). */
+    public static boolean crowdedNear(Vec3 position, BlockPos core, long now) {
+        for (Route route : ACTIVE) {
+            if (route.isUsable(core, now) && route.joinIndex(position) >= 0 && route.isFull(now)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Feet positions of all active routes (a second lane avoids them). */
+    static LongOpenHashSet usedNodes(BlockPos core, long now) {
+        LongOpenHashSet set = new LongOpenHashSet();
+        for (Route route : ACTIVE) {
+            if (route.isUsable(core, now)) {
+                for (BlockPos node : route.nodes) {
+                    set.add(node.asLong());
+                }
+            }
+        }
+        return set;
     }
 
     /** All routes the siege currently knows (for the AI view). */
@@ -305,10 +441,11 @@ public final class Route {
     }
 
     @Nullable
-    public static Route plan(ServerLevel level, BlockPos start, BlockPos core, int coreLevel, int bound, long now) {
+    public static Route plan(ServerLevel level, BlockPos start, BlockPos core, int coreLevel, int bound, long now,
+                             boolean newLane) {
         lastPlan = now;
         ACTIVE.removeIf(route -> !route.isUsable(core, now));
-        Route route = RoutePlanner.plan(level, start, core, coreLevel, bound, now);
+        Route route = RoutePlanner.plan(level, start, core, coreLevel, bound, now, newLane);
         if (route != null) {
             ACTIVE.add(route);
             while (ACTIVE.size() > MAX_ROUTES) {

@@ -39,8 +39,15 @@ public final class RoutePlanner {
     static final float INF = Float.POSITIVE_INFINITY;
     static final float WALK = 5.0F;
     static final float UP_EXTRA = 3.0F;
-    /** Climbing one block on a ladder (a bit more than a stair step, so stairs win when they also get closer). */
+    /** Climbing one block on a ladder. */
     static final float CLIMB = 9.0F;
+    /**
+     * Placing a ladder counts as this part of placing a stair block. Ladders are preferred for climbing: a ladder
+     * goes straight up (short, cheap), and mobs on a ladder cannot fall off or push the builder off.
+     */
+    static final float LADDER_COST_FACTOR = 0.4F;
+    /** A second lane pays this extra for every step on another route, so it builds its own way next to it. */
+    static final float LANE_PENALTY = 25.0F;
     static final float DIG_OVERHEAD = 6.0F;
     static final float PLACE_OVERHEAD = 15.0F;
     static final float HEURISTIC_WEIGHT = 1.5F;
@@ -103,6 +110,8 @@ public final class RoutePlanner {
     private final boolean canBuild;
     private final boolean canLadder;
     private final float placeCost;
+    private final float ladderCost;
+    private final LongOpenHashSet laneAvoid;
     private final float climbHeuristic;
     private final ItemStack pick;
     private final double attack;
@@ -114,16 +123,19 @@ public final class RoutePlanner {
     private final Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
     private final PriorityQueue<Entry> open = new PriorityQueue<>((a, b) -> Float.compare(a.f(), b.f()));
 
-    private RoutePlanner(ServerLevel level, BlockPos core, int coreLevel, int bound, long now) {
+    private RoutePlanner(ServerLevel level, BlockPos core, int coreLevel, int bound, long now, boolean newLane) {
         this.level = level;
         this.core = core;
         this.bound = bound;
         this.canBuild = Config.BUILDING_ENABLED.get() && Config.BUILDER_WEIGHT.get() > 0 && Config.ZOMBIE_ROLES.get();
         this.canLadder = canBuild && Config.LADDERS_ENABLED.get();
         this.placeCost = Config.BUILD_TICKS.get() + PLACE_OVERHEAD;
+        this.ladderCost = placeCost * LADDER_COST_FACTOR;
+        this.laneAvoid = newLane ? Route.usedNodes(core, now) : new LongOpenHashSet();
         // Climbing usually needs building; counting part of it keeps the search from crawling around on the
         // ground under a high Core until the budget runs out.
-        this.climbHeuristic = WALK + UP_EXTRA + (canBuild ? placeCost * 0.5F : 0.0F);
+        this.climbHeuristic = canLadder ? CLIMB + ladderCost * 0.5F
+                : WALK + UP_EXTRA + (canBuild ? placeCost * 0.5F : 0.0F);
         this.pick = MobRoles.referencePickaxe(coreLevel);
         this.attack = 4.0 * (1.0 + Config.MOB_DAMAGE_BONUS_PER_LEVEL.get() * coreLevel);
         this.reservedClear = Route.reservedClear(core, now);
@@ -132,8 +144,9 @@ public final class RoutePlanner {
 
     /** Plans a route from {@code start} (feet position) to a spot next to the Core. Null if there is no way at all. */
     @Nullable
-    public static Route plan(ServerLevel level, BlockPos start, BlockPos core, int coreLevel, int bound, long now) {
-        return new RoutePlanner(level, core, coreLevel, bound, now).run(start, now);
+    public static Route plan(ServerLevel level, BlockPos start, BlockPos core, int coreLevel, int bound, long now,
+                             boolean newLane) {
+        return new RoutePlanner(level, core, coreLevel, bound, now, newLane).run(start, now);
     }
 
     @Nullable
@@ -272,7 +285,7 @@ public final class RoutePlanner {
 
         // Climb straight up on a ladder in the cell the mob stands in.
         Cell here = cell(n.x, y, n.z);
-        float ladder = here.climbable() ? 0.0F : (canLadder && here.ladderOk() ? placeCost : INF);
+        float ladder = here.climbable() ? 0.0F : (canLadder && here.ladderOk() ? ladderCost : INF);
         float clearAbove = cell(n.x, y + 2, n.z).clear();
         if (ladder < INF && clearAbove < INF) {
             tryPush(n, n.x, y + 1, n.z, CLIMB + clearAbove + ladder, MOVE_CLIMB,
@@ -340,6 +353,12 @@ public final class RoutePlanner {
             }
         }
 
+        if (!laneAvoid.isEmpty() && laneAvoid.contains(BlockPos.asLong(x, y, z))) {
+            cost += LANE_PENALTY;
+            if (existing != null && parent.g + cost >= existing.g) {
+                return;
+            }
+        }
         Node node = existing != null ? existing : node(x, y, z);
         node.g = parent.g + cost;
         node.h = heuristic(x, y, z);

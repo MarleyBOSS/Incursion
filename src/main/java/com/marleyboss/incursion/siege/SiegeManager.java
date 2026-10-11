@@ -123,6 +123,7 @@ public final class SiegeManager {
             if (MobRoles.of(mob) == MobRoles.Role.FIRE_ARCHER) {
                 fireArchers.add(mob);
             }
+            SiegeTeam.join(mob);
             Targeting.update(mob, siege, zone);
             if (mob.getTarget() == target) {
                 ensureFollowRange(mob, target);
@@ -166,10 +167,19 @@ public final class SiegeManager {
             int free = max - siegeMobs;
             int toSpawn = Math.min(free, 1 + coreLevel / 4 + (stalled ? 1 : 0));
             if (toSpawn > 0) {
-                boolean airDrops = stalled || elevation >= Config.AIR_DROP_ELEVATION.get();
-                int spawned = spawnAttackers(level, pos, coreLevel, toSpawn, target, wards, now, airDrops);
+                double airChance = stalled ? Config.AIR_DROP_STALL_CHANCE.get()
+                        : Config.AIR_DROP_BASE_CHANCE.get() + Config.AIR_DROP_CHANCE_PER_LEVEL.get() * coreLevel;
+                int spawned = spawnAttackers(level, pos, coreLevel, toSpawn, target, wards, now, airChance, elevation);
                 core.setSiegeMobCount(siegeMobs + spawned);
             }
+        }
+    }
+
+    /** Removes the long sight range again (the mob left the siege). */
+    public static void clearFollowRange(Mob mob) {
+        AttributeInstance followRange = mob.getAttribute(Attributes.FOLLOW_RANGE);
+        if (followRange != null && followRange.getModifier(FOLLOW_RANGE_ID) != null) {
+            followRange.removeModifier(FOLLOW_RANGE_ID);
         }
     }
 
@@ -199,7 +209,8 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
 
     private static int spawnAttackers(ServerLevel level, BlockPos core, int coreLevel, int count,
-                                      CoreTargetEntity target, List<BlockPos> wards, long now, boolean airDrops) {
+                                      CoreTargetEntity target, List<BlockPos> wards, long now, double airChance,
+                                      int elevation) {
         List<EntityType<?>> pool = SiegeRules.spawnPool(coreLevel);
         if (pool.isEmpty()) {
             return 0;
@@ -212,29 +223,42 @@ public final class SiegeManager {
         // With wards, mobs may also spawn a bit farther out (otherwise a big base leaves no room).
         int wardMaxDistance = Math.max(maxDistance, Config.siegeRadiusBlocks(coreLevel) - 4);
         boolean airAllowed = SiegeAirDrop.isEnabled();
+        boolean underground = isUnderground(level, core);
+        // The attackers of one wave arrive together, from one side (they form a group and share a route);
+        // the next wave comes from somewhere else.
+        double groupAngle = random.nextDouble() * Math.PI * 2.0;
+        double groupDistance = minDistance + random.nextDouble() * (maxDistance - minDistance);
 
         int spawned = 0;
         for (int i = 0; i < count; i++) {
             EntityType<?> type = pickType(pool, random, now);
             boolean carry = airAllowed && SiegeAirDrop.canCarry(type);
-            // High Core or stuck siege: some attackers come by air, right next to the Core.
-            if (carry && airDrops && random.nextDouble() < Config.AIR_DROP_CHANCE.get()) {
+            // A few attackers come by air (more at high levels, many while the siege is stuck).
+            if (carry && random.nextDouble() < airChance) {
                 if (airDrop(level, core, coreLevel, type, target, minDistance, maxDistance, random, now)) {
                     spawned++;
                     continue;
                 }
             }
             boolean done = false;
-            for (int attempt = 0; attempt < 12 && !done; attempt++) {
-                double angle = random.nextDouble() * Math.PI * 2.0;
-                int limit = attempt < 6 ? maxDistance : wardMaxDistance;
-                double distance = minDistance + random.nextDouble() * (limit - minDistance);
+            for (int attempt = 0; attempt < 16 && !done; attempt++) {
+                double angle;
+                double distance;
+                if (attempt < 6) {
+                    // Close to the rest of the group.
+                    angle = groupAngle + (random.nextDouble() - 0.5) * 6.0 / Math.max(8.0, groupDistance);
+                    distance = Mth.clamp(groupDistance + (random.nextDouble() - 0.5) * 6.0, minDistance, maxDistance);
+                } else {
+                    angle = random.nextDouble() * Math.PI * 2.0;
+                    int limit = attempt < 11 ? maxDistance : wardMaxDistance;
+                    distance = minDistance + random.nextDouble() * (limit - minDistance);
+                }
                 int x = core.getX() + Mth.floor(Math.cos(angle) * distance);
                 int z = core.getZ() + Mth.floor(Math.sin(angle) * distance);
                 if (insideWard(wards, x, z, wardRadius)) {
                     continue;
                 }
-                BlockPos spawnPos = findStandingPos(level, x, z, core.getY());
+                BlockPos spawnPos = findStandingPos(level, x, z, core.getY(), underground, elevation);
                 if (spawnPos == null) {
                     continue;
                 }
@@ -361,27 +385,41 @@ public final class SiegeManager {
         return false;
     }
 
+    /** The Core is underground (e.g. a cave base): rock above it, far below the surface. */
+    private static boolean isUnderground(ServerLevel level, BlockPos core) {
+        int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, core.getX(), core.getZ());
+        return top - core.getY() > UNDERGROUND_DEPTH && !level.canSeeSky(core.above());
+    }
+
+    private static final int UNDERGROUND_DEPTH = 12;
+    /** Underground Core: mobs may spawn in caves and tunnels this close to the Core's height. */
+    private static final int CAVE_BAND = 5;
+
+    /**
+     * Where a mob may spawn in this column. Normally only on the surface (never in caves: mobs there could not
+     * get out and would rot there), and only if the surface is not far above the Core. If the Core itself is
+     * underground (a cave base), also in caves at about the Core's height.
+     */
     @Nullable
-    private static BlockPos findStandingPos(ServerLevel level, int x, int z, int coreY) {
+    private static BlockPos findStandingPos(ServerLevel level, int x, int z, int coreY, boolean underground,
+                                            int elevation) {
         if (!level.isLoaded(new BlockPos(x, coreY, z))) {
             return null;
         }
-        // Prefer the surface, so mobs do not start inside caves.
         int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         BlockPos surface = new BlockPos(x, top, z);
-        if (Math.abs(top - coreY) <= 24 && isStandable(level, surface)) {
+        // A Core high up: the ground below is fine (the mobs build ladders and stairs, spiders climb).
+        int maxBelow = Math.max(24, elevation + 12);
+        if (top <= coreY + 16 && top >= coreY - maxBelow && isStandable(level, surface)) {
             return surface;
         }
-        for (int y = coreY + 12; y >= coreY - 12; y--) {
-            BlockPos pos = new BlockPos(x, y, z);
-            if (isStandable(level, pos)) {
-                return pos;
+        if (underground) {
+            for (int y = coreY + CAVE_BAND; y >= coreY - CAVE_BAND; y--) {
+                BlockPos pos = new BlockPos(x, y, z);
+                if (isStandable(level, pos)) {
+                    return pos;
+                }
             }
-        }
-        // The Core is far above (or below) the ground: spawn on the ground anyway. The mobs build their way
-        // up (ladders, stairs), spiders climb, and the rest comes by air.
-        if (top < coreY && isStandable(level, surface)) {
-            return surface;
         }
         return null;
     }

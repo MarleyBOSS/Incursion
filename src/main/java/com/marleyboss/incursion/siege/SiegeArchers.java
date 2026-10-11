@@ -104,7 +104,7 @@ final class SiegeArchers {
                     Vec3 aim = Vec3.atCenterOf(wall);
                     if (fire(level, mob, aim, wall)) {
                         state.nextShot = now + Config.BLAST_SHOT_SECONDS.get() * 20L;
-                        state.lastUseful = now;
+                        state.effective(now);
                     } else {
                         state.nextShot = now + 20;
                         markBad(state.spot, now);
@@ -177,7 +177,7 @@ final class SiegeArchers {
         if (now >= state.nextShot) {
             if (fire(level, mob, point, core)) {
                 state.nextShot = now + (blast ? 50 : 30) + mob.getRandom().nextInt(10);
-                state.lastUseful = now;
+                state.effective(now);
                 state.blockedShots = 0;
             } else {
                 state.nextShot = now + 10;
