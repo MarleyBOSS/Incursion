@@ -2,6 +2,7 @@ package com.marleyboss.incursion.registry;
 
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlockEntity;
+import com.marleyboss.incursion.block.WardBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -15,6 +16,12 @@ public final class ModBlockEntities {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<CoreBlockEntity>> CORE =
             BLOCK_ENTITY_TYPES.register("core", () -> BlockEntityType.Builder
                     .of(CoreBlockEntity::new, ModBlocks.CORE.get())
+                    .build(null));
+
+    @SuppressWarnings("DataFlowIssue")
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<WardBlockEntity>> WARD =
+            BLOCK_ENTITY_TYPES.register("ward", () -> BlockEntityType.Builder
+                    .of(WardBlockEntity::new, ModBlocks.WARD.get())
                     .build(null));
 
     private ModBlockEntities() {

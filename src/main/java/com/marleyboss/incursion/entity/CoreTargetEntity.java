@@ -2,7 +2,9 @@ package com.marleyboss.incursion.entity;
 
 import com.marleyboss.incursion.block.CoreBlock;
 import com.marleyboss.incursion.block.CoreBlockEntity;
-import com.marleyboss.incursion.siege.ZombieRoles;
+import com.marleyboss.incursion.siege.MobRoles;
+import com.marleyboss.incursion.siege.SiegeAI;
+import com.marleyboss.incursion.siege.SiegeProgress;
 import net.minecraft.core.NonNullList;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
@@ -73,7 +75,10 @@ public class CoreTargetEntity extends LivingEntity {
         if (core == null || !(level() instanceof ServerLevel serverLevel)) {
             return false;
         }
-        core.damageCore(serverLevel, amount * ZombieRoles.coreDamageMultiplier(attacker));
+        long now = serverLevel.getGameTime();
+        SiegeProgress.progress(blockPosition(), now);
+        SiegeAI.markUseful(attacker, now);
+        core.damageCore(serverLevel, amount * MobRoles.coreDamageMultiplier(attacker));
         return true;
     }
 

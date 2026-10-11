@@ -13,6 +13,9 @@ public final class ModItems {
     public static final DeferredItem<BlockItem> CORE = ITEMS.registerSimpleBlockItem(
             "core", ModBlocks.CORE, new Item.Properties().rarity(Rarity.EPIC).stacksTo(1));
 
+    public static final DeferredItem<BlockItem> WARD = ITEMS.registerSimpleBlockItem(
+            "ward", ModBlocks.WARD, new Item.Properties().rarity(Rarity.UNCOMMON));
+
     private ModItems() {
     }
 }

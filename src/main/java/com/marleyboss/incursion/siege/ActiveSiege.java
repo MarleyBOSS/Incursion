@@ -28,22 +28,24 @@ public final class ActiveSiege {
     public final int coreZoneRadius;
     public final int siegeRadius;
     public final int playerAggroRange;
+    public final int coreLevel;
     private final long validUntil;
 
     private ActiveSiege(ServerLevel level, BlockPos corePos, CoreTargetEntity target, int coreZoneRadius,
-                        int siegeRadius, int playerAggroRange) {
+                        int siegeRadius, int playerAggroRange, int coreLevel) {
         this.level = level;
         this.corePos = corePos.immutable();
         this.target = target;
         this.coreZoneRadius = coreZoneRadius;
         this.siegeRadius = siegeRadius;
         this.playerAggroRange = playerAggroRange;
+        this.coreLevel = coreLevel;
         this.validUntil = level.getGameTime() + 60;
     }
 
     public static void update(ServerLevel level, BlockPos corePos, CoreTargetEntity target, int coreZoneRadius,
-                              int siegeRadius, int playerAggroRange) {
-        current = new ActiveSiege(level, corePos, target, coreZoneRadius, siegeRadius, playerAggroRange);
+                              int siegeRadius, int playerAggroRange, int coreLevel) {
+        current = new ActiveSiege(level, corePos, target, coreZoneRadius, siegeRadius, playerAggroRange, coreLevel);
     }
 
     public static void clear() {

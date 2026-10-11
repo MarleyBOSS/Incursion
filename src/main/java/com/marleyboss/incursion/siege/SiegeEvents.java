@@ -1,18 +1,22 @@
 package com.marleyboss.incursion.siege;
 
 import com.marleyboss.incursion.Config;
+import com.marleyboss.incursion.entity.CoreTargetEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.LivingChangeTargetEvent;
 import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
-/** Game-bus event handlers that enforce the zone rules between the once-per-second sweeps. */
+/** Game-bus event handlers that enforce the siege rules between the once-per-second sweeps. */
 public final class SiegeEvents {
     private SiegeEvents() {
     }
@@ -22,26 +26,35 @@ public final class SiegeEvents {
         NeoForge.EVENT_BUS.addListener(SiegeEvents::onExplosion);
         NeoForge.EVENT_BUS.addListener(SiegeEvents::onServerStopping);
         NeoForge.EVENT_BUS.addListener(SiegeEvents::onIncomingDamage);
-        NeoForge.EVENT_BUS.addListener(Digging::onEntityTick);
+        NeoForge.EVENT_BUS.addListener(SiegeAI::onEntityTick);
+        NeoForge.EVENT_BUS.addListener(SiegeAI::onJoin);
+        NeoForge.EVENT_BUS.addListener(SiegeExplosives::onJoin);
+        NeoForge.EVENT_BUS.addListener(SiegeExplosives::onImpact);
     }
 
-    /** Zombie roles: warriors hit players harder, breakers softer. */
+    /** Role damage against players; a siege mob hitting a player counts as progress. */
     private static void onIncomingDamage(LivingIncomingDamageEvent event) {
         if (!(event.getEntity() instanceof Player) || event.getEntity().level().isClientSide) {
             return;
         }
         Entity attacker = event.getSource().getEntity();
-        if (attacker instanceof Mob) {
-            float multiplier = ZombieRoles.playerDamageMultiplier(attacker);
+        if (attacker instanceof Mob mob) {
+            float multiplier = MobRoles.playerDamageMultiplier(attacker);
             if (multiplier != 1.0F) {
                 event.setAmount(event.getAmount() * multiplier);
+            }
+            ActiveSiege siege = ActiveSiege.get(mob.level());
+            if (siege != null && SiegeRules.isAttacker(mob)) {
+                long now = mob.level().getGameTime();
+                SiegeProgress.progress(null, now);
+                SiegeAI.markUseful(mob, now);
             }
         }
     }
 
     /**
-     * Core zone: mobs never switch to a player. Siege area: mobs only switch to players that are close,
-     * and fall back to the Core instead of having no target.
+     * Keeps every attacker on the target its role wants (see {@link Targeting}); a lost target falls back
+     * to the Core.
      */
     private static void onChangeTarget(LivingChangeTargetEvent event) {
         if (!(event.getEntity() instanceof Mob mob) || mob.level().isClientSide) {
@@ -60,12 +73,10 @@ public final class SiegeEvents {
             return;
         }
         boolean redirect;
-        if (zone == ActiveSiege.ZONE_CORE) {
-            redirect = newTarget == null || newTarget instanceof Player;
+        if (newTarget instanceof Player player) {
+            redirect = !Targeting.prefersPlayer(mob, player, siege, zone);
         } else {
-            double range = siege.playerAggroRange;
-            redirect = newTarget == null
-                    || (newTarget instanceof Player player && player.distanceToSqr(mob) > range * range);
+            redirect = newTarget == null || (zone == ActiveSiege.ZONE_CORE && MobRoles.of(mob).isWorker());
         }
         if (redirect) {
             event.setNewAboutToBeSetTarget(siege.target);
@@ -73,8 +84,13 @@ public final class SiegeEvents {
     }
 
     /**
-     * Creepers inside the core zone do not destroy blocks (unless enabled in the config).
-     * Breach creepers (stuck at a wall) always do, so they clear the way. No explosion removes the Core block.
+     * <ul>
+     *     <li>Creepers inside the core zone do not destroy blocks (unless enabled in the config).
+     *     Breach creepers always do, so they clear the way.</li>
+     *     <li>Explosions caused by the siege (creepers, explosive arrows, their TNT, self-destruct)
+     *     do not hurt other siege mobs, and count as progress when they break blocks.</li>
+     *     <li>No explosion removes the Core block or siege-proof blocks.</li>
+     * </ul>
      */
     private static void onExplosion(ExplosionEvent.Detonate event) {
         ActiveSiege siege = ActiveSiege.get(event.getLevel());
@@ -88,11 +104,35 @@ public final class SiegeEvents {
                 event.getAffectedBlocks().clear();
             }
         }
-        event.getAffectedBlocks().removeIf(pos -> pos.equals(siege.corePos));
+        Level level = event.getLevel();
+        event.getAffectedBlocks().removeIf(pos -> pos.equals(siege.corePos) || level.getBlockState(pos).is(Digging.SIEGE_PROOF));
+
+        if (isSiegeExplosion(source)) {
+            if (Config.SIEGE_EXPLOSIONS_SPARE_MOBS.get()) {
+                event.getAffectedEntities().removeIf(entity -> entity instanceof Mob mob && !(entity instanceof CoreTargetEntity)
+                        && SiegeRules.isAttacker(mob));
+            }
+            if (!event.getAffectedBlocks().isEmpty()) {
+                SiegeProgress.progress(event.getAffectedBlocks().get(0), level.getGameTime());
+            }
+        }
+    }
+
+    private static boolean isSiegeExplosion(Entity source) {
+        if (source == null) {
+            return false;
+        }
+        Entity cause = source;
+        if (source instanceof PrimedTnt tnt) {
+            cause = tnt.getOwner();
+        } else if (source instanceof Projectile projectile) {
+            cause = projectile.getOwner();
+        }
+        return cause instanceof Mob mob && (SiegeRules.isAttacker(mob) || mob.getTags().contains(SiegeManager.SIEGE_TAG));
     }
 
     private static void onServerStopping(ServerStoppingEvent event) {
         ActiveSiege.clear();
-        Digging.clear();
+        SiegeAI.clear();
     }
 }

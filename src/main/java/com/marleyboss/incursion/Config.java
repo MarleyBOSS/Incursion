@@ -138,7 +138,7 @@ public final class Config {
                     "minecraft:creeper=5",
                     "minecraft:husk=7",
                     "minecraft:stray=9",
-                    "minecraft:enderman=10",
+                    "minecraft:enderman=6",
                     "minecraft:pillager=11",
                     "minecraft:vindicator=14"
             ), () -> "minecraft:zombie=1", Config::isValidPoolEntry);
@@ -218,7 +218,7 @@ public final class Config {
     // ------------------------------------------------------------------
 
     static {
-        BUILDER.comment("Siege zombies get one of three roles: warrior (sword), miner (pickaxe), breaker (axe)").push("zombies");
+        BUILDER.comment("Siege zombies get a role: warrior (sword), miner (pickaxe), breaker (axe), builder (block)").push("zombies");
     }
 
     public static final ModConfigSpec.BooleanValue ZOMBIE_ROLES = BUILDER
@@ -226,16 +226,30 @@ public final class Config {
             .define("zombieRoles", true);
 
     public static final ModConfigSpec.IntValue WARRIOR_WEIGHT = BUILDER
-            .comment("Chance weight for warriors (sword, more damage against players).")
-            .defineInRange("warriorWeight", 40, 0, 1000);
+            .comment("Chance weight for warriors (sword). Warriors hunt players everywhere (also next to the Core)",
+                    "and never break blocks. New zombies get the role that is most missing right now.")
+            .defineInRange("warriorWeight", 30, 0, 1000);
 
     public static final ModConfigSpec.IntValue MINER_WEIGHT = BUILDER
             .comment("Chance weight for miners (pickaxe, dig through blocks quickly).")
-            .defineInRange("minerWeight", 30, 0, 1000);
+            .defineInRange("minerWeight", 25, 0, 1000);
 
     public static final ModConfigSpec.IntValue BREAKER_WEIGHT = BUILDER
             .comment("Chance weight for breakers (axe, more damage against the Core).")
-            .defineInRange("breakerWeight", 30, 0, 1000);
+            .defineInRange("breakerWeight", 20, 0, 1000);
+
+    public static final ModConfigSpec.IntValue BUILDER_WEIGHT = BUILDER
+            .comment("Chance weight for builders (hold a block). Builders place blocks to make stairs and bridges",
+                    "towards the Core. They never build straight pillars.")
+            .defineInRange("builderWeight", 25, 0, 1000);
+
+    public static final ModConfigSpec.ConfigValue<String> BUILDER_BLOCK = BUILDER
+            .comment("Block that builders place.")
+            .define("builderBlock", "minecraft:cobblestone", Config::isValidBlock);
+
+    public static final ModConfigSpec.IntValue BUILD_TICKS = BUILDER
+            .comment("Ticks a builder needs to place one block (20 ticks = 1 second).")
+            .defineInRange("buildTicks", 15, 1, 200);
 
     public static final ModConfigSpec.IntValue IRON_GEAR_FROM_LEVEL = BUILDER
             .comment("Core level from which role zombies carry iron tools (below: stone).")
@@ -339,6 +353,139 @@ public final class Config {
         BUILDER.pop();
     }
 
+    // ------------------------------------------------------------------
+    // Skeleton classes
+    // ------------------------------------------------------------------
+
+    static {
+        BUILDER.comment("Siege skeletons get an arrow class: blast (red leather armour), fire (red leather cap), normal (chainmail)")
+                .push("skeletons");
+    }
+
+    public static final ModConfigSpec.BooleanValue SKELETON_CLASSES = BUILDER
+            .comment("If true, skeletons (and strays, bogged) spawned by the siege get an arrow class.")
+            .define("skeletonClasses", true);
+
+    public static final ModConfigSpec.IntValue BLAST_ARCHER_WEIGHT = BUILDER
+            .comment("Chance weight for blast archers: explosive arrows that blow a way to the Core.")
+            .defineInRange("blastArcherWeight", 25, 0, 1000);
+
+    public static final ModConfigSpec.IntValue FIRE_ARCHER_WEIGHT = BUILDER
+            .comment("Chance weight for fire archers: burning arrows, they also ignite TNT placed by endermen.")
+            .defineInRange("fireArcherWeight", 30, 0, 1000);
+
+    public static final ModConfigSpec.IntValue ARCHER_WEIGHT = BUILDER
+            .comment("Chance weight for normal archers.")
+            .defineInRange("archerWeight", 45, 0, 1000);
+
+    public static final ModConfigSpec.DoubleValue BLAST_ARROW_POWER = BUILDER
+            .comment("Explosion power of explosive arrows (creeper = 3, TNT = 4).")
+            .defineInRange("blastArrowPower", 1.8, 0.5, 6.0);
+
+    public static final ModConfigSpec.IntValue BLAST_SHOT_SECONDS = BUILDER
+            .comment("Blast archers that cannot see the Core shoot an explosive arrow at the wall in the way every X seconds.")
+            .defineInRange("blastShotSeconds", 4, 1, 120);
+
+    static {
+        BUILDER.pop();
+    }
+
+    // ------------------------------------------------------------------
+    // Endermen
+    // ------------------------------------------------------------------
+
+    static {
+        BUILDER.comment("Siege endermen").push("endermen");
+    }
+
+    public static final ModConfigSpec.DoubleValue SAPPER_CHANCE = BUILDER
+            .comment("Chance that a siege enderman is a sapper: it carries TNT and places it next to the Core.",
+                    "Fire archers ignite the TNT.")
+            .defineInRange("sapperChance", 0.6, 0.0, 1.0);
+
+    public static final ModConfigSpec.IntValue TNT_FUSE_FALLBACK_SECONDS = BUILDER
+            .comment("If no fire archer ignites placed TNT within this many seconds, it ignites by itself. -1 = never.")
+            .defineInRange("tntFallbackSeconds", 90, -1, 3600);
+
+    static {
+        BUILDER.pop();
+    }
+
+    // ------------------------------------------------------------------
+    // Tactics
+    // ------------------------------------------------------------------
+
+    static {
+        BUILDER.comment("How the siege mobs work together").push("tactics");
+    }
+
+    public static final ModConfigSpec.BooleanValue BUILDING_ENABLED = BUILDER
+            .comment("If true, builders place blocks (stairs, bridges) on the way to the Core.")
+            .define("buildingEnabled", true);
+
+    public static final ModConfigSpec.IntValue PLANNER_MAX_NODES = BUILDER
+            .comment("How many positions the route planner may check for one route. Higher = smarter over long distances, but more lag.")
+            .defineInRange("plannerMaxNodes", 8000, 500, 100000);
+
+    public static final ModConfigSpec.IntValue GUARD_RANGE = BUILDER
+            .comment("Warriors attack players within this many blocks, in every zone (also next to the Core).",
+                    "Archers give cover fire on players within this range while they cannot shoot the Core.")
+            .defineInRange("guardRange", 24, 0, 64);
+
+    public static final ModConfigSpec.BooleanValue SIEGE_EXPLOSIONS_SPARE_MOBS = BUILDER
+            .comment("If true, explosions caused by siege mobs (creepers, explosive arrows, their TNT, self-destruct)",
+                    "do not hurt other siege mobs.")
+            .define("siegeExplosionsSpareMobs", true);
+
+    public static final ModConfigSpec.IntValue STALL_SECONDS = BUILDER
+            .comment("If the siege makes no progress for this many seconds (no Core damage, no block broken or built),",
+                    "reinforcements arrive: more mobs may be alive, and missing roles are spawned first. 0 = off.")
+            .defineInRange("stallSeconds", 120, 0, 3600);
+
+    public static final ModConfigSpec.IntValue STALL_EXTRA_MOBS_PERCENT = BUILDER
+            .comment("How many more mobs (in percent of the normal maximum) may be alive during a stall.")
+            .defineInRange("stallExtraMobsPercent", 50, 0, 500);
+
+    public static final ModConfigSpec.IntValue SELF_DESTRUCT_SECONDS = BUILDER
+            .comment("A siege mob that achieved nothing for this many seconds blows itself up (frees the slot for a new mob). 0 = off.")
+            .defineInRange("selfDestructSeconds", 300, 0, 36000);
+
+    public static final ModConfigSpec.DoubleValue SELF_DESTRUCT_POWER = BUILDER
+            .comment("Explosion power of a self-destructing mob.")
+            .defineInRange("selfDestructPower", 2.5, 0.0, 6.0);
+
+    public static final ModConfigSpec.BooleanValue SELF_DESTRUCT_BREAKS_BLOCKS = BUILDER
+            .comment("If true, the self-destruct explosion breaks blocks (never the Core).")
+            .define("selfDestructBreaksBlocks", true);
+
+    static {
+        BUILDER.pop();
+    }
+
+    // ------------------------------------------------------------------
+    // Ward totems
+    // ------------------------------------------------------------------
+
+    static {
+        BUILDER.comment("Ward totems: no siege mobs spawn around them (marks your base)").push("wards");
+    }
+
+    public static final ModConfigSpec.IntValue WARD_RADIUS = BUILDER
+            .comment("Radius in blocks around a ward totem in which siege mobs do not spawn.")
+            .defineInRange("wardRadius", 16, 1, 64);
+
+    public static final ModConfigSpec.IntValue WARD_EXTRA_MOBS = BUILDER
+            .comment("Every ward totem in the siege area raises the maximum number of siege mobs by this much.")
+            .defineInRange("wardExtraMobs", 2, 0, 100);
+
+    public static final ModConfigSpec.BooleanValue SHOW_SPAWN_RINGS = BUILDER
+            .comment("Show particle rings: green around ward totems, purple around the Core (no spawns inside).")
+            .define("showSpawnRings", true);
+
+    static {
+        BUILDER.pop();
+    }
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private Config() {
@@ -354,6 +501,14 @@ public final class Config {
         }
         ResourceLocation id = ResourceLocation.tryParse(s);
         return id != null && BuiltInRegistries.ITEM.containsKey(id);
+    }
+
+    private static boolean isValidBlock(Object value) {
+        if (!(value instanceof String s)) {
+            return false;
+        }
+        ResourceLocation id = ResourceLocation.tryParse(s);
+        return id != null && BuiltInRegistries.BLOCK.containsKey(id);
     }
 
     private static boolean isResourceLocation(Object value) {
@@ -387,6 +542,16 @@ public final class Config {
     // ------------------------------------------------------------------
     // Derived values
     // ------------------------------------------------------------------
+
+    public static net.minecraft.world.level.block.state.BlockState builderBlock() {
+        ResourceLocation location = ResourceLocation.tryParse(BUILDER_BLOCK.get());
+        net.minecraft.world.level.block.Block block = location != null && BuiltInRegistries.BLOCK.containsKey(location)
+                ? BuiltInRegistries.BLOCK.get(location) : net.minecraft.world.level.block.Blocks.COBBLESTONE;
+        if (block.defaultBlockState().isAir()) {
+            block = net.minecraft.world.level.block.Blocks.COBBLESTONE;
+        }
+        return block.defaultBlockState();
+    }
 
     public static Item activationItem() {
         return resolveItem(ACTIVATION_ITEM.get(), Items.BLAZE_ROD);

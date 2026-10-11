@@ -4,6 +4,7 @@ import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlock;
 import com.marleyboss.incursion.block.CoreBlockEntity;
+import com.marleyboss.incursion.block.WardBlockEntity;
 import com.marleyboss.incursion.data.CoreWorldData;
 import com.marleyboss.incursion.entity.CoreTargetEntity;
 import net.minecraft.ChatFormatting;
@@ -23,14 +24,12 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -38,7 +37,9 @@ import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.EventHooks;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /** All siege logic that runs once per second for the active Core. */
 public final class SiegeManager {
@@ -49,6 +50,7 @@ public final class SiegeManager {
     private static final ResourceLocation HEALTH_BONUS_ID = id("siege_health_bonus");
     private static final ResourceLocation DAMAGE_BONUS_ID = id("siege_damage_bonus");
     private static final double MAX_FOLLOW_RANGE = 128.0;
+    private static boolean stallAnnounced = false;
 
     private SiegeManager() {
     }
@@ -86,22 +88,27 @@ public final class SiegeManager {
 
         // 4. Publish the zones for the event handlers.
         SiegeRules.refresh();
+        long now = level.getGameTime();
+        SiegeProgress.ensure(pos, now);
         int coreZone = Config.coreZoneRadius(coreLevel);
         int siegeRadius = Config.siegeRadiusBlocks(coreLevel);
         int aggroRange = Config.PLAYER_AGGRO_RANGE.get();
-        ActiveSiege.update(level, pos, target, coreZone, siegeRadius, aggroRange);
+        ActiveSiege.update(level, pos, target, coreZone, siegeRadius, aggroRange, coreLevel);
         ActiveSiege siege = ActiveSiege.get(level);
         if (siege == null) {
             return;
         }
 
-        // 5. Point every hostile mob in the area at the Core (or at a nearby player).
+        // 5. Point every hostile mob in the area at the Core or at a player (depending on its role).
         AABB area = new AABB(pos).inflate(siegeRadius, 64, siegeRadius);
         List<Mob> mobs = level.getEntitiesOfClass(Mob.class, area, Entity::isAlive);
+        List<Mob> fireArchers = new ArrayList<>();
         int siegeMobs = 0;
+        MobRoles.resetCounts();
         for (Mob mob : mobs) {
             if (mob.getTags().contains(SIEGE_TAG)) {
                 siegeMobs++;
+                MobRoles.count(mob);
             }
             if (!SiegeRules.isAttacker(mob)) {
                 continue;
@@ -110,30 +117,47 @@ public final class SiegeManager {
             if (zone == ActiveSiege.ZONE_OUTSIDE) {
                 continue;
             }
-            LivingEntity current = mob.getTarget();
-            boolean retarget;
-            if (zone == ActiveSiege.ZONE_CORE) {
-                retarget = current != target;
-            } else {
-                retarget = current == null || !current.isAlive()
-                        || (current instanceof Player player && player.distanceToSqr(mob) > (double) aggroRange * aggroRange);
+            if (MobRoles.of(mob) == MobRoles.Role.FIRE_ARCHER) {
+                fireArchers.add(mob);
             }
-            if (retarget) {
-                mob.setTarget(target);
-            }
+            Targeting.update(mob, siege, zone);
             if (mob.getTarget() == target) {
                 ensureFollowRange(mob, target);
             }
         }
         core.setSiegeMobCount(siegeMobs);
 
-        // 6. Spawn new attackers.
+        // 6. Fire archers ignite TNT placed by sappers.
+        SiegeExplosives.tickTnt(level, fireArchers, now);
+
+        // 7. Show where mobs cannot spawn.
+        List<BlockPos> wards = WardBlockEntity.wardsNear(level, pos, siegeRadius);
+        int minDistance = Config.coreZoneRadius(coreLevel) + 6;
+        if (Config.SHOW_SPAWN_RINGS.get() && (tickCounter / 20) % 2 == 0) {
+            SpawnRings.drawCore(level, pos, minDistance);
+        }
+
+        // 8. Spawn new attackers. If the siege is stuck, reinforcements may exceed the normal limit.
         int interval = Config.SPAWN_INTERVAL_SECONDS.get();
+        boolean stalled = SiegeProgress.isStalled(now);
+        if (stalled && !stallAnnounced) {
+            stallAnnounced = true;
+            level.getServer().getPlayerList().broadcastSystemMessage(
+                    Component.translatable("message.incursion.siege.reinforcements").withStyle(ChatFormatting.GOLD), false);
+        } else if (!stalled) {
+            stallAnnounced = false;
+        }
         if ((tickCounter / 20) % interval == 0 && level.getDifficulty() != Difficulty.PEACEFUL) {
-            int free = Config.maxSiegeMobs(coreLevel) - siegeMobs;
-            int toSpawn = Math.min(free, 1 + coreLevel / 4);
+            int max = Config.maxSiegeMobs(coreLevel) + wards.size() * Config.WARD_EXTRA_MOBS.get();
+            if (stalled) {
+                max += max * Config.STALL_EXTRA_MOBS_PERCENT.get() / 100;
+                SiegeProgress.need(SiegeProgress.Need.DIGGER, now);
+                SiegeProgress.need(SiegeProgress.Need.BUILDER, now);
+            }
+            int free = max - siegeMobs;
+            int toSpawn = Math.min(free, 1 + coreLevel / 4 + (stalled ? 1 : 0));
             if (toSpawn > 0) {
-                int spawned = spawnAttackers(level, pos, coreLevel, toSpawn, target);
+                int spawned = spawnAttackers(level, pos, coreLevel, toSpawn, target, wards, now);
                 core.setSiegeMobCount(siegeMobs + spawned);
             }
         }
@@ -165,7 +189,7 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
 
     private static int spawnAttackers(ServerLevel level, BlockPos core, int coreLevel, int count,
-                                      CoreTargetEntity target) {
+                                      CoreTargetEntity target, List<BlockPos> wards, long now) {
         List<EntityType<?>> pool = SiegeRules.spawnPool(coreLevel);
         if (pool.isEmpty()) {
             return 0;
@@ -174,19 +198,26 @@ public final class SiegeManager {
         int minDistance = Config.coreZoneRadius(coreLevel) + 6;
         int maxDistance = Math.min(Config.SPAWN_MAX_DISTANCE.get(), Config.siegeRadiusBlocks(coreLevel) - 4);
         maxDistance = Math.max(maxDistance, minDistance + 4);
+        int wardRadius = Config.WARD_RADIUS.get();
+        // With wards, mobs may also spawn a bit farther out (otherwise a big base leaves no room).
+        int wardMaxDistance = Math.max(maxDistance, Config.siegeRadiusBlocks(coreLevel) - 4);
 
         int spawned = 0;
         for (int i = 0; i < count; i++) {
-            for (int attempt = 0; attempt < 8; attempt++) {
+            EntityType<?> type = pickType(pool, random, now);
+            for (int attempt = 0; attempt < 12; attempt++) {
                 double angle = random.nextDouble() * Math.PI * 2.0;
-                double distance = minDistance + random.nextDouble() * (maxDistance - minDistance);
+                int limit = attempt < 6 ? maxDistance : wardMaxDistance;
+                double distance = minDistance + random.nextDouble() * (limit - minDistance);
                 int x = core.getX() + Mth.floor(Math.cos(angle) * distance);
                 int z = core.getZ() + Mth.floor(Math.sin(angle) * distance);
+                if (insideWard(wards, x, z, wardRadius)) {
+                    continue;
+                }
                 BlockPos spawnPos = findStandingPos(level, x, z, core.getY());
                 if (spawnPos == null) {
                     continue;
                 }
-                EntityType<?> type = pool.get(random.nextInt(pool.size()));
                 Entity entity = type.create(level);
                 if (!(entity instanceof Mob mob)) {
                     if (entity != null) {
@@ -202,7 +233,7 @@ public final class SiegeManager {
                 }
                 EventHooks.finalizeMobSpawn(mob, level, level.getCurrentDifficultyAt(spawnPos), MobSpawnType.EVENT, null);
                 prepareSiegeMob(mob, coreLevel);
-                ZombieRoles.apply(mob, coreLevel, random);
+                MobRoles.apply(mob, coreLevel, random, now);
                 level.addFreshEntityWithPassengers(mob);
                 mob.setTarget(target);
                 ensureFollowRange(mob, target);
@@ -215,16 +246,61 @@ public final class SiegeManager {
         return spawned;
     }
 
+    private static final Set<EntityType<?>> ZOMBIE_TYPES = Set.of(EntityType.ZOMBIE, EntityType.HUSK);
+    private static final Set<EntityType<?>> SKELETON_TYPES = Set.of(EntityType.SKELETON, EntityType.STRAY, EntityType.BOGGED);
+
+    /** Usually random; if the siege urgently needs a role, a type that can take it. */
+    private static EntityType<?> pickType(List<EntityType<?>> pool, RandomSource random, long now) {
+        Set<EntityType<?>> wanted = null;
+        if (SiegeProgress.isNeeded(SiegeProgress.Need.FIRE_ARCHER, now) && MobRoles.count(MobRoles.Role.FIRE_ARCHER) == 0) {
+            wanted = SKELETON_TYPES;
+        } else if ((SiegeProgress.isNeeded(SiegeProgress.Need.BUILDER, now) && MobRoles.count(MobRoles.Role.BUILDER) == 0)
+                || (SiegeProgress.isNeeded(SiegeProgress.Need.DIGGER, now)
+                && MobRoles.count(MobRoles.Role.MINER) + MobRoles.count(MobRoles.Role.BREAKER) == 0)) {
+            wanted = ZOMBIE_TYPES;
+        }
+        if (wanted != null) {
+            List<EntityType<?>> matching = new ArrayList<>();
+            for (EntityType<?> type : pool) {
+                if (wanted.contains(type)) {
+                    matching.add(type);
+                }
+            }
+            if (!matching.isEmpty()) {
+                return matching.get(random.nextInt(matching.size()));
+            }
+        }
+        return pool.get(random.nextInt(pool.size()));
+    }
+
+    private static boolean insideWard(List<BlockPos> wards, int x, int z, int radius) {
+        for (BlockPos ward : wards) {
+            double dx = x + 0.5 - (ward.getX() + 0.5);
+            double dz = z + 0.5 - (ward.getZ() + 0.5);
+            if (dx * dx + dz * dz <= (double) radius * radius) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Nullable
     private static BlockPos findStandingPos(ServerLevel level, int x, int z, int coreY) {
+        if (!level.isLoaded(new BlockPos(x, coreY, z))) {
+            return null;
+        }
+        // Prefer the surface, so mobs do not start inside caves.
+        int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        BlockPos surface = new BlockPos(x, top, z);
+        if (Math.abs(top - coreY) <= 24 && isStandable(level, surface)) {
+            return surface;
+        }
         for (int y = coreY + 12; y >= coreY - 12; y--) {
             BlockPos pos = new BlockPos(x, y, z);
             if (isStandable(level, pos)) {
                 return pos;
             }
         }
-        int top = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        BlockPos surface = new BlockPos(x, top, z);
         if (Math.abs(top - coreY) <= 40 && isStandable(level, surface)) {
             return surface;
         }
@@ -275,6 +351,7 @@ public final class SiegeManager {
         }
         CoreWorldData.get(level.getServer()).clearIfMatches(level.dimension(), pos);
         ActiveSiege.clear();
+        SiegeAI.clear();
     }
 
     /** Removes all mobs spawned by the siege around the Core (the incursion is over). */

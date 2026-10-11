@@ -43,6 +43,7 @@ public class Incursion {
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             event.accept(ModItems.CORE);
+            event.accept(ModItems.WARD);
         }
     }
 }

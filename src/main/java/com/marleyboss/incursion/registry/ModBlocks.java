@@ -2,6 +2,7 @@ package com.marleyboss.incursion.registry;
 
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlock;
+import com.marleyboss.incursion.block.WardBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
@@ -20,6 +21,15 @@ public final class ModBlocks {
                     .sound(SoundType.NETHERITE_BLOCK)
                     .lightLevel(state -> state.getValue(CoreBlock.ACTIVE) ? 12 : 3)
                     .pushReaction(PushReaction.BLOCK)));
+
+    public static final DeferredBlock<WardBlock> WARD = BLOCKS.register("ward", () -> new WardBlock(
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_GREEN)
+                    .strength(3.0F, 6.0F)
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.STONE)
+                    .lightLevel(state -> 7)
+                    .noOcclusion()));
 
     private ModBlocks() {
     }
