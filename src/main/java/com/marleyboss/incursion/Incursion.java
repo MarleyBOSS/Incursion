@@ -2,7 +2,11 @@ package com.marleyboss.incursion;
 
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModBlocks;
+import com.marleyboss.incursion.registry.ModEntities;
 import com.marleyboss.incursion.registry.ModItems;
+import com.marleyboss.incursion.registry.ModMenus;
+import com.marleyboss.incursion.siege.ChunkLoading;
+import com.marleyboss.incursion.siege.SiegeEvents;
 import com.mojang.logging.LogUtils;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.neoforged.bus.api.IEventBus;
@@ -21,8 +25,13 @@ public class Incursion {
         ModBlocks.BLOCKS.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModBlockEntities.BLOCK_ENTITY_TYPES.register(modEventBus);
+        ModEntities.ENTITY_TYPES.register(modEventBus);
+        ModMenus.MENUS.register(modEventBus);
 
         modEventBus.addListener(this::addCreative);
+        modEventBus.addListener(ModEntities::registerAttributes);
+        modEventBus.addListener(ChunkLoading::register);
+        SiegeEvents.register();
 
         // Server config: stored per world in <world>/serverconfig/incursion-server.toml
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SPEC);

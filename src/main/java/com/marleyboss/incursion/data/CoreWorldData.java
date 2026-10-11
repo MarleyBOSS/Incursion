@@ -90,6 +90,11 @@ public class CoreWorldData extends SavedData {
         return dimension;
     }
 
+    @Nullable
+    public BlockPos getPos() {
+        return pos;
+    }
+
     public void setActiveCore(ResourceKey<Level> levelKey, BlockPos corePos) {
         this.dimension = levelKey;
         this.pos = corePos.immutable();
