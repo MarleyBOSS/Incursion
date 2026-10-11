@@ -30,7 +30,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - **Idee v0.10 „Tag/Nacht und Pausen“** (Grund: auf hoher Stufe kann man sonst nicht mehr bauen/normal spielen; bewusst erst nach v0.9, weil zeitunabhängige Angriffe leichter zu testen sind). Kein Wellen-System mit steigender Schwierigkeit.
   - Angriffe nur nachts, tagsüber Zeit für Reparatur/Umbau.
   - **Nacht pausieren** (Button im Kern-GUI): diese Nacht keine Belagerung, Schlafen möglich. Gilt nur für eine Nacht, danach automatisch wieder aktiv. Strafe stapelt sich: nächste Nacht ×2, erneut pausiert ×4, dann ×8 … Eine verteidigte Nacht setzt den Faktor auf ×1 zurück.
-  - **Schlafen** nur, wenn die Nacht pausiert ist oder Waffenruhe läuft (Annahme: sonst in der ganzen Welt blockiert, damit man nicht woanders schläft).
+  - **Schlafen** nur, wenn die Nacht pausiert ist oder Waffenruhe läuft (entschieden: sonst in der ganzen Welt blockiert).
   - **Waffenruhe** (Button im Kern-GUI, gratis): 3 Tage + Nächte Ruhe. Danach müssen **7 Nächte verteidigt** werden, bis sie wieder aufgeladen ist. Pausierte Nächte, Waffenruhe-Nächte und Zeit im entschärften Zustand zählen nicht.
   - **Entschärfen** = unbegrenzte Pause: kostet **80 % der Stufe** (Stufe 20 → 4; Annahme: abrunden). Ersetzt die alte Idee „Kern pausieren kostet 2 Stufen“ und den bisherigen Reset auf Stufe 0.
   - Offen: Was machen Mobs tagsüber (verschwinden / Belagerungslager / stehen)? Brennen in der Sonne? Dimensionen ohne Nacht (Nether/End)? Was heißt „×2“ (Mobanzahl, Limit, Stärke)?
