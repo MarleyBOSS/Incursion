@@ -20,8 +20,9 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - v0.7 getestet: **schlechter**. Kern (in der Luft, in Obsidian eingebaut, auf Holzstamm) wurde nicht zerstört. Baumeister baute Leitern (hässlich) bis *über* den Kern, oben standen alle nur rum (konnten nicht nach unten graben). Viele Mobs in Höhlen („sammelt sich“, „wartet auf Baumeister“), die blieben. Mehrere Angreifer, aber nur ein Baumeister. Nutzer-Wunsch: Mobs sollen **als Gruppe analysieren und planen** (Kern in der Luft + eingebaut → Treppe auf Kernhöhe + Plattform, frontal freilegen), **effizient und langfristig**, Spawns passend zum Plan.
 - **v0.7.1 „Kommandant“** getestet: Baumeister baut jetzt **sicher** zum Kern (3 von 3), aber nur **eine schmale Treppe** (nur 1 Baumeister/Front), nur 4 von 42 Angreifer (Spawns wurden zurückgehalten), viele Mobs in Höhlen (Sammelplatz in Höhle, weil Kern als „unterirdisch“ galt), Zombies gingen auf Dorfbewohner, kaum Skelette/Creeper. Wunsch: mehrere Treppen/Türme (Spinnen klettern, Zombies/Skelette stehen), Plattform, Spawnpunkt höher wenn der Kern nicht tief liegt. Aufbau von v0.7.1: KI grundlegend umgebaut (siehe DESIGN.md): ein zentraler Plan pro Front statt Einzel-Routen pro Mob. Planer sucht rückwärts vom Kern (Angriffsplatz seitlich am Kern, Hülle dort aufbrechen) zum Sammelplatz auf natürlichem Boden (Oberfläche, ≥ Kernzone + 6). Nur Treppen/Brücken/Graben, **keine Leitern mehr**. Plattform (bis 5 Felder) am Angriffsplatz. Spawns nur am Sammelplatz; erst Baumeister/Gräber, max. 2 Begleiter, Angreifer erst wenn der Weg (fast) offen ist; fehlt ein Arbeiter, wird ein Zombie umgeschult. Wer den Sammelplatz 30 s nicht erreicht, verschwindet (auch natürliche Mobs ohne Namen). Natürliche Höhlen-Spawns im Gebiet ganz aus (außer Kern unterirdisch). Spitzhacke gräbt Obsidian ohne Tier-Strafe. Offline-Simulation des Planers (4 Szenarien) ok.
 - Ungetestet/riskant: Laufen auf 1 breiter Treppe (Hüpf-Fallback vorhanden), Plattformbau, zweite Front, Rechenzeit großer Pläne (läuft verteilt, 20 000 Knoten/s).
-- **v0.7.2** gebaut (**kann hier nicht kompiliert werden, CI prüfen**), **Test ausstehend**: `fronts` (4) statt `maxFronts`: Stufe 0–4: 1, 5–9: 2, 10–14: 3, 15+: 4 Treppen gleichzeitig auf verschiedenen Seiten; alle Angreifer bis zum Limit sofort (offene Fronten zuerst); Treppe 2 breit; Plattform 3×3; „unterirdisch“ nur noch unter Meereshöhe − 8 (sonst nie Höhlen-Sammelplatz), kein Sammelplatz in Schluchten; Mobs in Höhlen verschwinden sofort; Dorfbewohner/Tiere werden ignoriert. Details in DESIGN.md.
-- Offen/nächste Ideen, falls v0.7.2 nicht reicht: echte Türme für Spinnen, Skelette auf erhöhter Plattform, Spawn-Gewichtung (Skelette/Creeper) prüfen.
+- **v0.7.2** getestet: **viel besser.** Keine Mobs mehr unter der Erde, viele Mobs, gut gemischt, 3 Treppen gebaut und benutzt, Baumeister zuverlässig. Mängel: keine Plattform gebaut (nur Treppen); Skelette positionieren sich unzuverlässig; Baumeister bauen scheinbar nur diagonal (Treppen), nicht horizontal; Sprengschützen (Explosivpfeile) tun nichts (weder Spieler noch Kern). Wünsche: Zwischenplattformen entlang der Treppe (Schussposition für Skelette, Spieler abhalten) und oben am Kern (nicht einfach runterschießbar); Baumeister sollen abwägen (4. Treppe oder Plattformen zum Ausbau einer vorhandenen Treppe); Teams: eines jagt/verteidigt gegen den Spieler, das andere geht auf den Kern, mit Leibwächtern, die nahe Spieler angreifen.
+- **v0.7.3** gebaut (**lokal nicht kompilierbar, nur Syntax-Check mit javac; CI prüfen**), **Test ausstehend**: Zwischenplattformen („Landings“, alle 6 Stufen, `landingsEnabled`/`landingSpacing`); Plattform am Kern 5×3 nur auf freien Feldern (kein Obsidian-Abbau mehr); zusätzlicher Baumeister baut die Landings, ab der 3. Front erst Ausbau, dann weitere Treppe; Teams Jäger (`hunterPercent` 40 %, `hunterRange` 32) / Leibwächter (`bodyguardRange` 10), Arbeiter immer Kern-Team; Jäger-Schützen halten Posten auf Landings; Schützen bevorzugen Landings; Sprengschützen geben jetzt Deckungsfeuer (Ursache: bei Obsidian-Kern keine Aufgabe). Details in DESIGN.md.
+- Offen/nächste Ideen, falls v0.7.3 nicht reicht: echte Türme für Spinnen, Skelette auf erhöhter Plattform, Spawn-Gewichtung (Skelette/Creeper) prüfen.
 - `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
 - KI-Anzeige im Kern-GUI zum Testen: Nutzer schickt Screenshots.
 
@@ -40,7 +41,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   `gh api repos/MarleyBOSS/Incursion/releases/tags/dev` → Asset-ID → `gh api -H "Accept: application/octet-stream" repos/MarleyBOSS/Incursion/releases/assets/<id> > incursion.jar`
 - Commit-Nachrichten enden mit den Attributionszeilen, die die Umgebung vorgibt.
 
-## Code-Struktur (Stand v0.7.2)
+## Code-Struktur (Stand v0.7.3)
 
 | Datei | Zweck |
 |---|---|
@@ -53,14 +54,14 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 | `entity/CoreTargetEntity.java` | Unsichtbare LivingEntity am Kern, Schaden von Enemy-Mobs → Kern-HP (× Rollen-Multiplikator), meldet Fortschritt |
 | `siege/SiegeManager.java` | Jede Sekunde: Chunks, Regeneration, Targeting, Rollen zählen, TNT, Ringe, Spawns (Bedarf, Totems, Patt-Verstärkung) |
 | `siege/SiegeEvents.java` | Target-Regeln, Explosionen (Kern/siege_proof geschützt, Belagerungs-Explosionen schonen Belagerungs-Mobs), Rollen-Schaden |
-| `siege/Targeting.java` | Wer greift was an: Arbeiter → Kern, Krieger → Spieler (jede Zone), Schützen → Kern (Deckungsfeuer nur ohne Schussposition) |
-| `siege/MobRoles.java` | Rollen per Scoreboard-Tag (Zombie: Krieger/Gräber/Brecher/Baumeister; Skelett: Spreng/Feuer/normal; Enderman: Pionier), ausgewogene Vergabe, Ausrüstung |
+| `siege/Targeting.java` | Wer greift was an: Arbeiter → Kern; Jäger → Spieler (32 Blöcke, nahe am Kern bis 64); Leibwächter → nur Spieler ≤ 10; Schützen → Kern (Deckungsfeuer nur ohne Schussposition) |
+| `siege/MobRoles.java` | Rollen und Teams (Tag `incursion_hunter` = Jäger, sonst Leibwächter/Kern-Team) per Scoreboard-Tag (Zombie: Krieger/Gräber/Brecher/Baumeister; Skelett: Spreng/Feuer/normal; Enderman: Pionier), ausgewogene Vergabe, Ausrüstung |
 | `siege/SiegeCommander.java` | Zentraler Plan (1/s): Fronten planen (verteilt), prüfen, neu planen; Arbeit zählen; welche Rolle als Nächstes spawnt; Zombies umschulen; Chat-Meldung bei KI-Anzeige |
-| `siege/SiegeFront.java` | Eine Angriffslinie: Route, Seite, Plattform, Arbeits- und Rollenzähler |
+| `siege/SiegeFront.java` | Eine Angriffslinie: Route, Seite, Plattform, Landings (Zwischenplattformen), Arbeits- und Rollenzähler |
 | `siege/SiegeAI.java` | Pro Mob alle 5 Ticks: Reiter, direkter Kernangriff, Spinnen, Endermen-Teleport, Front zuordnen → zum Sammelplatz laufen (sonst nach 30 s weg) → Weg abarbeiten (graben, bauen + Anheben, Creeper-Durchbruch), Warten/Sammeln, Plattform, Hüpfen bei Hängern, Pionier-TNT, Selbstzerstörung |
 | `siege/SiegeTeam.java` | Scoreboard-Team `incursion_siege` (kein Schieben untereinander), Aufräumen beim Entfernen |
 | `siege/SiegeAirDrop.java` | Phantom-Luftlandung: Kernhöhe über Boden, Landeplatz mit offenem Himmel, Flug (Position pro Tick), Absetzen |
-| `siege/SiegeArchers.java` | Schützen: von hier schießen, erreichbare Schussposition suchen/hinlaufen, Sprengschützen sprengen Wand am Kern; sonst `false` → Routen |
+| `siege/SiegeArchers.java` | Schützen: von hier schießen, erreichbare Schussposition suchen/hinlaufen, Landings bevorzugt, Jäger halten Posten, Sprengschützen sprengen Wand am Kern; sonst `false` → Routen |
 | `siege/SiegeAim.java` | Sichtprüfung auf den Kern-Block (Seitenflächen), ballistische Pfeil-Berechnung und Flugbahn-Prüfung |
 | `siege/SiegeDebug.java` | KI-Anzeige: Namensschilder mit Rolle/Tätigkeit, Routen-Partikel |
 | `siege/SiegeDriveGoal.java` | Goal (Prio 1, MOVE+LOOK) an jedem feindlichen Bodenmob; steuert Bewegung, wenn SiegeAI einen Auftrag hat |
@@ -102,7 +103,8 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.6 | Erreichbarkeit: Leitern, keine Selbstblockade, alle graben, Luftlandung, Spinnenreiter, Endermen-Teleport, Rückruf | getestet: Kern fällt, aber Phantome zu stark, Gedränge, Höhlen-Mobs |
 | v0.7 | Einheit: kein Schieben, Sammeln/Stürmen, mehrere Wege, Leitern, verirrte Mobs, Oberflächen-Spawns, seltene Luftlandung | getestet: schlechter (Kern nicht zerstört) |
 | v0.7.1 | Kommandant: zentraler Plan, Treppe + Plattform, Spawns am Sammelplatz nach Bedarf, Umschulen, Höhlen-Mobs weg | getestet: baut sicher, aber 1 Treppe, zu wenige Mobs, Höhlen |
-| v0.7.2 | Mehrere Fronten gleichzeitig, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | gebaut, **Test ausstehend** |
+| v0.7.2 | Mehrere Fronten gleichzeitig, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | getestet: viel besser; Plattformen fehlen, Skelette unzuverlässig |
+| v0.7.3 | Zwischenplattformen, Ausbau durch Baumeister, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | gebaut, **Test ausstehend** |
 | v0.8 | Schildkuppel, Puls, Reparatur | erst wenn Kern zuverlässig zerstört wird |
 | v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Integration | |

@@ -1,5 +1,6 @@
 package com.marleyboss.incursion.siege;
 
+import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.siege.MobRoles.Role;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -10,14 +11,24 @@ import java.util.List;
 
 /**
  * One line of attack planned by the {@link SiegeCommander}: a way from the assembly point (where the
- * attackers of this front spawn and gather) up to the attack position next to the Core, plus a small platform
- * there. The commander keeps track of how much work is left and which roles the front still needs.
+ * attackers of this front spawn and gather) up to the attack position next to the Core, plus a platform
+ * there and landings (wide platforms) along the stairs. The commander keeps track of how much work is left and
+ * which roles the front still needs.
  */
 final class SiegeFront {
+    /** A platform beside the way, level with route step {@code index} (standing cells; their floors are built). */
+    record Landing(int index, List<BlockPos> spots) {
+    }
+
+    /** The next piece of landing work: which landing, and the block to dig or place. */
+    record LandingJob(Landing landing, Route.Action action) {
+    }
+
     final int id;
     final Route route;
     final Direction side;
     final List<BlockPos> platform;
+    final List<Landing> landings;
     final long created;
 
     // Refreshed once per second by the commander.
@@ -25,6 +36,8 @@ final class SiegeFront {
     int pendingDig;
     int hardDig;
     int platformWork;
+    /** Work left on the landings whose way up is already finished. */
+    int landingWork;
     /** No work left on the way itself (the platform may still be under construction). */
     boolean open;
     final int[] roleCounts = new int[Role.values().length];
@@ -39,11 +52,12 @@ final class SiegeFront {
     int orderedMiners;
     int orderedOthers;
 
-    SiegeFront(int id, Route route, Direction side, List<BlockPos> platform, long created) {
+    SiegeFront(int id, Route route, Direction side, List<BlockPos> platform, List<Landing> landings, long created) {
         this.id = id;
         this.route = route;
         this.side = side;
         this.platform = platform;
+        this.landings = landings;
         this.created = created;
     }
 
@@ -74,7 +88,57 @@ final class SiegeFront {
     /** The next piece of work on the platform (only once the way is open), or null. */
     @Nullable
     Route.Action platformAction(Level level, boolean canDig, boolean canBuild) {
-        for (BlockPos spot : platform) {
+        return spotsAction(level, platform, canDig, canBuild);
+    }
+
+    /** Counts the platform work left (blocks to dig or place). */
+    int countPlatformWork(Level level) {
+        return countSpotsWork(level, platform, true);
+    }
+
+    /**
+     * The next piece of landing work for a builder standing at route step {@code fromIndex}. Only landings whose way
+     * up is finished count (a builder has to be able to walk there), lowest first; landings far below the builder
+     * are left out.
+     */
+    @Nullable
+    LandingJob landingAction(Level level, boolean canBuild, int fromIndex) {
+        if (!Config.LANDINGS_ENABLED.get()) {
+            return null;
+        }
+        for (Landing landing : landings) {
+            if (route.firstPending(level, 1, landing.index()) >= 0) {
+                break; // the way up to this landing (and so to all further ones) is not finished
+            }
+            if (landing.index() < fromIndex - 2) {
+                continue; // behind the builder: walking back down the stairs is not worth it
+            }
+            Route.Action action = spotsAction(level, landing.spots(), false, canBuild);
+            if (action != null) {
+                return new LandingJob(landing, action);
+            }
+        }
+        return null;
+    }
+
+    /** Counts the landing work left on landings that can be reached. */
+    int countLandingWork(Level level) {
+        if (!Config.LANDINGS_ENABLED.get()) {
+            return 0;
+        }
+        int work = 0;
+        for (Landing landing : landings) {
+            if (route.firstPending(level, 1, landing.index()) >= 0) {
+                break;
+            }
+            work += countSpotsWork(level, landing.spots(), false);
+        }
+        return work;
+    }
+
+    @Nullable
+    private Route.Action spotsAction(Level level, List<BlockPos> spots, boolean canDig, boolean canBuild) {
+        for (BlockPos spot : spots) {
             for (BlockPos cell : new BlockPos[]{spot.above(), spot}) {
                 if (!RoutePlanner.isPassable(level, cell)) {
                     if (RoutePlanner.isDiggable(level, cell, route.corePos)) {
@@ -94,17 +158,18 @@ final class SiegeFront {
         return null;
     }
 
-    /** Counts the platform work left (blocks to dig or place). */
-    int countPlatformWork(Level level) {
+    private int countSpotsWork(Level level, List<BlockPos> spots, boolean countDigging) {
         int work = 0;
-        for (BlockPos spot : platform) {
+        for (BlockPos spot : spots) {
             for (BlockPos cell : new BlockPos[]{spot.above(), spot}) {
-                if (!RoutePlanner.isPassable(level, cell) && RoutePlanner.isDiggable(level, cell, route.corePos)) {
+                if (countDigging && !RoutePlanner.isPassable(level, cell)
+                        && RoutePlanner.isDiggable(level, cell, route.corePos)) {
                     work++;
                 }
             }
             BlockPos floor = spot.below();
-            if (!RoutePlanner.isSupport(level, floor) && RoutePlanner.canPlace(level, floor, route.corePos)) {
+            if (RoutePlanner.isPassable(level, spot) && RoutePlanner.isPassable(level, spot.above())
+                    && !RoutePlanner.isSupport(level, floor) && RoutePlanner.canPlace(level, floor, route.corePos)) {
                 work++;
             }
         }

@@ -53,6 +53,10 @@ final class SiegeArchers {
     private static final int MAX_PATH_CHECKS = 3;
     private static final double[] SPEEDS = {2.4, 3.0};
     private static final float BLAST_MAX_RESISTANCE = 100.0F;
+    /** A hunter holds its post for this long, then looks around again. */
+    private static final long POST_TICKS = 1200;
+    /** Landings of the stairs are preferred firing positions (they count as this much closer). */
+    private static final double LANDING_BONUS = 8.0;
 
     /** Firing positions that turned out useless (pos -> game time until which they are skipped). */
     private static final Map<Long, Long> BAD = new HashMap<>();
@@ -117,6 +121,22 @@ final class SiegeArchers {
             state.nextSpotSearch = now;
         }
 
+        // 3a. At a post (a landing of the stairs): hold it, watch the way, shoot what comes (hunters).
+        if (state.spot != null && state.spotPost && isAt(mob, state.spot)) {
+            SiegeAI.control(state, Mode.HOLD, now);
+            state.gotoPos = null;
+            state.lookAt = Vec3.atCenterOf(core);
+            state.status("guard");
+            if (!SiegeProgress.isStalled(now)) {
+                state.lastUseful = now; // guarding is a job: no self-destruct while the siege is making progress
+            }
+            if (now - state.spotSince > POST_TICKS) {
+                state.spot = null; // look around again now and then
+                state.nextSpotSearch = now;
+            }
+            return true;
+        }
+
         // 3. Walk to a firing position.
         if (state.spot != null) {
             boolean arrived = isAt(mob, state.spot);
@@ -131,7 +151,7 @@ final class SiegeArchers {
                 SiegeAI.control(state, Mode.GOTO, now);
                 state.gotoPos = state.spot;
                 state.lookAt = null;
-                state.status(state.spotWall != null ? "goto_blast" : "goto_spot");
+                state.status(state.spotPost ? "goto_post" : state.spotWall != null ? "goto_blast" : "goto_spot");
                 return true;
             }
         }
@@ -139,15 +159,16 @@ final class SiegeArchers {
         // 4. Find a firing position it can walk to.
         if (now >= state.nextSpotSearch && searchAllowed(now)) {
             state.nextSpotSearch = now + 60;
-            Spot found = search(level, mob, core, blast, now);
+            Spot found = search(level, mob, core, blast, MobRoles.isHunter(mob), now);
             if (found != null) {
                 state.spot = found.pos;
+                state.spotPost = found.post();
                 state.spotWall = found.wall;
                 state.spotSince = now;
                 state.pathFailures = 0;
                 SiegeAI.control(state, Mode.GOTO, now);
                 state.gotoPos = found.pos;
-                state.status(found.wall != null ? "goto_blast" : "goto_spot");
+                state.status(found.post() ? "goto_post" : found.wall != null ? "goto_blast" : "goto_spot");
                 return true;
             }
             state.noSpotUntil = now + 300;
@@ -277,17 +298,18 @@ final class SiegeArchers {
     // Finding a firing position
     // ------------------------------------------------------------------
 
-    private record Spot(BlockPos pos, @Nullable BlockPos wall, double score) {
+    private record Spot(BlockPos pos, @Nullable BlockPos wall, double score, boolean post) {
     }
 
     /**
      * Tries random columns around the Core. A position is good if the Core can be hit from there (for blast
      * archers also: if a wall block right next to the Core can be hit). Prefers positions close to the archer,
-     * about 10 blocks from the Core, and not already taken by other archers. Only positions the archer can
+     * about 10 blocks from the Core, and not already taken by other archers. The landings of the stairs are
+     * preferred. Hunters without a firing position take a landing as a post. Only positions the archer can
      * actually walk to count; the others are remembered as useless for a while.
      */
     @Nullable
-    private static Spot search(ServerLevel level, Mob mob, BlockPos core, boolean blast, long now) {
+    private static Spot search(ServerLevel level, Mob mob, BlockPos core, boolean blast, boolean hunter, long now) {
         cleanup(now);
         RandomSource random = mob.getRandom();
         double eyeHeight = mob.getEyeHeight();
@@ -316,18 +338,23 @@ final class SiegeArchers {
                 double score = Math.sqrt(mob.blockPosition().distSqr(pos)) + Math.abs(toCore - 10.0) * 0.4
                         + taken(pos) * 6.0;
                 if (SiegeAim.visibleCorePoint(level, eyes, core, mob) != null) {
-                    shots.add(new Spot(pos, null, score));
+                    shots.add(new Spot(pos, null, score, false));
                 } else if (blast && shots.isEmpty()) {
                     BlockPos wall = wallFrom(level, eyes, mob, core);
                     if (wall != null) {
-                        walls.add(new Spot(pos, wall, score));
+                        walls.add(new Spot(pos, wall, score, false));
                     }
                 }
             }
         }
+        List<Spot> posts = new ArrayList<>();
+        addLandingSpots(level, mob, core, hunter, shots, posts);
         Spot result = reachable(mob, shots, now);
         if (result == null) {
             result = reachable(mob, walls, now);
+        }
+        if (result == null && hunter) {
+            result = reachable(mob, posts, now);
         }
         if (result != null) {
             TAKEN.add(result.pos);
@@ -336,6 +363,35 @@ final class SiegeArchers {
             }
         }
         return result;
+    }
+
+    /**
+     * The landings of the stairs as firing positions (if the Core can be hit from there) or, for hunters, as posts
+     * (from where they cover the way). The planners' landings are built by the siege's builders.
+     */
+    private static void addLandingSpots(ServerLevel level, Mob mob, BlockPos core, boolean hunter, List<Spot> shots,
+                                        List<Spot> posts) {
+        double eyeHeight = mob.getEyeHeight();
+        for (SiegeFront front : SiegeCommander.fronts()) {
+            for (SiegeFront.Landing landing : front.landings) {
+                for (BlockPos pos : landing.spots()) {
+                    if (BAD.containsKey(pos.asLong()) || !isStandable(level, pos)) {
+                        continue;
+                    }
+                    Vec3 eyes = new Vec3(pos.getX() + 0.5, pos.getY() + eyeHeight, pos.getZ() + 0.5);
+                    double toCore = SiegeAim.distanceToCore(eyes, core);
+                    if (toCore > SHOOT_RANGE - 1.0) {
+                        continue;
+                    }
+                    double score = Math.sqrt(mob.blockPosition().distSqr(pos)) + taken(pos) * 6.0 - LANDING_BONUS;
+                    if (toCore >= MIN_SHOOT_RANGE && SiegeAim.visibleCorePoint(level, eyes, core, mob) != null) {
+                        shots.add(new Spot(pos, null, score, false));
+                    } else if (hunter) {
+                        posts.add(new Spot(pos, null, score, true));
+                    }
+                }
+            }
+        }
     }
 
     /** The best spot the mob can walk to (checks at most a few paths); unreachable ones are marked useless. */

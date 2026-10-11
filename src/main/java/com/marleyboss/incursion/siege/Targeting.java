@@ -11,18 +11,23 @@ import net.minecraft.world.item.ProjectileWeaponItem;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Who attacks what:
+ * Who attacks what. The fighters (warriors and archers) are split into two teams:
  * <ul>
- *     <li>Workers (miners, breakers, builders, sappers) always go for the Core.</li>
- *     <li>Warriors hunt players within the guard range in every zone, also right next to the Core.</li>
- *     <li>Archers shoot the Core (they search a firing position). While they find none, they give cover fire on players.
- *     Players that come very close are always shot. Blast archers keep shooting at the Core.</li>
+ *     <li><b>Hunters</b> go for players within the hunter range, and for every player close to the Core
+ *     (they defend the Core's attackers). Hunter archers hold posts on the landings of the stairs.</li>
+ *     <li>The <b>Core team</b> goes for the Core: workers (miners, breakers, builders, sappers) never fight players;
+ *     the other fighters are their bodyguards and only attack players that come close.</li>
+ *     <li>Archers of the Core team shoot the Core (they search a firing position). While they find none, they give
+ *     cover fire on players.</li>
  *     <li>Everybody else: Core zone = Core only, siege area = nearby players, otherwise the Core.</li>
  * </ul>
  */
 public final class Targeting {
     private static final double SELF_DEFENCE_RANGE = 8.0;
     private static final double WARRIOR_BLIND_RANGE = 12.0;
+    /** Hunters also go for players this close to the Core (beyond the Core zone), from this far away. */
+    private static final double DEFEND_MARGIN = 12.0;
+    private static final double DEFEND_RANGE = 64.0;
 
     private Targeting() {
     }
@@ -36,6 +41,15 @@ public final class Targeting {
         return player.isAlive() && !player.isCreative() && !player.isSpectator();
     }
 
+    /** Is the player close to the Core (within the Core zone plus a margin)? */
+    private static boolean nearCore(Player player, ActiveSiege siege) {
+        double reach = siege.coreZoneRadius + DEFEND_MARGIN;
+        double dx = player.getX() - (siege.corePos.getX() + 0.5);
+        double dz = player.getZ() - (siege.corePos.getZ() + 0.5);
+        double dy = player.getY() - siege.corePos.getY();
+        return dx * dx + dz * dz + dy * dy <= reach * reach;
+    }
+
     /** Should this mob fight the player instead of attacking the Core? */
     public static boolean prefersPlayer(Mob mob, Player player, ActiveSiege siege, int zone) {
         if (!isValidPlayer(player) || player.level() != mob.level()) {
@@ -47,14 +61,18 @@ public final class Targeting {
         }
         double distance = mob.distanceTo(player);
         int guardRange = Config.GUARD_RANGE.get();
+        boolean fighter = MobRoles.isFighter(role);
+        if (fighter && MobRoles.isHunter(mob)) {
+            return distance <= Config.HUNTER_RANGE.get() || (distance <= DEFEND_RANGE && nearCore(player, siege));
+        }
         if (role == Role.WARRIOR) {
-            return distance <= guardRange;
+            return distance <= Config.BODYGUARD_RANGE.get(); // bodyguard of the Core team
         }
         if (isRanged(mob)) {
-            if (distance <= SELF_DEFENCE_RANGE) {
+            if (distance <= Math.max(SELF_DEFENCE_RANGE, fighter ? Config.BODYGUARD_RANGE.get() : 0)) {
                 return true;
             }
-            if (role == Role.BLAST_ARCHER || distance > guardRange) {
+            if (distance > guardRange) {
                 return false;
             }
             // Cover fire only while the archer has found no way to shoot at the Core.
@@ -69,7 +87,10 @@ public final class Targeting {
     /** The closest player this mob should fight right now, or null. */
     @Nullable
     public static Player findPlayer(Mob mob, ActiveSiege siege, int zone) {
-        double range = Math.max(Config.GUARD_RANGE.get(), siege.playerAggroRange);
+        double range = Math.max(Math.max(Config.GUARD_RANGE.get(), siege.playerAggroRange), Config.HUNTER_RANGE.get());
+        if (MobRoles.isHunter(mob)) {
+            range = Math.max(range, DEFEND_RANGE);
+        }
         boolean ranged = isRanged(mob);
         boolean warrior = MobRoles.of(mob) == Role.WARRIOR;
         Player best = null;

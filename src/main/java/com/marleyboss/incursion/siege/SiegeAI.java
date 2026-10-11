@@ -140,6 +140,8 @@ public final class SiegeAI {
         // Archers
         @Nullable
         BlockPos spot;
+        /** The spot is a post (a landing to hold, no shot at the Core from there). */
+        boolean spotPost;
         @Nullable
         BlockPos spotWall;
         long spotSince;
@@ -394,10 +396,11 @@ public final class SiegeAI {
         followFront(level, mob, state, kind, front, siege, now);
     }
 
-    /** Once the way is open, builders first finish the platform at the Core before they join the attack. */
+    /** Once the way is open, builders first finish the platform (and landings) before they join the attack. */
     private static boolean buildsPlatform(Role role, MobState state) {
         SiegeFront front = state.front;
-        return role == Role.BUILDER && SiegeCommander.contains(front) && front.open && front.platformWork > 0;
+        return role == Role.BUILDER && SiegeCommander.contains(front) && front.open
+                && (front.platformWork > 0 || front.landingWork > 0);
     }
 
     /** Gives movement back to the vanilla AI. */
@@ -526,7 +529,13 @@ public final class SiegeAI {
             if ((kind.canBuild || kind.canDig) && platformWork(level, mob, state, kind, front, now)) {
                 return;
             }
+            if (kind.canBuild && front.platformWork == 0 && landingWork(level, mob, state, front, index, now)) {
+                return;
+            }
             if (index >= last) {
+                if (kind.canBuild && tryAttackCore(level, mob, state, siege, now)) {
+                    return; // nothing left to build here: hit the Core
+                }
                 control(state, Mode.HOLD, now);
                 state.lookAt = Vec3.atCenterOf(siege.corePos);
                 state.status("attack_wait");
@@ -552,6 +561,10 @@ public final class SiegeAI {
         route.noteMember(mob.getId(), index, capable, now);
         control(state, Mode.ROUTE, now);
         if (!capable) {
+            // A builder that is not needed at the stairs expands the way: landings (platforms beside the stairs).
+            if (kind.canBuild && landingWork(level, mob, state, front, index, now)) {
+                return;
+            }
             // A few wait right behind the work, the rest gathers at the foot (the group waits together and
             // storms up once the way is open). Nobody walks back down.
             int waitFront = Math.max(0, pending - 4);
@@ -621,6 +634,36 @@ public final class SiegeAI {
             return; // somebody is standing there
         }
         level.setBlockAndUpdate(pos, block);
+    }
+
+    /**
+     * A builder builds the next landing (a wide platform beside the stairs): it walks up to it along the way and
+     * places the floor blocks. False if there is no landing work for it right now.
+     */
+    private static boolean landingWork(ServerLevel level, Mob mob, MobState state, SiegeFront front, int index,
+                                       long now) {
+        SiegeFront.LandingJob job = front.landingAction(level, true, index);
+        if (job == null) {
+            return false;
+        }
+        Route route = front.route;
+        Vec3 at = Vec3.atCenterOf(job.action().pos());
+        if (mob.getEyePosition().distanceTo(at) <= REACH) {
+            control(state, Mode.HOLD, now);
+            state.lookAt = at;
+            work(level, mob, state, Kind.BUILDER, job.action(), route, now);
+            state.status("landing");
+            return true;
+        }
+        if (index >= job.landing().index()) {
+            return false; // standing at the landing but cannot reach the block: leave it
+        }
+        control(state, Mode.ROUTE, now);
+        state.walkLimit = Math.min(job.landing().index(), route.last());
+        state.lookAt = null;
+        state.status("to_landing");
+        hopIfStuck(level, mob, state, route, now);
+        return true;
     }
 
     /** The way is open: builders and miners make the platform next to the Core (more room to attack). */

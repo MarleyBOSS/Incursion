@@ -76,6 +76,11 @@ public final class MobRoles {
     /** Living siege mobs per role, counted once per second by the SiegeManager. */
     private static final int[] COUNTS = new int[ROLES.length];
 
+    /** Scoreboard tag of the hunter team (warriors and archers that go for players); other fighters are bodyguards. */
+    public static final String HUNTER_TAG = "incursion_hunter";
+    private static int fighters;
+    private static int hunters;
+
     private MobRoles() {
     }
 
@@ -94,10 +99,43 @@ public final class MobRoles {
 
     public static void resetCounts() {
         java.util.Arrays.fill(COUNTS, 0);
+        fighters = 0;
+        hunters = 0;
     }
 
     public static void count(Mob mob) {
-        COUNTS[of(mob).ordinal()]++;
+        Role role = of(mob);
+        COUNTS[role.ordinal()]++;
+        if (isFighter(role)) {
+            fighters++;
+            if (isHunter(mob)) {
+                hunters++;
+            }
+        }
+    }
+
+    /** Warriors and archers are the fighters: they are split into hunters and bodyguards. */
+    public static boolean isFighter(Role role) {
+        return role == Role.WARRIOR || role.isArcher();
+    }
+
+    /** True for a hunter (goes for players, holds posts); false for the Core team (workers and bodyguards). */
+    public static boolean isHunter(Entity entity) {
+        return entity.getTags().contains(HUNTER_TAG);
+    }
+
+    /** New fighters become hunters until the configured share is reached (workers never do). */
+    private static void assignTeam(Mob mob, Role role, RandomSource random) {
+        mob.removeTag(HUNTER_TAG);
+        if (!isFighter(role)) {
+            return;
+        }
+        fighters++;
+        double share = Config.HUNTER_PERCENT.get() / 100.0;
+        if (share > 0.0 && hunters + random.nextDouble() * 0.6 < share * fighters) {
+            mob.addTag(HUNTER_TAG);
+            hunters++;
+        }
     }
 
     public static int count(Role role) {
@@ -134,6 +172,7 @@ public final class MobRoles {
         if (role != Role.NONE) {
             mob.addTag(role.tag);
             COUNTS[role.ordinal()]++;
+            assignTeam(mob, role, random);
             prepareGoals(mob);
         }
     }
@@ -153,6 +192,7 @@ public final class MobRoles {
             if (role != Role.NONE) {
                 setRole((Zombie) mob, role, coreLevel);
                 COUNTS[role.ordinal()]++;
+                assignTeam(mob, role, random);
             }
             return;
         }
@@ -167,6 +207,9 @@ public final class MobRoles {
             }
         }
         zombie.addTag(role.tag);
+        if (!isFighter(role)) {
+            zombie.removeTag(HUNTER_TAG);
+        }
         equipZombie(zombie, role, coreLevel);
     }
 

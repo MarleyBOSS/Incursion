@@ -44,6 +44,10 @@ public final class SiegeCommander {
     private static final long NEXT_FRONT_DELAY = 200;
     /** Each front needs at least this many mobs of the siege's limit (otherwise fewer fronts are built). */
     private static final int MOBS_PER_FRONT = 5;
+    /** With this many ways already planned, another one waits until the landings and platforms of the others are built. */
+    private static final int EXPAND_FIRST_FROM = 3;
+    /** ... but it waits at most this long after the newest way was planned. */
+    private static final long EXPAND_MAX_WAIT = 2400;
 
     /** What the siege should spawn next: a mob for this front, with this role (null = an attacker). */
     public record SpawnOrder(SiegeFront front, @Nullable Role role) {
@@ -107,6 +111,7 @@ public final class SiegeCommander {
             front.hardDig = work[2];
             front.open = work[0] + work[1] == 0;
             front.platformWork = front.open ? front.countPlatformWork(level) : 0;
+            front.landingWork = front.countLandingWork(level);
             boolean stale = !front.open && now - front.route.lastProgress() > STALE_TICKS
                     && now - front.created > STALE_TICKS;
             if (front.route.isInvalid() || stale) {
@@ -150,7 +155,19 @@ public final class SiegeCommander {
             newest = Math.max(newest, front.created);
         }
         int frontsWanted = Math.min(Config.frontsFor(siege.coreLevel), Math.max(1, maxMobs / MOBS_PER_FRONT));
-        boolean wanted = FRONTS.isEmpty() || (FRONTS.size() < frontsWanted && now - newest > NEXT_FRONT_DELAY);
+        // Weighing it up: from the third way on, the builders first expand the existing ways (landings, platforms)
+        // before the siege starts yet another staircase.
+        boolean expanding = false;
+        if (FRONTS.size() >= EXPAND_FIRST_FROM && now - newest < EXPAND_MAX_WAIT) {
+            for (SiegeFront front : FRONTS) {
+                if (front.landingWork > 0 || front.platformWork > 0) {
+                    expanding = true;
+                    break;
+                }
+            }
+        }
+        boolean wanted = FRONTS.isEmpty()
+                || (FRONTS.size() < frontsWanted && now - newest > NEXT_FRONT_DELAY && !expanding);
         if (job == null && wanted && now >= nextAttempt) {
             job = newPlanner(level, siege, wards, now);
         }
@@ -158,7 +175,8 @@ public final class SiegeCommander {
             RoutePlanner.Result result = job.result();
             job = null;
             if (result != null) {
-                SiegeFront front = new SiegeFront(nextId++, result.route(), result.side(), result.platform(), now);
+                SiegeFront front = new SiegeFront(nextId++, result.route(), result.side(), result.platform(),
+                        result.landings(), now);
                 int[] work = front.route.countWork(level);
                 front.pendingBuild = work[0];
                 front.pendingDig = work[1];
@@ -206,6 +224,13 @@ public final class SiegeCommander {
                 avoidClear.add(spot.above().asLong());
                 avoidSupport.add(spot.below().asLong());
             }
+            for (SiegeFront.Landing landing : front.landings) {
+                for (BlockPos spot : landing.spots()) {
+                    avoidClear.add(spot.asLong());
+                    avoidClear.add(spot.above().asLong());
+                    avoidSupport.add(spot.below().asLong());
+                }
+            }
         }
         double assemblyDistance = Config.coreZoneRadius(siege.coreLevel) + 6.0;
         int bound = Math.max(12, siege.siegeRadius - 2);
@@ -240,8 +265,11 @@ public final class SiegeCommander {
         }
         int workersCap = Math.max(2, maxMobs * 2 / 3);
         int builders = 0;
-        if (buildersPossible() && (front.pendingBuild > 0 || front.platformWork > 0)) {
+        if (buildersPossible() && (front.pendingBuild > 0 || front.platformWork > 0 || front.landingWork > 0)) {
             builders = front.pendingBuild >= 10 && maxMobs >= 6 ? 2 : 1;
+            if (front.landingWork > 0 && front.pendingBuild > 0 && maxMobs >= 8) {
+                builders++; // one more builder expands the way (landings) while the others build the stairs
+            }
         }
         int miners = 0;
         if (front.pendingDig > 0) {

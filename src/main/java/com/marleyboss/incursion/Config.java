@@ -484,6 +484,29 @@ public final class Config {
                     "Archers give cover fire on players within this range while they cannot shoot the Core.")
             .defineInRange("guardRange", 24, 0, 64);
 
+    public static final ModConfigSpec.IntValue HUNTER_PERCENT = BUILDER
+            .comment("Teams: this share (in percent) of the fighters (warriors and archers) are hunters. Hunters go for players",
+                    "(see hunterRange) and hold posts on the platforms of the stairs. All other fighters are the Core team's",
+                    "bodyguards (see bodyguardRange). Builders, miners, breakers and sappers always belong to the Core team.")
+            .defineInRange("hunterPercent", 40, 0, 100);
+
+    public static final ModConfigSpec.IntValue HUNTER_RANGE = BUILDER
+            .comment("Hunters attack players within this many blocks of themselves, and any player close to the Core.")
+            .defineInRange("hunterRange", 32, 0, 96);
+
+    public static final ModConfigSpec.IntValue BODYGUARD_RANGE = BUILDER
+            .comment("The Core team's bodyguards (fighters that are not hunters) only attack players this close to themselves.")
+            .defineInRange("bodyguardRange", 10, 0, 64);
+
+    public static final ModConfigSpec.BooleanValue LANDINGS_ENABLED = BUILDER
+            .comment("If true, builders also build landings (wide platforms) along the stairs. Archers use them as firing",
+                    "positions and posts, and mobs have room on the way up.")
+            .define("landingsEnabled", true);
+
+    public static final ModConfigSpec.IntValue LANDING_SPACING = BUILDER
+            .comment("A landing every this many steps of a staircase (the last one is right below the platform at the Core).")
+            .defineInRange("landingSpacing", 6, 3, 30);
+
     public static final ModConfigSpec.BooleanValue SIEGE_EXPLOSIONS_SPARE_MOBS = BUILDER
             .comment("If true, explosions caused by siege mobs (creepers, explosive arrows, their TNT, self-destruct)",
                     "do not hurt other siege mobs.")

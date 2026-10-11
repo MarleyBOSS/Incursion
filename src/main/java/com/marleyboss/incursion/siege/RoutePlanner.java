@@ -97,8 +97,15 @@ public final class RoutePlanner {
     private record Entry(Node node, float f) {
     }
 
-    /** A finished plan: the way (assembly point first) and the extra platform cells next to the attack position. */
-    public record Result(Route route, Direction side, List<BlockPos> platform) {
+    /**
+     * A finished plan: the way (assembly point first), the extra platform cells next to the attack position and the
+     * landings (wide platforms) along the stairs.
+     */
+    public record Result(Route route, Direction side, List<BlockPos> platform, List<SiegeFront.Landing> landings) {
+    }
+
+    /** Cells of a route that other things (platforms, landings, wings) must not take. */
+    private record RouteSets(LongOpenHashSet clear, LongOpenHashSet support, LongOpenHashSet nodes) {
     }
 
     private final ServerLevel level;
@@ -551,10 +558,32 @@ public final class RoutePlanner {
         }
         Route route = new Route(core, positions, clears, supports, now);
         Direction side = Direction.from2DDataValue(path.get(size - 1).side);
-        List<BlockPos> platform = platform(route, side);
-        route.setWings(wings(route, platform));
-        result = new Result(route, side, platform);
+        RouteSets sets = routeSets(route);
+        List<BlockPos> platform = platform(route, side, sets);
+        List<SiegeFront.Landing> landings = landings(route, sets, platform);
+        route.setWings(wings(route, platform, landings));
+        result = new Result(route, side, platform, landings);
         done = true;
+    }
+
+    private static RouteSets routeSets(Route route) {
+        LongOpenHashSet clear = new LongOpenHashSet();
+        LongOpenHashSet support = new LongOpenHashSet();
+        LongOpenHashSet nodes = new LongOpenHashSet();
+        for (int i = 0; i < route.size(); i++) {
+            BlockPos node = route.node(i);
+            nodes.add(node.asLong());
+            clear.add(node.asLong());
+            clear.add(node.above().asLong());
+            for (BlockPos cell : route.clears(i)) {
+                clear.add(cell.asLong());
+            }
+            BlockPos floor = route.support(i);
+            if (floor != null) {
+                support.add(floor.asLong());
+            }
+        }
+        return new RouteSets(clear, support, nodes);
     }
 
     /**
@@ -562,7 +591,7 @@ public final class RoutePlanner {
      * (more room, mobs fall off less). The builder places it together with the stair block. Cells this route,
      * its platform or another front need free are left out, and the second column stays on one side where possible.
      */
-    private BlockPos[] wings(Route route, List<BlockPos> platform) {
+    private BlockPos[] wings(Route route, List<BlockPos> platform, List<SiegeFront.Landing> landings) {
         LongOpenHashSet keepFree = new LongOpenHashSet();
         keepFree.add(core.asLong());
         for (int i = 0; i < route.size(); i++) {
@@ -575,6 +604,12 @@ public final class RoutePlanner {
         for (BlockPos spot : platform) {
             keepFree.add(spot.asLong());
             keepFree.add(spot.above().asLong());
+        }
+        for (SiegeFront.Landing landing : landings) {
+            for (BlockPos spot : landing.spots()) {
+                keepFree.add(spot.asLong());
+                keepFree.add(spot.above().asLong());
+            }
         }
         BlockPos[] wings = new BlockPos[route.size()];
         Direction preferred = null;
@@ -628,62 +663,101 @@ public final class RoutePlanner {
     }
 
     /**
-     * Extra standing room next to the attack position (left, right and behind it), so more attackers can hit
-     * the Core at once. Cells that would get in the way of the route are left out.
+     * Can a mob stand here once a floor is placed: the cell and the one above are free (nothing to dig), the floor
+     * below is solid or can be placed, and the cell is in nobody's way (this route, other fronts)?
      */
-    private List<BlockPos> platform(Route route, Direction side) {
-        LongOpenHashSet routeClear = new LongOpenHashSet();
-        LongOpenHashSet routeSupport = new LongOpenHashSet();
-        for (int i = 0; i < route.size(); i++) {
-            routeClear.add(route.node(i).asLong());
-            routeClear.add(route.node(i).above().asLong());
-            for (BlockPos cell : route.clears(i)) {
-                routeClear.add(cell.asLong());
-            }
-            BlockPos support = route.support(i);
-            if (support != null) {
-                routeSupport.add(support.asLong());
-            }
+    private boolean usableSpot(BlockPos spot, RouteSets sets) {
+        long below = spot.below().asLong();
+        if (sets.clear().contains(below) || sets.support().contains(spot.asLong())
+                || sets.support().contains(spot.above().asLong()) || sets.nodes().contains(spot.asLong())) {
+            return false;
         }
+        if (avoidClear.contains(below) || avoidSupport.contains(spot.asLong())
+                || avoidSupport.contains(spot.above().asLong())) {
+            return false; // another front's way
+        }
+        return cell(spot.getX(), spot.getY(), spot.getZ()).clear() == 0.0F
+                && cell(spot.getX(), spot.getY() + 1, spot.getZ()).clear() == 0.0F
+                && cell(spot.getX(), spot.getY() - 1, spot.getZ()).support() != SUPPORT_NONE;
+    }
+
+    /**
+     * Extra standing room in front of the attack position (up to 5 wide, 3 deep), so more attackers can hit the
+     * Core at once and cannot be knocked off the stairs. Only free cells count: nothing is dug for the platform
+     * (a Core walled in obsidian gets its platform in front of the hole instead, see {@link #landings}).
+     */
+    private List<BlockPos> platform(Route route, Direction side, RouteSets sets) {
         BlockPos attackPos = route.node(route.last());
         Direction left = side.getClockWise();
-        // A 3 x 3 area in front of the Core (the attack position in the middle of its first row).
-        List<BlockPos> candidates = new ArrayList<>();
-        for (int along = 0; along <= 2; along++) {
-            for (int across : new int[]{0, -1, 1}) {
-                if (along != 0 || across != 0) {
-                    candidates.add(attackPos.relative(side, along).relative(left, across));
-                }
-            }
-        }
         List<BlockPos> platform = new ArrayList<>();
-        for (BlockPos spot : candidates) {
-            if (routeClear.contains(spot.below().asLong()) || routeSupport.contains(spot.asLong())
-                    || routeSupport.contains(spot.above().asLong())) {
-                continue;
-            }
-            boolean onRoute = false;
-            for (int i = 0; i < route.size(); i++) {
-                if (route.node(i).equals(spot)) {
-                    onRoute = true;
-                    break;
+        for (int along = 0; along <= 2; along++) {
+            for (int across : new int[]{0, -1, 1, -2, 2}) {
+                if (along == 0 && across == 0) {
+                    continue;
+                }
+                BlockPos spot = attackPos.relative(side, along).relative(left, across);
+                if (usableSpot(spot, sets)) {
+                    platform.add(spot.immutable());
                 }
             }
-            if (onRoute) {
-                continue;
-            }
-            if (avoidClear.contains(spot.below().asLong()) || avoidSupport.contains(spot.asLong())
-                    || avoidSupport.contains(spot.above().asLong())) {
-                continue; // another front's way
-            }
-            if (cell(spot.getX(), spot.getY(), spot.getZ()).clear() == INF
-                    || cell(spot.getX(), spot.getY() + 1, spot.getZ()).clear() == INF
-                    || cell(spot.getX(), spot.getY() - 1, spot.getZ()).support() == SUPPORT_NONE) {
-                continue;
-            }
-            platform.add(spot.immutable());
         }
         return platform;
+    }
+
+    private static final int MAX_LANDINGS = 6;
+
+    /**
+     * Landings: wide platforms beside the stairs (up to 2 cells on each side), every few steps, the last one close
+     * below the attack position. They give attackers room, and archers firing positions and posts. Only on steps
+     * that are built (not on natural ground or in a hole in a wall); steps where nothing fits are skipped.
+     */
+    private List<SiegeFront.Landing> landings(Route route, RouteSets sets, List<BlockPos> platform) {
+        List<SiegeFront.Landing> result = new ArrayList<>();
+        if (!canBuild || !Config.LANDINGS_ENABLED.get()) {
+            return result;
+        }
+        LongOpenHashSet taken = new LongOpenHashSet();
+        for (BlockPos spot : platform) {
+            taken.add(spot.asLong());
+        }
+        int spacing = Config.LANDING_SPACING.get();
+        int index = route.last() - 2;
+        while (index >= 2 && result.size() < MAX_LANDINGS) {
+            SiegeFront.Landing landing = landingAt(route, index, sets, taken);
+            if (landing != null) {
+                result.add(landing);
+                for (BlockPos spot : landing.spots()) {
+                    taken.add(spot.asLong());
+                }
+                index -= spacing;
+            } else {
+                index--;
+            }
+        }
+        java.util.Collections.reverse(result); // lowest first: that is the order they get built in
+        return result;
+    }
+
+    @Nullable
+    private SiegeFront.Landing landingAt(Route route, int index, RouteSets sets, LongOpenHashSet taken) {
+        BlockPos floor = route.support(index);
+        if (floor == null || cell(floor.getX(), floor.getY(), floor.getZ()).support() != SUPPORT_PLACEABLE) {
+            return null; // natural ground (or a wall) there: nothing to build on
+        }
+        Direction move = horizontal(route.node(index - 1), route.node(index));
+        if (move == null) {
+            return null;
+        }
+        Direction across = move.getClockWise();
+        BlockPos node = route.node(index);
+        List<BlockPos> spots = new ArrayList<>();
+        for (int k : new int[]{1, -1, 2, -2}) {
+            BlockPos spot = node.relative(across, k);
+            if (!taken.contains(spot.asLong()) && usableSpot(spot, sets)) {
+                spots.add(spot.immutable());
+            }
+        }
+        return spots.size() >= 2 ? new SiegeFront.Landing(index, spots) : null;
     }
 
     // ------------------------------------------------------------------

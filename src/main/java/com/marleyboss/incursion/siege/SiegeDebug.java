@@ -34,6 +34,10 @@ public final class SiegeDebug {
         MutableComponent name = role == Role.NONE
                 ? mob.getType().getDescription().copy()
                 : Component.translatable("debug.incursion.role." + role.name().toLowerCase(Locale.ROOT));
+        if (MobRoles.isFighter(role)) {
+            name.append(Component.translatable(MobRoles.isHunter(mob) ? "debug.incursion.team.hunter"
+                    : "debug.incursion.team.bodyguard").withStyle(ChatFormatting.AQUA));
+        }
         name.withStyle(ChatFormatting.GOLD).append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
                 .append(Component.translatable("debug.incursion.status." + state.status, state.statusArgs)
                         .withStyle(ChatFormatting.WHITE));
@@ -65,8 +69,17 @@ public final class SiegeDebug {
             for (BlockPos spot : front.platform) {
                 SpawnRings.send(level, PLATFORM, spot.getX() + 0.5, spot.getY() + 0.15, spot.getZ() + 0.5);
             }
+            for (SiegeFront.Landing landing : front.landings) {
+                for (BlockPos spot : landing.spots()) {
+                    SpawnRings.send(level, PLATFORM, spot.getX() + 0.5, spot.getY() + 0.15, spot.getZ() + 0.5);
+                }
+            }
             int pending = route.firstPending(level, 1, route.last());
             Route.Action action = pending > 0 ? route.action(level, pending) : front.platformAction(level, true, true);
+            if (action == null) {
+                SiegeFront.LandingJob job = front.landingAction(level, true, 0);
+                action = job != null ? job.action() : null;
+            }
             if (action != null) {
                 BlockPos pos = action.pos();
                 SpawnRings.send(level, action.dig() ? DIG : BUILD, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
