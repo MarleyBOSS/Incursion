@@ -45,21 +45,27 @@ Mit jeder Stufe stärker:
 
 ### Zielverhalten – drei Zonen
 
-1. **Kernzone** (nah am Kern): Alle feindlichen Mobs ignorieren Spieler und greifen nur den Kern an.
+1. **Kernzone** (nah am Kern): Arbeiter greifen nur den Kern an. Krieger und Schützen dürfen Spieler angreifen (siehe Rollen).
 2. **Belagerungsgebiet**: Ist ein Spieler in normaler Wahrnehmungsreichweite eines Mobs, greift der Mob den Spieler an. Sonst läuft er zum Kern.
 3. **Außerhalb**: normales Verhalten.
 
 - Das Belagerungsgebiet entspricht dem Bereich, den der Kern geladen hält, und **wächst mit der Stufe**.
 - **Alle feindlichen Mobs** sind betroffen, nicht nur die von der Belagerung gespawnten – auch natürliche Spawns und Mobs anderer Mods.
-- Angriffsart je nach Mob: Zombies und Spinnen schlagen zu, Skelette schießen, Creeper explodieren. Unbekannte Mobs greifen im Nahkampf an.
 - Der Kern hat **Lebenspunkte**, die mit der Stufe steigen.
-- **Ausnahmeliste** in der Config: Bosse (Wither, Warden, Cataclysm-Bosse …) sind standardmäßig ausgenommen.
-- Creeper-Explosionen in der Kernzone verursachen **keinen Blockschaden** (Config umstellbar).
-- **Graben (v0.3):** Nahkampf-Mobs, die auf dem Weg zum Kern feststecken, bauen Blöcke ab. Dauer hängt von der Blockhärte ab (Erde schnell, Tiefenschiefer langsam, Obsidian sehr langsam, Grundgestein nie) und vom Mob: mit passendem Werkzeug wie ein Spieler (abgeschwächt), sonst nach Angriffsschaden. Mehrere Mobs am selben Block addieren sich.
-  - Fernkämpfer (Skelette, Plünderer, Hexen …), Spinnen und Flieger graben nicht.
-  - Creeper opfern sich an der Wand und sprengen ein Loch (diese Explosion zerstört Blöcke, nie den Kern).
-  - Endermen nehmen den Block weg.
-- **Zombie-Rollen (v0.3):** Belagerungs-Zombies sind Krieger (Schwert, mehr Schaden an Spielern), Gräber (Spitzhacke, graben schnell) oder Brecher (Axt, mehr Schaden am Kern). Werkzeug-Material steigt mit der Kernstufe: Stein → Eisen (ab 5) → Diamant (ab 10) → Netherit (ab 16). Die Werkzeuge droppen nicht.
+- **Ausnahmeliste** in der Config: Bosse sind standardmäßig ausgenommen.
+- Creeper-Explosionen in der Kernzone verursachen **keinen Blockschaden** (Config umstellbar). Ausnahme: Durchbruch-Creeper an einer Wand.
+
+### Belagerungs-KI (v0.4)
+
+- **Routenplaner (A*):** Feststeckende Mobs (3 s kein Fortschritt) bekommen den *billigsten* Weg zum Kern. Kosten: Laufen, Abbauen nach Härte (Erde billig, Obsidian teuer, Grundgestein/`siege_proof` unmöglich), Bauen (fester Preis). Erlaubte Schritte: gehen, 1 hoch (Treppenstufe), 1 runter, 2–4 fallen. **Keine Säulen.** Ist der Kern nicht im Suchbudget erreichbar, führt die Route zum nächstbesten Punkt und wird dort neu geplant. Der Block auf dem Kern wird mit freigeräumt (sonst keine Sichtlinie).
+- **Zusammenarbeit:** Routen werden geteilt (Mob in ≤ 2 Blöcken Abstand steigt ein). Wer den nächsten Arbeitsschritt nicht kann, wartet 3 Schritte dahinter und meldet den Bedarf. Gräber/Baumeister laufen zu Routen, auf denen jemand auf sie wartet; Begleiter laufen zu Routen, an denen gearbeitet wird.
+- **Rollen (Zombies):** Krieger (Schwert; jagt Spieler im Umkreis von 24 Blöcken in jeder Zone, baut nie ab), Gräber (Spitzhacke), Brecher (Axt, 2,5× Kernschaden), **Baumeister** (Pflasterstein in der Hand, setzt Boden-Blöcke für Treppen und Brücken). Werkzeug-Material steigt mit der Stufe.
+- **Rollen (Skelette):** Sprengschützen (rote Lederrüstung komplett, Explosionspfeile, schießen sich durch Wände zum Kern), Feuerschützen (nur roter Lederhelm, brennende Pfeile, zünden TNT), Schützen (Kettenhemd). Sehen sie den Kern nicht, geben sie Deckungsfeuer auf Spieler; sehr nahe Spieler werden immer beschossen.
+- **Pioniere (Endermen, 60 %):** tragen TNT, setzen es neben den Kern (zur Not anstelle eines Wandblocks, teleportieren sich heran). Feuerschützen zünden es; nach 90 s zündet es von selbst.
+- **Ausgewogenes Spawnen:** Neue Mobs bekommen die Rolle, die im Vergleich zur Gewichtung am meisten fehlt. Dringender Bedarf (kein Gräber/Baumeister/Feuerschütze da) kommt zuerst, auch beim Mob-Typ.
+- **Patt-Regel:** 120 s kein Fortschritt (Kernschaden, Block abgebaut/gebaut, Spieler getroffen) → Chat-Meldung, +50 % Mob-Limit, Gräber und Baumeister zuerst. Ein Mob, der 300 s nichts erreicht (auch nicht als Begleiter in der Nähe von Arbeit), sprengt sich selbst (Stärke 2,5, zerstört Blöcke, nie den Kern).
+- **Explosionen der Belagerung** (Creeper, Explosionspfeile, ihr TNT, Selbstzerstörung) schaden Belagerungs-Mobs nicht.
+- **Schutztotem:** Block, in dessen Radius (16) keine Belagerungs-Mobs spawnen. Grüner Partikelring zeigt den Radius, lila Ring die Spawn-Grenze um den Kern. Jedes Totem im Gebiet erhöht das Mob-Limit um 2.
 
 ## Schild
 
@@ -79,8 +85,9 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 | v0.1 | Kern-Block, Aktivierung mit Rohstoff, Stufen-Upgrades (Platzhalter-Kosten), Statusanzeige, ein Kern pro Welt | fertig |
 | v0.2 | Belagerung abhängig von der Stufe, Zielverhalten, Lebenspunkte des Kerns, Chunkloader, GUI | fertig |
 | v0.3 | Große Explosion, Verseuchung, Entschärfen (Platzhalter), grabende Mobs, Zombie-Rollen | gebaut |
-| v0.4 | Schild-Kuppel, Sicherungsexplosion, Reparatur | geplant |
-| v0.5 | Vorteile: Items, Energie, Buffs | geplant |
+| v0.4 | Belagerungs-KI: Routenplaner, Baumeister, Rollen, Skelett-Klassen, Pioniere, Patt-Regel, Schutztotem | gebaut |
+| v0.5 | Schild-Kuppel, Sicherungsexplosion, Reparatur | geplant |
+| v0.6 | Vorteile: Items, Energie, Buffs | geplant |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Anbindung, eigene Items | geplant |
 
 ## Offene Entscheidungen

@@ -13,11 +13,11 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 
 ## Letzter Stand
 
-- v0.1 und v0.2 vom Nutzer getestet ✔ (Block, GUI, Leveln, Belagerung, Mobs greifen an).
-- v0.3 gebaut, CI grün, als „Development build“ (`incursion-0.3.0.jar`) veröffentlicht. **Test durch Nutzer ausstehend.**
-- v0.3 enthält zusätzlich (Nutzerwunsch): Nahkampf-Mobs graben sich durch Blöcke (Tempo nach Härte und Schaden/Werkzeug), Creeper sprengen sich an Wänden, Endermen nehmen Blöcke weg, Zombie-Rollen Krieger/Gräber/Brecher mit Werkzeug-Tier nach Kernstufe.
-- Hinweis an Nutzer: Plünderer (Pillager) schießen mit Armbrust = Fernkampf, graben also nicht. Diener (Vindicator, Axt) graben schnell.
-- Neue Mob-Pool-Defaults (Enderman ab Stufe 10) greifen nur in neuen Welten bzw. nach Löschen der Server-Config.
+- v0.1 und v0.2 vom Nutzer getestet ✔.
+- v0.3 vom Nutzer getestet: Grundfunktionen gehen, aber Mob-KI zu dumm. Feedback (Schwert-Zombies greifen Spieler nicht an und bauen ab, kein Ausweichen auf weiche Blöcke, Patt wenn nur Krieger übrig, Kern in der Luft unerreichbar, Spawns in der Base) ist in v0.4 umgesetzt.
+- **v0.4 „Belagerungs-KI“** gebaut, CI grün, als „Development build“ (`incursion-0.4.0.jar`) veröffentlicht. **Test durch Nutzer ausstehend.** Ungetestet und am riskantesten: Routen-Laufen (MoveControl Knoten für Knoten), Treppenbau, Enderman-Teleport, manuelle Pfeilschüsse.
+- Geänderte Defaults (Rollen-Gewichte, Enderman ab Stufe 6) greifen nur in neuen Welten bzw. nach Löschen von `serverconfig/incursion-server.toml`.
+- Schild auf v0.5 verschoben (Nutzerwunsch KI hatte Vorrang).
 
 ## Projekt
 
@@ -34,31 +34,34 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   `gh api repos/MarleyBOSS/Incursion/releases/tags/dev` → Asset-ID → `gh api -H "Accept: application/octet-stream" repos/MarleyBOSS/Incursion/releases/assets/<id> > incursion.jar`
 - Commit-Nachrichten enden mit den Attributionszeilen, die die Umgebung vorgibt.
 
-## Code-Struktur (Stand v0.3)
+## Code-Struktur (Stand v0.4)
 
 | Datei | Zweck |
 |---|---|
 | `Incursion.java` | `@Mod`, Registrierung, Creative Tab, Server-Config, Events, Ticket-Controller |
 | `IncursionClient.java` | Config-Bildschirm, Screen- und Renderer-Registrierung |
-| `Config.java` | SERVER-Config: `core`, `siege`, `digging`, `zombies`, `explosion`, `defuse` + Formeln |
-| `registry/*` | Blocks, Items, BlockEntities, Entities (`core_target`), Menus |
-| `block/CoreBlock.java` | Property `ACTIVE`, Rechtsklick: Item-Shortcut oder GUI, aktiv = nicht abbaubar; **Entfernen eines aktiven Kerns (egal wie) = Explosion** |
-| `block/CoreActions.java` | Aktivieren/Upgraden (bezahlt aus dem ganzen Inventar, Kreativ gratis) |
-| `block/CoreBlockEntity.java` | Level, HP, Chunk-Radius (NBT), Ziel-Entity, Schaden + Warnung, **Entschärfen** (Laufzeit, nicht gespeichert) |
-| `entity/CoreTargetEntity.java` | Unsichtbare LivingEntity am Kern, Schaden von Enemy-Mobs → Kern-HP (× Brecher-Multiplikator) |
-| `siege/SiegeManager.java` | Jede Sekunde: Chunks, Regeneration, Mobs umlenken, Spawns; `destroyCore` (= Block entfernen), `defuse`, `clearSiegeMobs` |
-| `siege/SiegeEvents.java` | Target-Regeln, Creeper-Blockschutz (Breach-Creeper ausgenommen, Kern nie), Rollen-Schaden gegen Spieler |
-| `siege/Digging.java` | Feststeckende Mobs (3 s kein Fortschritt): Nahkampf gräbt, Creeper zündet, Enderman nimmt Block. Gemeinsamer Fortschritt pro Block, Risse sichtbar. Tag `incursion:siege_proof` = unzerstörbar |
-| `siege/ZombieRoles.java` | Rollen per Scoreboard-Tag: Krieger (Schwert), Gräber (Spitzhacke), Brecher (Axt); Tier Stein/Eisen/Diamant/Netherit nach Stufe |
-| `siege/ActiveSiege.java`, `SiegeRules.java`, `ChunkLoading.java` | Zonen-Schnappschuss, Mob-Listen, Kern-Chunkloader |
-| `fallout/Fallout.java` | `detonate`, Level-Tick (Krater-Jobs), Zonen-Effekte (Wither, Asche), Ticket-Controller `explosion` |
-| `fallout/CraterJob.java` | Phasen BLAST → CARVE (Blöcke/Tick) → SCORCH (Ödland, Blätter weg) → FINISH (Items weg, Chunks frei); übersteht Neustart |
-| `fallout/CraterShape.java` | Vorberechnete, nach Abstand sortierte Offsets (Schüssel: r seitlich/oben, 0,6 r unten), deterministisch per Seed |
-| `fallout/FalloutData.java` | SavedData `incursion_fallout`: verseuchte Zonen + laufende Krater |
-| `menu/CoreMenu.java`, `client/CoreScreen.java` | GUI ohne Slots; Buttons Aktivieren/Upgraden/Entschärfen, Explosionsradius, Entschärf-Balken |
+| `Config.java` | SERVER-Config: `core`, `siege`, `digging`, `zombies`, `skeletons`, `endermen`, `tactics`, `wards`, `explosion`, `defuse` + Formeln |
+| `registry/*` | Blocks (`core`, `ward`), Items, BlockEntities, Entities (`core_target`), Menus |
+| `block/CoreBlock.java`, `CoreActions.java`, `CoreBlockEntity.java` | Kern: Aktivieren/Upgraden, HP, Chunk-Radius, Ziel-Entity, Entschärfen; Entfernen eines aktiven Kerns = Explosion |
+| `block/WardBlock.java`, `WardBlockEntity.java` | Schutztotem: kein Spawn im Radius, grüner Partikelring, statische Liste geladener Totems |
+| `entity/CoreTargetEntity.java` | Unsichtbare LivingEntity am Kern, Schaden von Enemy-Mobs → Kern-HP (× Rollen-Multiplikator), meldet Fortschritt |
+| `siege/SiegeManager.java` | Jede Sekunde: Chunks, Regeneration, Targeting, Rollen zählen, TNT, Ringe, Spawns (Bedarf, Totems, Patt-Verstärkung) |
+| `siege/SiegeEvents.java` | Target-Regeln, Explosionen (Kern/siege_proof geschützt, Belagerungs-Explosionen schonen Belagerungs-Mobs), Rollen-Schaden |
+| `siege/Targeting.java` | Wer greift was an: Arbeiter → Kern, Krieger → Spieler (jede Zone), Schützen → Kern oder Deckungsfeuer |
+| `siege/MobRoles.java` | Rollen per Scoreboard-Tag (Zombie: Krieger/Gräber/Brecher/Baumeister; Skelett: Spreng/Feuer/normal; Enderman: Pionier), ausgewogene Vergabe, Ausrüstung |
+| `siege/SiegeAI.java` | Pro Mob alle 5 Ticks: Feststecken → Route teilen/helfen/planen, Route abarbeiten (graben, bauen, Creeper-Durchbruch, Enderman nimmt Block), Pionier-TNT, Sprengschuss, Selbstzerstörung |
+| `siege/SiegeDriveGoal.java` | Goal (Prio 1, MOVE+LOOK) an jedem feindlichen Bodenmob; steuert Bewegung, wenn SiegeAI einen Auftrag hat |
+| `siege/RoutePlanner.java`, `Route.java` | A* über Blockpositionen (Kosten: Laufen, Härte, Bauen; Treppen statt Säulen), geteilte Routen, Arbeits-/Bedarfsmarker |
+| `siege/SiegeProgress.java` | Letzter Fortschritt (Patt), letzte Aktionsorte (Begleiter), Bedarf an Rollen |
+| `siege/SiegeExplosives.java` | Feuer-/Explosionspfeile, manuelle Schüsse, TNT-Verfolgung und Zündung |
+| `siege/Digging.java` | Abbau mit gemeinsamem Fortschritt und Rissen, Grabzeit-Formel; Tag `incursion:siege_proof` |
+| `siege/SpawnRings.java` | Partikelringe (Totem grün, Kern lila) |
+| `siege/ActiveSiege.java`, `SiegeRules.java`, `ChunkLoading.java` | Zonen-Schnappschuss (inkl. Stufe), Mob-Listen, Kern-Chunkloader |
+| `fallout/*` | Große Explosion, Krater-Jobs, Verseuchung (SavedData) |
+| `menu/CoreMenu.java`, `client/CoreScreen.java` | GUI ohne Slots; Aktivieren/Upgraden/Entschärfen |
 | `data/CoreWorldData.java` | SavedData `incursion_core`: der eine aktive Core |
 
-Ressourcen: Blockstates/Modelle (`core`, `core_active`), Platzhalter-Texturen, Loot Table, Rezept (Weinender Obsidian / Enderaugen / Diamantblock), Tags, Sprachdateien `en_us` und `de_de`.
+Ressourcen: Blockstates/Modelle (`core`, `core_active`), Platzhalter-Texturen (`core`, `core_active`, `ward`), Loot Table, Rezepte (Kern: Weinender Obsidian / Enderaugen / Diamantblock; Schutztotem: Enderperle / Gold / Steinziegel), Tags, Sprachdateien `en_us` und `de_de`.
 
 ## Konzept in Kürze (Details in DESIGN.md)
 
@@ -80,9 +83,10 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`), Platzhalter-Texturen, L
 |---|---|---|
 | v0.1 | Core, Aktivierung, Upgrades, Status, 1 pro Welt | getestet ✔ |
 | v0.2 | Belagerung, Zonen-Targeting, Core-Lebenspunkte, Chunkloader, persistente Mobs, Warnungen, **Core-GUI** | getestet ✔ |
-| v0.3 | Große Explosion, Verseuchung, Entschärfen, grabende Mobs, Zombie-Rollen | gebaut, **Test ausstehend** |
-| v0.4 | Schildkuppel, Puls, Reparatur | als Nächstes |
-| v0.5 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
+| v0.3 | Große Explosion, Verseuchung, Entschärfen, grabende Mobs, Zombie-Rollen | getestet (KI-Feedback → v0.4) |
+| v0.4 | Belagerungs-KI: Routenplaner, Baumeister, Rollen, Skelett-Klassen, Pioniere, Patt-Regel, Schutztotem | gebaut, **Test ausstehend** |
+| v0.5 | Schildkuppel, Puls, Reparatur | als Nächstes |
+| v0.6 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen
@@ -90,4 +94,6 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`), Platzhalter-Texturen, L
 - Aktivierungs- und Upgrade-Kosten (vorerst Lohenrute bzw. Diamanten)
 - Entschärf-Mechanik (v0.3-Platzhalter: GUI-Button, Countdown 10 s + 2 s/Stufe, Spieler muss ≤ 8 Blöcke bleiben)
 - Brennstoff ja/nein
+- Schutztotem-Rezept und Preis (vorerst günstig, +2 Mobs pro Totem)
+- Wo stehen wartende Mobs (aktuell 3 Schritte hinter der Arbeit)
 - Lizenz
