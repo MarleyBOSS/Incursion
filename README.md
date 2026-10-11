@@ -9,7 +9,7 @@ See [DESIGN.md](DESIGN.md) for the full concept and roadmap.
 
 ## Download
 
-Every push is built automatically. Open the latest successful run under **Actions → Build** and download the `incursion-jar` artifact. Put the `.jar` into your `mods` folder.
+Every push is built automatically. The newest build is always available under **Releases → Development build**. Download the `.jar` and put it into your `mods` folder.
 
 ## Current features (v0.1)
 
