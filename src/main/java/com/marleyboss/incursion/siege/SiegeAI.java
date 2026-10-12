@@ -204,6 +204,7 @@ public final class SiegeAI {
         }
         if (!present) {
             mob.goalSelector.addGoal(SiegeDriveGoal.PRIORITY, new SiegeDriveGoal(mob));
+            mob.goalSelector.addGoal(SiegeSwimGoal.PRIORITY, new SiegeSwimGoal(mob));
         }
         MobRoles.prepareGoals(mob);
     }
@@ -211,6 +212,11 @@ public final class SiegeAI {
     // ------------------------------------------------------------------
     // Hooks used by other classes
     // ------------------------------------------------------------------
+
+    /** Is this mob known to the siege AI (so it should swim, follow routes ...)? */
+    static boolean isTracked(Mob mob) {
+        return MOBS.containsKey(mob);
+    }
 
     static boolean wantsControl(Mob mob) {
         MobState state = MOBS.get(mob);
