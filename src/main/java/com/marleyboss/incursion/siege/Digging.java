@@ -14,6 +14,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.HashMap;
@@ -31,6 +32,15 @@ public final class Digging {
     /** Blocks mobs can never break. */
     public static final TagKey<Block> SIEGE_PROOF = TagKey.create(Registries.BLOCK,
             ResourceLocation.fromNamespaceAndPath(Incursion.MODID, "siege_proof"));
+
+    /** Blocks that hurt or hold back mobs (magma, cobweb, cactus ...): the siege removes them instead of walking over/through them. */
+    public static final TagKey<Block> SIEGE_HAZARD = TagKey.create(Registries.BLOCK,
+            ResourceLocation.fromNamespaceAndPath(Incursion.MODID, "siege_hazard"));
+
+    /** Powder snow always counts as a hazard (mobs sink in and freeze), plus everything in the hazard tag. */
+    public static boolean isHazard(BlockState state) {
+        return state.is(Blocks.POWDER_SNOW) || state.is(SIEGE_HAZARD);
+    }
 
     private static final class BlockProgress {
         final BlockPos pos;

@@ -35,6 +35,8 @@ public final class Route {
     private final BlockPos[] nodes;
     private final BlockPos[][] clears;
     private final BlockPos[] supports;
+    /** Per step: cells next to the way that are filled with siege stone if they hold fluid (a dam). */
+    private final BlockPos[][] seals;
     /** Stair block -> the block placed next to it (two-wide stairs). */
     private final Map<BlockPos, BlockPos> wings = new HashMap<>();
     private boolean invalid;
@@ -43,11 +45,13 @@ public final class Route {
     private final Map<Integer, long[]> members = new HashMap<>();
     private static final long MEMBER_TICKS = 30;
 
-    Route(BlockPos corePos, BlockPos[] nodes, BlockPos[][] clears, BlockPos[] supports, long created) {
+    Route(BlockPos corePos, BlockPos[] nodes, BlockPos[][] clears, BlockPos[] supports, BlockPos[][] seals,
+          long created) {
         this.corePos = corePos.immutable();
         this.nodes = nodes;
         this.clears = clears;
         this.supports = supports;
+        this.seals = seals;
         this.created = created;
         this.lastProgress = created;
     }
@@ -240,7 +244,16 @@ public final class Route {
 
     @Nullable
     private Action actionAt(Level level, int index) {
+        // Fluid next to the way is dammed first, fluid in the way is filled with siege stone (then dug out).
+        for (BlockPos seal : seals[index]) {
+            if (RoutePlanner.hasFluid(level, seal) && RoutePlanner.canPlace(level, seal, corePos)) {
+                return new Action(seal, Work.BLOCK);
+            }
+        }
         for (BlockPos cell : clears[index]) {
+            if (RoutePlanner.hasFluid(level, cell)) {
+                return RoutePlanner.canPlace(level, cell, corePos) ? new Action(cell, Work.BLOCK) : INVALID;
+            }
             if (!RoutePlanner.isPassable(level, cell)) {
                 return RoutePlanner.isDiggable(level, cell, corePos) ? new Action(cell, Work.DIG) : INVALID;
             }
@@ -264,7 +277,20 @@ public final class Route {
         int dig = 0;
         int hard = 0;
         for (int i = 1; i < nodes.length; i++) {
+            for (BlockPos seal : seals[i]) {
+                if (RoutePlanner.hasFluid(level, seal) && RoutePlanner.canPlace(level, seal, corePos)) {
+                    build++;
+                }
+            }
             for (BlockPos cell : clears[i]) {
+                if (RoutePlanner.hasFluid(level, cell)) {
+                    if (RoutePlanner.canPlace(level, cell, corePos)) {
+                        build++;
+                    } else {
+                        invalid = true;
+                    }
+                    continue;
+                }
                 if (!RoutePlanner.isPassable(level, cell)) {
                     if (!RoutePlanner.isDiggable(level, cell, corePos)) {
                         invalid = true;

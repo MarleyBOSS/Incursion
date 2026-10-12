@@ -504,21 +504,30 @@ public final class RoutePlanner {
             return BLOCKED;
         }
         BlockState state = level.getBlockState(pos);
-        boolean lava = state.getFluidState().is(FluidTags.LAVA);
+        boolean fluid = !state.getFluidState().isEmpty();
+        boolean hazard = Digging.isHazard(state);
         boolean collision = !state.getCollisionShape(level, pos).isEmpty();
         float hardness = state.getDestroySpeed(level, pos);
         boolean protectedBlock = pos.equals(core) || state.getBlock() instanceof CoreBlock
                 || state.is(Digging.SIEGE_PROOF) || hardness < 0;
         float clear;
         if (!collision) {
-            clear = lava ? INF : (state.getFluidState().isEmpty() ? 0.0F : 3.0F);
+            if (fluid) {
+                // Water and lava are filled with siege stone first (a placed block displaces the fluid), the
+                // stone is dug out afterwards. Needs builders.
+                clear = canBuild && !protectedBlock ? fillCost(pos) : INF;
+            } else if (hazard) {
+                clear = protectedBlock ? INF : Digging.digTicks(pick, attack, state, hardness) + DIG_OVERHEAD;
+            } else {
+                clear = 0.0F;
+            }
         } else if (protectedBlock) {
             clear = INF;
         } else {
             clear = Digging.digTicks(pick, attack, state, hardness) + DIG_OVERHEAD;
         }
         byte support;
-        if (collision) {
+        if (collision && !hazard) {
             support = SUPPORT_SOLID;
         } else if (canBuild && !protectedBlock) {
             support = SUPPORT_PLACEABLE; // air, water, lava, plants ... a siege stone goes there
@@ -526,6 +535,52 @@ public final class RoutePlanner {
             support = SUPPORT_NONE;
         }
         return new Cell(clear, support, state.is(ModBlocks.SIEGE_STONE.get()));
+    }
+
+    /**
+     * Cost of crossing a fluid cell: place a siege stone (and one for every fluid neighbour, so nothing flows back
+     * in), then dig the stone out.
+     */
+    private float fillCost(BlockPos pos) {
+        BlockState stone = ModBlocks.SIEGE_STONE.get().defaultBlockState();
+        float dig = Digging.digTicks(pick, attack, stone, stone.getDestroySpeed(level, pos)) + DIG_OVERHEAD;
+        int fluidNeighbours = 0;
+        for (BlockPos neighbour : sealNeighbours(pos)) {
+            if (level.isLoaded(neighbour) && !level.getFluidState(neighbour).isEmpty()) {
+                fluidNeighbours++;
+            }
+        }
+        return PLACE_OVERHEAD + dig + fluidNeighbours * (PLACE_OVERHEAD * 0.5F);
+    }
+
+    /** The cells fluid could flow into {@code pos} from: the four sides and above. */
+    private static BlockPos[] sealNeighbours(BlockPos pos) {
+        return new BlockPos[]{pos.north(), pos.south(), pos.east(), pos.west(), pos.above()};
+    }
+
+    /**
+     * Cells next to the cells a step needs free: if they hold fluid, the builders fill them first (a dam), so the
+     * dug-out way does not flood again.
+     */
+    private BlockPos[] seals(BlockPos node, BlockPos[] clears) {
+        LongOpenHashSet inside = new LongOpenHashSet();
+        inside.add(node.asLong());
+        inside.add(node.above().asLong());
+        for (BlockPos cell : clears) {
+            inside.add(cell.asLong());
+        }
+        LongOpenHashSet seen = new LongOpenHashSet();
+        List<BlockPos> result = new ArrayList<>();
+        for (long key : inside) {
+            for (BlockPos neighbour : sealNeighbours(BlockPos.of(key))) {
+                long neighbourKey = neighbour.asLong();
+                if (inside.contains(neighbourKey) || neighbour.equals(core) || !seen.add(neighbourKey)) {
+                    continue;
+                }
+                result.add(neighbour.immutable());
+            }
+        }
+        return result.toArray(new BlockPos[0]);
     }
 
     // ------------------------------------------------------------------
@@ -556,7 +611,11 @@ public final class RoutePlanner {
                 supports[i] = BlockPos.of(n.support);
             }
         }
-        Route route = new Route(core, positions, clears, supports, now);
+        BlockPos[][] seals = new BlockPos[size][];
+        for (int i = 0; i < size; i++) {
+            seals[i] = i == 0 ? new BlockPos[0] : seals(positions[i], clears[i]);
+        }
+        Route route = new Route(core, positions, clears, supports, seals, now);
         Direction side = Direction.from2DDataValue(path.get(size - 1).side);
         RouteSets sets = routeSets(route);
         List<BlockPos> platform = platform(route, side, sets);
@@ -766,12 +825,18 @@ public final class RoutePlanner {
 
     static boolean isPassable(Level level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        return state.getCollisionShape(level, pos).isEmpty() && !state.getFluidState().is(FluidTags.LAVA);
+        return state.getCollisionShape(level, pos).isEmpty() && !state.getFluidState().is(FluidTags.LAVA)
+                && !Digging.isHazard(state);
+    }
+
+    /** Is there any fluid (water, lava ...) in this cell? Such cells are filled with siege stone before they are dug. */
+    static boolean hasFluid(Level level, BlockPos pos) {
+        return !level.getFluidState(pos).isEmpty();
     }
 
     static boolean isSupport(Level level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        return !state.getCollisionShape(level, pos).isEmpty();
+        return !state.getCollisionShape(level, pos).isEmpty() && !Digging.isHazard(state);
     }
 
     /** Can the siege remove what blocks this position? */

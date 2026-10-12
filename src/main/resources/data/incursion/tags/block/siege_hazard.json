@@ -1,0 +1,16 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:magma_block",
+    "minecraft:cobweb",
+    "minecraft:cactus",
+    "minecraft:sweet_berry_bush",
+    "minecraft:fire",
+    "minecraft:soul_fire",
+    "minecraft:pointed_dripstone",
+    "minecraft:honey_block",
+    "minecraft:slime_block",
+    "minecraft:wither_rose",
+    "minecraft:powder_snow"
+  ]
+}
