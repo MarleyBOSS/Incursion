@@ -78,6 +78,12 @@ public final class SiegeAI {
     /** At most this many workers build / dig at the front of one way at the same time. */
     private static final int MAX_BUILD_WORKERS = 2;
     private static final int MAX_DIG_WORKERS = 3;
+    /** Extra workers (beyond the slots at the first pending step) take the work of the next few steps. */
+    private static final int MAX_HELPERS = 2;
+    private static final int HELP_STEPS = 4;
+    /** A mob pushed off its way rejoins it if it is this close (blocks), for this long, before it walks back to the foot. */
+    private static final double REJOIN_RANGE = 6.0;
+    private static final long REJOIN_TICKS = 100;
     /** A mob that would need longer than this to dig the block leaves it to a better digger (if one is there). */
     private static final float SLOW_DIG_TICKS = 400.0F;
     /** Riders get off a spider that is this close to the Core, or stuck. */
@@ -123,6 +129,9 @@ public final class SiegeAI {
         long lastAdvance;
         double footBest = Double.MAX_VALUE;
         long footSince;
+        /** Since when the mob has been off its way (-1: on it), and whether it is heading for the nearest step. */
+        long offSince = -1;
+        boolean rejoining;
         // Work and movement orders
         @Nullable
         BlockPos actionPos;
@@ -522,6 +531,7 @@ public final class SiegeAI {
             return;
         }
         state.routeIndex = index;
+        state.offSince = -1;
         state.lastEffective = now; // on the way: not lost
         if (index != state.lastIndex) {
             state.lastIndex = index;
@@ -577,6 +587,11 @@ public final class SiegeAI {
         route.noteMember(mob.getId(), index, capable, now);
         control(state, Mode.ROUTE, now);
         if (!capable) {
+            // The slots at the first pending step are taken (or the fluid there is running dry): a few extra workers
+            // take the work of the next steps instead of standing around.
+            if ((kind == Kind.MELEE || kind == Kind.BUILDER) && helpAhead(level, mob, state, kind, front, pending, index, now)) {
+                return;
+            }
             // A builder that is not needed at the stairs expands the way: landings (platforms beside the stairs).
             if (kind.canBuild && landingWork(level, mob, state, front, index, now)) {
                 return;
@@ -613,6 +628,43 @@ public final class SiegeAI {
             return; // still walking up to the work spot
         }
         work(level, mob, state, kind, action, route, now);
+    }
+
+    /**
+     * An extra worker helps with the next piece of work after the first pending step (it digs or builds a few
+     * steps ahead of the others, within reach of the step it stands at). False if there is nothing it can do
+     * from there, or enough helpers are already at it.
+     */
+    private static boolean helpAhead(ServerLevel level, Mob mob, MobState state, Kind kind, SiegeFront front,
+                                     int pending, int index, long now) {
+        Route route = front.route;
+        if (route.countHelpers(mob.getId(), now) >= MAX_HELPERS) {
+            return false;
+        }
+        Route.Action second = route.nextAction(level, pending, HELP_STEPS);
+        if (second == null) {
+            return false;
+        }
+        boolean able = second.dig() ? canDig(level, mob, kind, second.pos(), front, now) : kind.canBuild;
+        if (!able) {
+            return false;
+        }
+        Vec3 target = Vec3.atCenterOf(second.pos());
+        Vec3 stand = Vec3.atBottomCenterOf(route.node(Math.max(0, pending - 1))).add(0.0, 1.62, 0.0);
+        if (stand.distanceTo(target) > REACH - 0.3) {
+            return false; // not reachable from the last step before the work
+        }
+        route.noteHelper(mob.getId(), index, now);
+        control(state, Mode.ROUTE, now);
+        state.walkLimit = pending - 1;
+        state.lookAt = target;
+        if (mob.getEyePosition().distanceTo(target) > REACH) {
+            state.status("walk", index, route.last());
+            hopIfStuck(level, mob, state, route, now);
+            return true; // still walking up to it
+        }
+        work(level, mob, state, kind, second, route, now);
+        return true;
     }
 
     /** Does one step of the work (digging or building); counts as progress when the block is done. */
@@ -700,10 +752,34 @@ public final class SiegeAI {
         return true;
     }
 
-    /** Not on the way: walk to its foot (the assembly point). A mob that cannot get there is lost. */
+    /**
+     * Not on the way. A mob that was just pushed off (swept away, knocked back) first rejoins the way at the nearest
+     * step; one that is far away (or does not get back that way) walks to the foot (the assembly point). A mob that
+     * cannot get there is lost.
+     */
     private static void goToFoot(ServerLevel level, Mob mob, MobState state, Route route, long now) {
+        if (state.offSince < 0 || now < state.offSince) {
+            state.offSince = now;
+        }
         BlockPos foot = route.node(0);
-        Vec3 target = Vec3.atBottomCenterOf(foot);
+        int nearest = -1;
+        double nearestDistance = Double.MAX_VALUE;
+        for (int i = 0; i < route.size(); i++) {
+            double distance = Vec3.atBottomCenterOf(route.node(i)).distanceToSqr(mob.position());
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = i;
+            }
+        }
+        boolean rejoin = nearest > 0 && Math.sqrt(nearestDistance) <= REJOIN_RANGE && now - state.offSince < REJOIN_TICKS;
+        if (rejoin != state.rejoining) {
+            state.rejoining = rejoin;
+            state.footBest = Double.MAX_VALUE;
+            state.footSince = now;
+        }
+        BlockPos goal = rejoin ? route.node(nearest) : foot;
+        int goalIndex = rejoin ? nearest : 0;
+        Vec3 target = Vec3.atBottomCenterOf(goal);
         double distance = mob.position().distanceTo(target);
         if (distance < state.footBest - 0.5) {
             state.footBest = distance;
@@ -718,8 +794,8 @@ public final class SiegeAI {
             if (level.noCollision(mob, box)) {
                 mob.getNavigation().stop();
                 mob.teleportTo(target.x, target.y, target.z);
-                state.routeIndex = 0;
-                state.lastIndex = 0;
+                state.routeIndex = goalIndex;
+                state.lastIndex = goalIndex;
                 state.lastAdvance = now;
                 state.footBest = 0.0;
                 state.footSince = now;
@@ -732,9 +808,9 @@ public final class SiegeAI {
             return;
         }
         control(state, Mode.GOTO, now);
-        state.gotoPos = foot;
+        state.gotoPos = goal;
         state.lookAt = null;
-        state.status("to_foot");
+        state.status(rejoin ? "to_route" : "to_foot");
     }
 
     private static boolean canDig(Level level, Mob mob, Kind kind, BlockPos pos, SiegeFront front, long now) {

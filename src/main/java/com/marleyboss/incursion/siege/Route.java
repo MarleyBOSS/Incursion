@@ -73,6 +73,23 @@ public final class Route {
         members.put(id, new long[]{index, worker ? 1 : 0, now});
     }
 
+    /** A worker that helps with the work after the first pending step (its own slot, see {@link #countHelpers}). */
+    public void noteHelper(int id, int index, long now) {
+        members.put(id, new long[]{index, 2, now});
+    }
+
+    /** How many other mobs are helping with the work ahead right now. */
+    public int countHelpers(int id, long now) {
+        pruneMembers(now);
+        int count = 0;
+        for (Map.Entry<Integer, long[]> entry : members.entrySet()) {
+            if (entry.getKey() != id && entry.getValue()[1] == 2) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     public void removeMember(int id) {
         members.remove(id);
     }
@@ -93,7 +110,7 @@ public final class Route {
         int count = 0;
         for (Map.Entry<Integer, long[]> entry : members.entrySet()) {
             long[] member = entry.getValue();
-            if (entry.getKey() == id || (workersOnly && member[1] == 0)) {
+            if (entry.getKey() == id || (workersOnly && member[1] != 1)) {
                 continue;
             }
             if (member[0] > index || (member[0] == index && entry.getKey() < id)) {
@@ -251,20 +268,61 @@ public final class Route {
 
     private static final Action INVALID = new Action(BlockPos.ZERO, Work.DIG);
 
+    /**
+     * The next piece of work after step {@code after} (normally the first pending step), looking at most
+     * {@code ahead} steps on: what helpers do while the slots at the first pending step are taken.
+     * Null if there is none (or the route is not workable there).
+     */
+    @Nullable
+    public Action nextAction(Level level, int after, int ahead) {
+        int last = Math.min(after + ahead, nodes.length - 1);
+        for (int i = after + 1; i <= last; i++) {
+            Action action = actionAt(level, i);
+            if (action == INVALID) {
+                return null;
+            }
+            if (action != null) {
+                return action.work() == Work.WAIT ? null : action;
+            }
+        }
+        return null;
+    }
+
     @Nullable
     private Action actionAt(Level level, int index) {
         // Fluid at this step: first try to remove its source (the whole flow disappears for everybody).
+        boolean sourcesGone = false;
         if (stepHasFluid(level, index)) {
-            Action drain = drainAt(level, index);
-            if (drain != null) {
-                return drain;
+            Drain drain = drainOf(level, index);
+            if (drain.kind() == DrainKind.SOURCE && drain.pos() != null) {
+                drainWaits.remove(index);
+                return new Action(drain.pos(), Work.BLOCK);
             }
+            if (drain.kind() == DrainKind.WAIT) {
+                // The sources are gone, the rest is running dry: wait a moment if it is in the way (fluid only next
+                // to the way does not matter), then fill what is left.
+                sourcesGone = true;
+                BlockPos inWay = fluidInWay(level, index);
+                if (inWay != null) {
+                    long now = level.getGameTime();
+                    long since = drainWaits.computeIfAbsent(index, k -> now);
+                    if (now >= since && now - since <= DRAIN_WAIT_TICKS) {
+                        return new Action(inWay, Work.WAIT);
+                    }
+                }
+            } else {
+                drainWaits.remove(index);
+            }
+        } else if (!drainWaits.isEmpty()) {
+            drainWaits.remove(index);
         }
         // No source to remove (too big, out of reach ...): fluid next to the way is dammed first, fluid in the
         // way is filled with siege stone (then dug out).
-        for (BlockPos seal : seals[index]) {
-            if (RoutePlanner.hasFluid(level, seal) && RoutePlanner.canPlace(level, seal, corePos)) {
-                return new Action(seal, Work.BLOCK);
+        if (!sourcesGone) {
+            for (BlockPos seal : seals[index]) {
+                if (RoutePlanner.hasFluid(level, seal) && RoutePlanner.canPlace(level, seal, corePos)) {
+                    return new Action(seal, Work.BLOCK);
+                }
             }
         }
         for (BlockPos cell : clears[index]) {
@@ -298,8 +356,8 @@ public final class Route {
     private static final int DRAIN_MAX_CELLS = 600;
     private static final double DRAIN_REACH = 5.5;
     private static final long DRAIN_TTL = 10;
-    /** A fluid that is still there this long after its sources are gone is handled like any other (filled). */
-    private static final long DRAIN_WAIT_TICKS = 200;
+    /** The rest of a flow may take this long to run dry (3 s) before it is filled like any other fluid. */
+    private static final long DRAIN_WAIT_TICKS = 60;
 
     private boolean stepHasFluid(Level level, int index) {
         for (BlockPos cell : clears[index]) {
@@ -315,35 +373,34 @@ public final class Route {
         return false;
     }
 
+    /** A cell the mob has to pass that still holds fluid, or null. */
+    @Nullable
+    private BlockPos fluidInWay(Level level, int index) {
+        for (BlockPos cell : clears[index]) {
+            if (RoutePlanner.hasFluid(level, cell)) {
+                return cell;
+            }
+        }
+        return null;
+    }
+
     /**
      * The builders' answer to water and lava: not to wall it off cell by cell, but to put one block onto the
-     * source, so the whole flow runs dry (for the whole team, and it cannot flow back). Returns the source to
-     * replace, a wait while the rest is draining, or null if this does not work here (too many sources, out of
-     * reach, or switched off in the config): the cell-by-cell filling takes over then.
+     * source, so the whole flow runs dry (for the whole team, and it cannot flow back). The result is the source
+     * to replace, "the sources are gone" (the flow is running dry), or nothing (too many sources, out of reach,
+     * or switched off in the config): the cell-by-cell filling takes over then.
      */
-    @Nullable
-    private Action drainAt(Level level, int index) {
-        if (!Config.DRAIN_SOURCES.get()) {
-            return null;
-        }
+    private Drain drainOf(Level level, int index) {
         long now = level.getGameTime();
+        if (!Config.DRAIN_SOURCES.get()) {
+            return new Drain(now, DrainKind.NONE, null);
+        }
         Drain drain = drains.get(index);
         if (drain == null || now < drain.time() || now - drain.time() >= DRAIN_TTL) {
             drain = findDrain(level, index, now);
             drains.put(index, drain);
         }
-        if (drain.kind() == DrainKind.WAIT && drain.pos() != null) {
-            long since = drainWaits.computeIfAbsent(index, k -> now);
-            if (now < since || now - since > DRAIN_WAIT_TICKS) {
-                return null;
-            }
-            return new Action(drain.pos(), Work.WAIT);
-        }
-        drainWaits.remove(index);
-        if (drain.kind() == DrainKind.SOURCE && drain.pos() != null) {
-            return new Action(drain.pos(), Work.BLOCK);
-        }
-        return null;
+        return drain;
     }
 
     private Drain findDrain(Level level, int index, long now) {

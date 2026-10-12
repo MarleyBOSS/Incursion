@@ -35,8 +35,10 @@ public final class SiegeDebug {
                 ? mob.getType().getDescription().copy()
                 : Component.translatable("debug.incursion.role." + role.name().toLowerCase(Locale.ROOT));
         if (MobRoles.isFighter(role) || PlayerHunt.isWorker(mob)) {
-            name.append(Component.translatable(MobRoles.isHunter(mob) || PlayerHunt.isWorker(mob) ? "debug.incursion.team.hunter"
-                    : "debug.incursion.team.bodyguard").withStyle(ChatFormatting.AQUA));
+            // Bodyguard only means something while there are hunters (players near the Core); otherwise it is the Core team.
+            String team = MobRoles.isHunter(mob) || PlayerHunt.isWorker(mob) ? "debug.incursion.team.hunter"
+                    : MobRoles.teamsSplit() ? "debug.incursion.team.bodyguard" : "debug.incursion.team.core";
+            name.append(Component.translatable(team).withStyle(ChatFormatting.AQUA));
         }
         name.withStyle(ChatFormatting.GOLD).append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
                 .append(Component.translatable("debug.incursion.status." + state.status, state.statusArgs)

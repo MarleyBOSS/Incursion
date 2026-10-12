@@ -80,6 +80,8 @@ public final class MobRoles {
     public static final String HUNTER_TAG = "incursion_hunter";
     private static int fighters;
     private static int hunters;
+    /** True while players are near the Core and the fighters are split into hunters and bodyguards. */
+    private static boolean split;
 
     private MobRoles() {
     }
@@ -185,6 +187,12 @@ public final class MobRoles {
             }
         }
         hunters = Math.min(wanted, fighters.size());
+        split = wanted > 0;
+    }
+
+    /** Are the fighters split into hunters and bodyguards right now (players near the Core)? */
+    public static boolean teamsSplit() {
+        return split;
     }
 
     private static double nearestPlayerDistance(Mob mob, List<? extends net.minecraft.world.entity.player.Player> players) {
