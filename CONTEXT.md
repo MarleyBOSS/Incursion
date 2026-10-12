@@ -34,6 +34,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
   - **Waffenruhe** (Button im Kern-GUI, gratis): 3 Tage + Nächte Ruhe. Danach müssen **7 Nächte verteidigt** werden, bis sie wieder aufgeladen ist. Pausierte Nächte, Waffenruhe-Nächte und Zeit im entschärften Zustand zählen nicht.
   - **Entschärfen** = unbegrenzte Pause: kostet **80 % der Stufe** (Stufe 20 → 4; Annahme: abrunden). Ersetzt die alte Idee „Kern pausieren kostet 2 Stufen“ und den bisherigen Reset auf Stufe 0.
   - Offen: Was machen Mobs tagsüber (verschwinden / Belagerungslager / stehen)? Brennen in der Sonne? Dimensionen ohne Nacht (Nether/End)? Was heißt „×2“ (Mobanzahl, Limit, Stärke)?
+  - **Totems:** nachts nicht platzierbar; nachts zerstörte erst am nächsten Morgen neu baubar.
   - **Belohnungen:** entschärft keine Items/Energie/Buffs. Während pausierter Nacht und Waffenruhe Ausgabe **−20 %**.
 - Neue Nutzer-Ideen (nach v0.10): **Wächter** ab bestimmter Kernstufe; **stufenabhängige Mob-Auswahl** statt „alle Mobs auf jeder Stufe, nur mehr“ (einzelne Mobs evtl. ganz raus).
 - `laddersEnabled` ungenutzt. KI-Anzeige: Plan steht im Chat.
@@ -120,11 +121,10 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.7.2 | Mehrere Fronten gleichzeitig, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | getestet: viel besser; Plattformen fehlen, Skelette unzuverlässig |
 | v0.7.3 | Zwischenplattformen, Ausbau durch Baumeister, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | getestet: Kern fällt zuverlässig, aber keine Plattformen |
 | v0.7.4 | Plattformbau parallel zum Angriff (Vorrang für Baumeister), Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | getestet ✔ Kern fällt immer (Plattformen fehlen, akzeptiert) |
-| v0.8 | Schildkuppel, Puls, Reparatur | **als Nächstes** |
-| v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen) | |
+| v0.8 | Schilde (5/10/15), Puls, Reparatur; **Safezone Kern + Totems** quadratisch und gemeinsam, Beacon-Laser an den Ecken, Fronten pro Seite (ohne Totem 4, Vorschlag +1 pro Seite je Totem-Ring), Front greift erst nächstes äußeres Totem an, dann Kern; zerstörtes Totem gibt sein Quadrat frei (Details im Ideen-Doc) | **als Nächstes** (groß, evtl. in 2 Schritten) |
+| v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen); Totem gibt 50 % der Kern-Effekte im eigenen Bereich | |
 | v0.10 | Tag/Nacht und Pausen (Details unter „Letzter Stand“) | Idee |
 | v0.11 | Belagerungs-Ausbau: Wächter ab Stufe X, Mob-Pool pro Stufe (welche Mobs ab welcher Stufe, per Config) | Idee |
-| v0.12 | Totem-Ausbau: gemeinsame quadratische Safezone Kern + Totems, Laser an den Ecken, 1 Front pro Totem (erst Totem, dann Kern), Totem = 50 % Kern-Effekte, nachts nicht platzierbar (Details im Ideen-Doc) | Idee |
 | danach | Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen
