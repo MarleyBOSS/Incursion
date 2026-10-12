@@ -283,6 +283,9 @@ public final class SiegeAI {
         if (!(event.getEntity() instanceof Mob mob) || !(mob.level() instanceof ServerLevel level)) {
             return;
         }
+        if (mob.isInWater() && MOBS.containsKey(mob)) {
+            SiegeCurrents.tick(level, mob); // every tick: the current pushes every tick
+        }
         if ((mob.tickCount + mob.getId()) % INTERVAL != 0 || !mob.isAlive()) {
             return;
         }
@@ -298,6 +301,7 @@ public final class SiegeAI {
         }
         long now = level.getGameTime();
         Digging.cleanup(level, now);
+        SiegeCurrents.dropOldFireResistance(mob);
         MobState state = MOBS.computeIfAbsent(mob, m -> new MobState(now));
         tickMob(level, mob, state, siege, now);
         if (!mob.isAlive()) {
@@ -564,7 +568,8 @@ public final class SiegeAI {
         if (action == null) {
             return;
         }
-        boolean capable = action.dig() ? canDig(level, mob, kind, action.pos(), front, now) : kind.canBuild;
+        boolean waiting = action.work() == Route.Work.WAIT; // a fluid is running dry: nothing to do but wait
+        boolean capable = !waiting && (action.dig() ? canDig(level, mob, kind, action.pos(), front, now) : kind.canBuild);
         int maxWorkers = action.dig() ? MAX_DIG_WORKERS : MAX_BUILD_WORKERS;
         if (capable && route.countAhead(mob.getId(), index, true, now) >= maxWorkers) {
             capable = false; // more would only stand in each other's way
@@ -594,7 +599,7 @@ public final class SiegeAI {
                     return;
                 }
             }
-            state.status(gathering ? "gather" : action.dig() ? "wait_digger" : "wait_builder");
+            state.status(gathering ? "gather" : waiting ? "wait_drain" : action.dig() ? "wait_digger" : "wait_builder");
             hopIfStuck(level, mob, state, route, now);
             return;
         }

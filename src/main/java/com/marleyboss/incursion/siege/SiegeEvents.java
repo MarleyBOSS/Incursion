@@ -2,6 +2,7 @@ package com.marleyboss.incursion.siege;
 
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.entity.CoreTargetEntity;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -95,8 +96,29 @@ public final class SiegeEvents {
         }
     }
 
+    /**
+     * Siege mobs do not burn in daylight, but they are not fire resistant: lava (and burning after it, at night
+     * or underground) still hurts them. Only burning damage in the open sun is cancelled.
+     */
+    private static void sunProtection(LivingIncomingDamageEvent event, Mob mob) {
+        if (!Config.SIEGE_MOBS_SUN_PROOF.get() || !mob.getTags().contains(SiegeManager.SIEGE_TAG)
+                || !event.getSource().is(DamageTypes.ON_FIRE) || mob.isInLava()) {
+            return;
+        }
+        Level level = mob.level();
+        BlockPos pos = mob.blockPosition();
+        if (level.isDay() && level.canSeeSky(pos)) {
+            event.setCanceled(true);
+            mob.extinguishFire();
+        }
+    }
+
     /** Role damage against players; a siege mob hitting a player counts as progress. */
     private static void onIncomingDamage(LivingIncomingDamageEvent event) {
+        if (event.getEntity() instanceof Mob burning && !burning.level().isClientSide) {
+            sunProtection(event, burning);
+            return;
+        }
         if (!(event.getEntity() instanceof Player) || event.getEntity().level().isClientSide) {
             return;
         }

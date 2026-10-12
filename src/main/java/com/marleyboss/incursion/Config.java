@@ -121,9 +121,9 @@ public final class Config {
             .comment("Siege mobs get +X attack damage per core level (0.03 = +3% per level).")
             .defineInRange("mobDamageBonusPerLevel", 0.03, 0.0, 10.0);
 
-    public static final ModConfigSpec.BooleanValue SIEGE_MOBS_FIRE_RESISTANT = BUILDER
-            .comment("Siege mobs get permanent fire resistance, so zombies and skeletons do not burn in daylight.")
-            .define("siegeMobsFireResistant", true);
+    public static final ModConfigSpec.BooleanValue SIEGE_MOBS_SUN_PROOF = BUILDER
+            .comment("Siege mobs do not burn in daylight. Lava and fire still hurt them (no fire resistance since 0.7.7).")
+            .define("siegeMobsSunProof", true);
 
     public static final ModConfigSpec.BooleanValue CREEPER_BLOCK_DAMAGE = BUILDER
             .comment("If false, creeper explosions inside the core zone do not destroy blocks.")
@@ -418,6 +418,25 @@ public final class Config {
     public static final ModConfigSpec.BooleanValue BUILDING_ENABLED = BUILDER
             .comment("If true, builders place blocks (stairs, bridges) on the way to the Core.")
             .define("buildingEnabled", true);
+
+    public static final ModConfigSpec.BooleanValue DRAIN_SOURCES = BUILDER
+            .comment("If true, builders remove the source block of water or lava in their way (one block, the whole flow",
+                    "runs dry for everybody). If a body of fluid is too big or out of reach, they fill it cell by cell instead.")
+            .define("drainSources", true);
+
+    public static final ModConfigSpec.IntValue DRAIN_MAX_SOURCES = BUILDER
+            .comment("Builders only remove sources if at most this many source blocks feed the fluid in their way",
+                    "(a pond yes, a lake or an ocean no).")
+            .defineInRange("drainMaxSources", 16, 1, 128);
+
+    public static final ModConfigSpec.DoubleValue CURRENT_RESISTANCE = BUILDER
+            .comment("How much of the water current siege mobs resist (0 = pushed like every mob, 1 = no push at all).",
+                    "Flowing water stays a good defence: mobs are slowed down and make only slow headway against it.")
+            .defineInRange("currentResistance", 0.5, 0.0, 1.0);
+
+    public static final ModConfigSpec.DoubleValue CURRENT_SLOWDOWN = BUILDER
+            .comment("Siege mobs in flowing water move at this fraction of their speed (1 = no slowdown).")
+            .defineInRange("currentSlowdown", 0.6, 0.1, 1.0);
 
     public static final ModConfigSpec.BooleanValue LADDERS_ENABLED = BUILDER
             .comment("No longer used (since 0.7.1 the siege builds staircases instead of ladders).")

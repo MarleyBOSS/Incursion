@@ -20,8 +20,6 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Difficulty;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
@@ -649,10 +647,7 @@ public final class SiegeManager {
         addBonus(mob, Attributes.MAX_HEALTH, HEALTH_BONUS_ID, Config.MOB_HEALTH_BONUS_PER_LEVEL.get() * coreLevel);
         addBonus(mob, Attributes.ATTACK_DAMAGE, DAMAGE_BONUS_ID, Config.MOB_DAMAGE_BONUS_PER_LEVEL.get() * coreLevel);
         mob.setHealth(mob.getMaxHealth());
-        if (Config.SIEGE_MOBS_FIRE_RESISTANT.get()) {
-            mob.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, MobEffectInstance.INFINITE_DURATION,
-                    0, false, false));
-        }
+        // No fire resistance: lava and fire hurt siege mobs. Sun protection is done in SiegeEvents.
     }
 
     private static void addBonus(Mob mob, Holder<Attribute> attribute, ResourceLocation id, double amount) {

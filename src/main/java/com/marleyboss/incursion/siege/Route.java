@@ -1,5 +1,6 @@
 package com.marleyboss.incursion.siege;
 
+import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
@@ -7,8 +8,10 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,7 +22,8 @@ import java.util.Map;
  * matter who did the work (or if a player undid it).
  */
 public final class Route {
-    public enum Work { DIG, BLOCK }
+    /** WAIT: nothing to do but wait (a fluid is draining after its source was removed). */
+    public enum Work { DIG, BLOCK, WAIT }
 
     public record Action(BlockPos pos, Work work) {
         public boolean dig() {
@@ -41,6 +45,10 @@ public final class Route {
     private final Map<BlockPos, BlockPos> wings = new HashMap<>();
     private boolean invalid;
     private long lastProgress;
+    /** Per step: what the last fluid search found (cached for a moment, the search is not free). */
+    private final Map<Integer, Drain> drains = new HashMap<>();
+    /** Per step: since when the fluid has been draining (a way out if it never stops). */
+    private final Map<Integer, Long> drainWaits = new HashMap<>();
     /** Mobs on this route: entity id -> {route index, 1 if working, last seen}. */
     private final Map<Integer, long[]> members = new HashMap<>();
     private static final long MEMBER_TICKS = 30;
@@ -98,6 +106,7 @@ public final class Route {
     /** Work on this route got done (a block dug or placed). */
     public void noteProgress(long now) {
         lastProgress = now;
+        drains.clear(); // the world changed: search again
     }
 
     /** True if work on this route got done since then. */
@@ -244,7 +253,15 @@ public final class Route {
 
     @Nullable
     private Action actionAt(Level level, int index) {
-        // Fluid next to the way is dammed first, fluid in the way is filled with siege stone (then dug out).
+        // Fluid at this step: first try to remove its source (the whole flow disappears for everybody).
+        if (stepHasFluid(level, index)) {
+            Action drain = drainAt(level, index);
+            if (drain != null) {
+                return drain;
+            }
+        }
+        // No source to remove (too big, out of reach ...): fluid next to the way is dammed first, fluid in the
+        // way is filled with siege stone (then dug out).
         for (BlockPos seal : seals[index]) {
             if (RoutePlanner.hasFluid(level, seal) && RoutePlanner.canPlace(level, seal, corePos)) {
                 return new Action(seal, Work.BLOCK);
@@ -266,6 +283,109 @@ public final class Route {
             return RoutePlanner.canPlace(level, support, corePos) ? new Action(support, Work.BLOCK) : INVALID;
         }
         return null;
+    }
+
+    // ------------------------------------------------------------------
+    // Removing the source of a fluid
+    // ------------------------------------------------------------------
+
+    private enum DrainKind { NONE, SOURCE, WAIT }
+
+    private record Drain(long time, DrainKind kind, @Nullable BlockPos pos) {
+    }
+
+    /** Search budget (cells) and how far a builder reaches from the step before the work (blocks). */
+    private static final int DRAIN_MAX_CELLS = 600;
+    private static final double DRAIN_REACH = 5.5;
+    private static final long DRAIN_TTL = 10;
+    /** A fluid that is still there this long after its sources are gone is handled like any other (filled). */
+    private static final long DRAIN_WAIT_TICKS = 200;
+
+    private boolean stepHasFluid(Level level, int index) {
+        for (BlockPos cell : clears[index]) {
+            if (RoutePlanner.hasFluid(level, cell)) {
+                return true;
+            }
+        }
+        for (BlockPos seal : seals[index]) {
+            if (RoutePlanner.hasFluid(level, seal)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The builders' answer to water and lava: not to wall it off cell by cell, but to put one block onto the
+     * source, so the whole flow runs dry (for the whole team, and it cannot flow back). Returns the source to
+     * replace, a wait while the rest is draining, or null if this does not work here (too many sources, out of
+     * reach, or switched off in the config): the cell-by-cell filling takes over then.
+     */
+    @Nullable
+    private Action drainAt(Level level, int index) {
+        if (!Config.DRAIN_SOURCES.get()) {
+            return null;
+        }
+        long now = level.getGameTime();
+        Drain drain = drains.get(index);
+        if (drain == null || now < drain.time() || now - drain.time() >= DRAIN_TTL) {
+            drain = findDrain(level, index, now);
+            drains.put(index, drain);
+        }
+        if (drain.kind() == DrainKind.WAIT && drain.pos() != null) {
+            long since = drainWaits.computeIfAbsent(index, k -> now);
+            if (now < since || now - since > DRAIN_WAIT_TICKS) {
+                return null;
+            }
+            return new Action(drain.pos(), Work.WAIT);
+        }
+        drainWaits.remove(index);
+        if (drain.kind() == DrainKind.SOURCE && drain.pos() != null) {
+            return new Action(drain.pos(), Work.BLOCK);
+        }
+        return null;
+    }
+
+    private Drain findDrain(Level level, int index, long now) {
+        List<BlockPos> starts = new ArrayList<>();
+        for (BlockPos cell : clears[index]) {
+            if (RoutePlanner.hasFluid(level, cell)) {
+                starts.add(cell);
+            }
+        }
+        for (BlockPos seal : seals[index]) {
+            if (RoutePlanner.hasFluid(level, seal)) {
+                starts.add(seal);
+            }
+        }
+        if (starts.isEmpty()) {
+            return new Drain(now, DrainKind.NONE, null);
+        }
+        FluidSources.Result result = FluidSources.upstream(level, starts, Config.DRAIN_MAX_SOURCES.get(), DRAIN_MAX_CELLS);
+        if (!result.complete()) {
+            return new Drain(now, DrainKind.NONE, null); // a lake or an ocean: not removable
+        }
+        if (result.sources().isEmpty()) {
+            return new Drain(now, DrainKind.WAIT, starts.get(0)); // the sources are gone, the flow is running dry
+        }
+        // The builder stands on the step before this one: every source must be within its reach.
+        Vec3 stand = Vec3.atBottomCenterOf(nodes[Math.max(0, index - 1)]).add(0.0, 1.62, 0.0);
+        BlockPos nearest = null;
+        double best = Double.MAX_VALUE;
+        for (BlockPos source : result.sources()) {
+            if (!RoutePlanner.canPlace(level, source, corePos)) {
+                return new Drain(now, DrainKind.NONE, null);
+            }
+            double distance = stand.distanceTo(Vec3.atCenterOf(source));
+            if (distance > DRAIN_REACH) {
+                return new Drain(now, DrainKind.NONE, null);
+            }
+            if (distance < best) {
+                best = distance;
+                nearest = source;
+            }
+        }
+        return new Drain(now, DrainKind.SOURCE, nearest);
     }
 
     /**
