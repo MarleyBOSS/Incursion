@@ -134,7 +134,7 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.16 | Händler-Mob nach verteidigter Nacht: Totems der Unsterblichkeit (Kern-exklusiv), Fallen, Spezialblöcke, Drop-Events | Idee |
 | v0.17 | Energie (FE, bis ca. 20.000 FE/t per Skilltree) + Kern-Relais (kabellos + Redstone-Warnsignal) | Idee |
 | v0.18 | Feindlager: Strukturen vom Nutzer (.nbt), Weltgenerierung, Kriegskompass | Idee |
-| v0.19 | Prestige: Boss in der ersten Nacht auf Stufe 20 → zurück auf Stufe 1 mit Bonus; Sonderschild Stufe 20 | Idee |
+| v0.19 | Prestige: Boss in der ersten Nacht auf Stufe 20 → zurück auf Stufe 1; Skilltree wird zurückgesetzt, **1 Knoten nach Wahl bleibt für immer aktiv**; behalten: Splitter, Bauten, Totems, Ausrüstung; Vorschlag pro Stern (max. 5): Resonanz-Untergrenze, +25 % Splitter, Prestige-Kern-Tisch-Stufen, Mobs +10 %, Gegner-Arten 2 Stufen früher, Elite-Mobs; Sonderschild Stufe 20 | Idee |
 | danach | XP-Lager, selbstheilende Basis, Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration; offen: Max-Stufe 20 oder 30/40/50 | |
 
 ## Offene Entscheidungen
