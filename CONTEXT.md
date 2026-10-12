@@ -94,6 +94,8 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 
 ## Konzept in Kürze (Details in DESIGN.md)
 
+- **Grundsatz: alles konfigurierbar.** Wir liefern die beste Standard-Version, aber jeder soll seine eigene Version bauen können: Mob-Pool und Mobs pro Stufe, Beute-Items, Energie, Effekte, Kosten, Skilltree-Werte. Mobs und Items **anderer Mods** einbindbar. Umsetzung über Config und Datapacks (Tags, Loot Tables), ohne Code. Bei jedem neuen Feature mitdenken.
+
 - **Core** mit Stufen 0–20. Stufe 0 ist friedlich, eine Ressource aktiviert ihn. Jedes Upgrade kostet Ressourcen.
 - **Belohnungen** pro Stufe: Item-Generierung, FE-Energie (für Create über Create Crafts & Additions), beaconartige Buffs.
 - **Belagerung:** dauerhaft, keine Wellen, keine Zeitskalierung, nur an die Stufe gekoppelt. Läuft auch bei Abwesenheit (eigener Chunkloader). Belagerungs-Mobs despawnen nicht. Chat-Warnungen bei Schaden am Core und beim Schildbruch.
@@ -125,13 +127,10 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.9 | Kernsplitter (Währung) pro verteidigter Nacht, mehr je Kernstufe; bezahlt Upgrades, Schild-Reparatur, Totems craften/reparieren; Beute-Kiste pro Nacht im Ausgabe-Inventar | Idee |
 | v0.10 | Kern-GUI mit Reitern + **Skilltree**: Stufe schaltet Knoten frei, gekauft wird mit Splittern; Übersicht (Karte, Fronten, Totems, Schilde, Reparatur dort); Knoten: Spielereffekte, Pflanzenwachstum; Totems 50 % der Effekte | Idee |
 | v0.11 | Energie (FE, bis ca. 15.000–20.000 FE/t, per Skilltree) + Kern-Relais (Energie kabellos in der Safezone + Redstone-Warnsignal) | Idee |
-| v0.12 | Tag/Nacht und Pausen (Details unter „Letzter Stand“) | Idee |
+| v0.12 | Tag/Nacht, Pausen (Details unter „Letzter Stand“), Respawn-Item (Kern-GUI, einmalig in der Safezone setzen, 1. Mal gratis, dann Splitter), Rückruf-Item zum Kern (Splitter) | Idee |
 | v0.13 | Totem-Update: Kern-Bereich fest, Safezone nur per Totems, Quadrat-Raster (3×3, 5×5), zerstörtes Totem gibt Quadrat frei, mehr Mobs pro Totem; Fronten: ohne Totem 4, +1 pro Seite je Totem-Ring, **zeitversetzt** (nur 1 Front aktiv, nächste bei 70 % getötet, möglichst andere Seite) | Idee |
-| v0.14 | Respawn-Item (Kern-GUI, einmalig in der Safezone setzen, 1. Mal gratis, dann Splitter), Rückruf-Item zum Kern (Splitter) | Idee |
-| v0.15 | Verteidiger: Eisengolems am Kern (später an Totems), Schneegolems, Hunde; Anzahl nach Stufe/Skilltree | Idee |
-| v0.16 | Türme (z. B. Schneemann-Türme mit Effekt-Schneebällen), Ziel: autarkes Dorf | Idee |
-| v0.17 | Gegner-Ausbau: Mob-Pool pro Stufe (per Config) | Idee |
-| v0.18 | Dorfleben: Dorfbewohner regenerieren den Kern, Gegner-Klasse „Attentäter“ jagt Dorfbewohner | Idee |
+| v0.14 | Verteidigung: Eisengolems am Kern (später an Totems), Schneegolems, Hunde, Türme (z. B. Schneemann-Türme mit Effekt-Schneebällen); Anzahl/Stärke nach Stufe und Skilltree; Ziel autarkes Dorf | Idee |
+| v0.15 | Gegner und Dorf: Mob-Pool pro Stufe (per Config), Gegner-Klasse „Attentäter“ jagt Dorfbewohner, Dorfbewohner in Kernnähe regenerieren den Kern | Idee |
 | danach | Kern-Händler, Sonderschild Stufe 20, Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration; offen: Max-Stufe 20 oder 30/40/50 | |
 
 ## Offene Entscheidungen
