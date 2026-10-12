@@ -121,10 +121,11 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.7.2 | Mehrere Fronten gleichzeitig, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | getestet: viel besser; Plattformen fehlen, Skelette unzuverlässig |
 | v0.7.3 | Zwischenplattformen, Ausbau durch Baumeister, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | getestet: Kern fällt zuverlässig, aber keine Plattformen |
 | v0.7.4 | Plattformbau parallel zum Angriff (Vorrang für Baumeister), Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | getestet ✔ Kern fällt immer (Plattformen fehlen, akzeptiert) |
-| v0.8 | Schilde (5/10/15), Puls, Reparatur; **Safezone Kern + Totems** quadratisch und gemeinsam, Beacon-Laser an den Ecken, Fronten pro Seite (ohne Totem 4, Vorschlag +1 pro Seite je Totem-Ring), Front greift erst nächstes äußeres Totem an, dann Kern; zerstörtes Totem gibt sein Quadrat frei (Details im Ideen-Doc) | **als Nächstes** (groß, evtl. in 2 Schritten) |
+| v0.8 | Schilde (5/10/15), Puls, Reparatur; Totems Teil 1: gemeinsame quadratische Grenze Kern + Totems, Beacon-Laser an den Ecken, Fokus (Front greift erst nächstes äußeres Totem an, dann Kern) | **als Nächstes** |
 | v0.9 | Items, Energie, Buffs (Anzeige in der GUI vorgesehen); Totem gibt 50 % der Kern-Effekte im eigenen Bereich | |
 | v0.10 | Tag/Nacht und Pausen (Details unter „Letzter Stand“) | Idee |
 | v0.11 | Belagerungs-Ausbau: Wächter ab Stufe X, Mob-Pool pro Stufe (welche Mobs ab welcher Stufe, per Config) | Idee |
+| v0.12 | Totem-Update: Kern-Bereich fest (wächst nicht mehr mit Stufe), Safezone nur per Totems, Quadrat-Raster (3×3, 5×5), zerstörtes Totem gibt Quadrat frei, mehr Mobs pro Totem; Fronten: ohne Totem 4, +1 pro Seite je Totem-Ring, **zeitversetzt** (nur 1 Front aktiv, nächste bei 70 % getötet, möglichst andere Seite) | Idee |
 | danach | Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration | |
 
 ## Offene Entscheidungen
