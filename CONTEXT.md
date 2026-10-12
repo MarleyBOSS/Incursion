@@ -27,7 +27,7 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 - **v0.7.4** gebaut (**lokal nicht kompilierbar, CI prüfen**), **Test ausstehend**: Ursache der fehlenden Plattformen nicht sicher gefunden (Vermutung: Kern stirbt, bevor der Baumeister fertig ist; Baumeister überspringen Landings hinter sich). Änderungen: Baumeister bauen Landings zum nächstgelegenen Landing auch **treppab** (Laufen Stufe für Stufe in `SiegeAI.drive`), greifen den Kern nie an, solange Plattform-/Landing-Arbeit offen ist, zweiter Baumeister früher (ab Limit 6, offene Front mit ≥ 8 Feldern Arbeit). Bei eingeschalteter KI-Anzeige meldet der Plan jetzt Plattformfelder/Landings/Felder (`message.incursion.plan.extras`): **Wenn dort 0 steht, liegt der Fehler im Planer (`RoutePlanner.platform/landings/usableSpot`)**. Neu: `PlayerHunt` (Jagd): in Kernnähe (`huntRadius` 48, max `huntMaxPlayers` 2) plant ein Planer-Lauf einen Weg zum Spieler (Ziel = Spielerposition), Jäger-Baumeister/-Gräber (Tag `incursion_hunt_worker`, max `huntWorkers` 3 pro Spieler, zusätzlich zum Mob-Limit) bauen/graben ihn, die Jäger laufen normal (Vanilla-Pfad findet die fertige Treppe). Teams dynamisch (`MobRoles.rebalanceTeams`, 1×/s): Spieler in Kernnähe → `hunterPercent` der Kämpfer sind Jäger, sonst alle Kern-Team. Jäger-Arbeiter ohne Aufgabe gehen ins Kern-Team über (Tag weg, Kommandant gibt ihnen eine Kern-Front). Jäger jagen auch ohne Sichtkontakt, Reichweite 96.
 - **v0.7.4** getestet: **Kern wird immer zerstört → KI-Problem vom Nutzer als gelöst bestätigt.** Plattformen werden weiterhin nicht gebaut; Nutzer will das **nicht weiter verfolgen** (zu viel Zeit). Spielerjagd/dynamische Teams: kein gesondertes Feedback.
 - **Nächster Schritt: v0.8 (Schilde + Totems Teil 1).** Balancing erst ganz am Ende.
-- **Idee v0.12 „Tag/Nacht und Pausen“** (Grund: auf hoher Stufe kann man sonst nicht mehr bauen/normal spielen; bewusst später, weil zeitunabhängige Angriffe leichter zu testen sind). Kein Wellen-System mit steigender Schwierigkeit.
+- **Idee v0.13 „Tag/Nacht und Pausen“** (Grund: auf hoher Stufe kann man sonst nicht mehr bauen/normal spielen; bewusst später, weil zeitunabhängige Angriffe leichter zu testen sind). Kein Wellen-System mit steigender Schwierigkeit.
   - Angriffe nur nachts, tagsüber Zeit für Reparatur/Umbau.
   - **Nacht pausieren** (Button im Kern-GUI): diese Nacht keine Belagerung, Schlafen möglich. Gilt nur für eine Nacht, danach automatisch wieder aktiv. Strafe stapelt sich: nächste Nacht ×2, erneut pausiert ×4, dann ×8 … Eine verteidigte Nacht setzt den Faktor auf ×1 zurück.
   - **Schlafen** nur, wenn die Nacht pausiert ist oder Waffenruhe läuft (entschieden: sonst in der ganzen Welt blockiert).
@@ -124,19 +124,23 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.7.3 | Zwischenplattformen, Ausbau durch Baumeister, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | getestet: Kern fällt zuverlässig, aber keine Plattformen |
 | v0.7.4 | Plattformbau parallel zum Angriff (Vorrang für Baumeister), Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | getestet ✔ Kern fällt immer (Plattformen fehlen, akzeptiert) |
 | v0.8 | Schilde (5/10/15), Puls, Reparatur; Totems Teil 1: gemeinsame quadratische Grenze Kern + Totems, Beacon-Laser an den Ecken, Fokus (Front greift erst nächstes äußeres Totem an, dann Kern) | **als Nächstes** |
-| v0.9 | Kernsplitter (Währung) pro verteidigter Nacht, mehr je Kernstufe; bezahlt Upgrades, Schild-Reparatur, Totems craften/reparieren; Beute-Kiste pro Nacht im Ausgabe-Inventar | Idee |
-| v0.10 | Kern-GUI mit Reitern + **Skilltree**: Stufe schaltet Knoten frei, gekauft wird mit Splittern; Übersicht (Karte, Fronten, Totems, Schilde, Reparatur dort); Knoten: Spielereffekte, Pflanzenwachstum; Totems 50 % der Effekte | Idee |
-| v0.11 | Energie (FE, bis ca. 15.000–20.000 FE/t, per Skilltree) + Kern-Relais (Energie kabellos in der Safezone + Redstone-Warnsignal) | Idee |
-| v0.12 | Tag/Nacht, Pausen (Details unter „Letzter Stand“), Respawn-Item (Kern-GUI, einmalig in der Safezone setzen, 1. Mal gratis, dann Splitter), Rückruf-Item zum Kern (Splitter) | Idee |
-| v0.13 | Totem-Update: Kern-Bereich fest, Safezone nur per Totems, Quadrat-Raster (3×3, 5×5), zerstörtes Totem gibt Quadrat frei, mehr Mobs pro Totem; Fronten: ohne Totem 4, +1 pro Seite je Totem-Ring, **zeitversetzt** (nur 1 Front aktiv, nächste bei 70 % getötet, möglichst andere Seite) | Idee |
-| v0.14 | Verteidigung: Eisengolems am Kern (später an Totems), Schneegolems, Hunde, Türme (z. B. Schneemann-Türme mit Effekt-Schneebällen); Anzahl/Stärke nach Stufe und Skilltree; Ziel autarkes Dorf | Idee |
-| v0.15 | Gegner und Dorf: Mob-Pool pro Stufe (per Config), Gegner-Klasse „Attentäter“ jagt Dorfbewohner, Dorfbewohner in Kernnähe regenerieren den Kern | Idee |
-| danach | Kern-Händler, Sonderschild Stufe 20, Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration; offen: Max-Stufe 20 oder 30/40/50 | |
+| v0.9 | Kernsplitter pro verteidigter Nacht (mehr je Stufe), keine Rohstoff-Beute; Kern zeigt Statistiken (Stufe, Nächte, Kills, HP, Schilde); **Upgrade-Werkzeug**: Rechtsklick auf Kern + Upgrade-Items = +1 Stufe, ein Werkzeug gilt für 5 Stufen, dann verbessern | Idee |
+| v0.10 | **Kern-Konsole** (eigener Block): Skilltree (Stufe schaltet frei, Splitter kaufen), Übersicht mit Karte/Fronten/Totems/Schilden + Reparatur; Totems 50 % der Effekte | Idee |
+| v0.11 | **Kern-Tisch** (Kernschmiede): Verzauberungen über Vanilla-Maximum (freischalten mit Splittern, verzaubern mit XP + Splittern), Kern-Fähigkeiten, **Resonanz** (volle Kraft nur bei aktivem Kern, wächst mit Stufe), Upgrade-Werkzeug verbessern | Idee |
+| v0.12 | Energie (FE, bis ca. 15.000–20.000 FE/t, per Skilltree) + Kern-Relais (Energie kabellos in der Safezone + Redstone-Warnsignal) | Idee |
+| v0.13 | Tag/Nacht, Pausen (Details unter „Letzter Stand“), Respawn-Item (Kern-GUI, einmalig in der Safezone setzen, 1. Mal gratis, dann Splitter), Rückruf-Item zum Kern (Splitter) | Idee |
+| v0.14 | Totem-Update: Kern-Bereich fest, Safezone nur per Totems, Quadrat-Raster (3×3, 5×5), zerstörtes Totem gibt Quadrat frei, mehr Mobs pro Totem; Fronten: ohne Totem 4, +1 pro Seite je Totem-Ring, **zeitversetzt** (nur 1 Front aktiv, nächste bei 70 % getötet, möglichst andere Seite) | Idee |
+| v0.15 | Verteidigung: Eisengolems am Kern (später an Totems), Schneegolems, Hunde, Türme (z. B. Schneemann-Türme mit Effekt-Schneebällen); Anzahl/Stärke nach Stufe und Skilltree; Ziel autarkes Dorf | Idee |
+| v0.16 | Gegner und Dorf: Mob-Pool pro Stufe, Dorfbewohner heilen Kern und werden wieder angegriffen (schützen!), Dorfbewohner-Upgrades + Fruchtbarkeits-Schub, Assassine (schnell, stark, wenig Leben), Verwüster mit Sturmangriff, Raids aus | Idee |
+| v0.17 | Händler-Mob nach verteidigter Nacht (optional rufbar): Totems der Unsterblichkeit (Kern-exklusiv, Waldanwesen-Drop weg), Fallen, Spezialblöcke | Idee |
+| v0.18 | Feindlager: Nutzer baut Strukturen (Konstruktionsblock, .nbt), Claude Weltgenerierung; Kriegskompass; zerstörtes Lager schwächt Nächte / Beute / evtl. freie Nächte | Idee |
+| v0.19 | Prestige: Boss in der ersten Nacht auf Stufe 20, besiegt → zurück auf Stufe 1 mit dauerhaftem Bonus | Idee |
+| danach | Selbstheilende Basis, Sonderschild Stufe 20, Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration; offen: Max-Stufe 20 oder 30/40/50 | |
 
 ## Offene Entscheidungen
 
 - Aktivierungs- und Upgrade-Kosten (vorerst Lohenrute bzw. Diamanten)
-- Entschärf-Mechanik (v0.3-Platzhalter: GUI-Button, Countdown 10 s + 2 s/Stufe, Spieler muss ≤ 8 Blöcke bleiben). Entschieden: Kosten künftig 80 % der Stufe statt Reset auf 0 (v0.12)
+- Entschärf-Mechanik (v0.3-Platzhalter: GUI-Button, Countdown 10 s + 2 s/Stufe, Spieler muss ≤ 8 Blöcke bleiben). Entschieden: Kosten künftig 80 % der Stufe statt Reset auf 0 (v0.13)
 - Brennstoff ja/nein
 - Schutztotem-Rezept und Preis (vorerst günstig, +2 Mobs pro Totem)
 - Lizenz
