@@ -293,10 +293,7 @@ public final class SiegeAirDrop {
         }
         passenger.stopRiding();
         passenger.setDeltaMovement(Vec3.ZERO);
-        if (level.noCollision(passenger, passenger.getType().getDimensions().makeBoundingBox(Vec3.atBottomCenterOf(drop)))) {
-            passenger.teleportTo(drop.getX() + 0.5, drop.getY(), drop.getZ() + 0.5);
-        }
-        slowFall(passenger);
+        slowFall(passenger); // lets go right above the spot and floats down onto it (no teleport)
         level.sendParticles(ParticleTypes.CLOUD, drop.getX() + 0.5, drop.getY() + 0.2, drop.getZ() + 0.5, 8, 0.3, 0.1, 0.3, 0.02);
     }
 

@@ -67,6 +67,8 @@ public final class SiegeAI {
     private static final double SAPPER_RANGE = 20.0;
     /** A mob that should walk but has not reached the next route step for this long hops there. */
     private static final long HOP_TICKS = 40;
+    /** Horizontal speed (blocks per tick) a stuck mob gets towards its next step. */
+    private static final double NUDGE_PUSH = 0.18;
     /** Creepers do not try to blow up blocks this explosion resistant (obsidian, siege stone ...). */
     private static final float BREACH_MAX_RESISTANCE = 100.0F;
     /** Mobs further than this from the Core can get lost. */
@@ -146,6 +148,7 @@ public final class SiegeAI {
         long nextShot;
         long nextAttack;
         long nextTeleport;
+        long nextNudge;
         // Archers
         @Nullable
         BlockPos spot;
@@ -574,7 +577,7 @@ public final class SiegeAI {
             state.walkLimit = last;
             state.lookAt = null;
             state.status("walk", index, last);
-            hopIfStuck(level, mob, state, route, now);
+            nudgeIfStuck(level, mob, state, route, now);
             return;
         }
 
@@ -621,7 +624,7 @@ public final class SiegeAI {
                 }
             }
             state.status(gathering ? "gather" : waiting ? "wait_drain" : action.dig() ? "wait_digger" : "wait_builder");
-            hopIfStuck(level, mob, state, route, now);
+            nudgeIfStuck(level, mob, state, route, now);
             return;
         }
         state.walkLimit = pending - 1;
@@ -630,7 +633,7 @@ public final class SiegeAI {
         boolean waitedLong = index >= state.walkLimit && now - state.lastAdvance > HOP_TICKS;
         if (reach > REACH && !(waitedLong && reach <= FAR_REACH)) {
             state.status("walk", index, last);
-            hopIfStuck(level, mob, state, route, now);
+            nudgeIfStuck(level, mob, state, route, now);
             return; // still walking up to the work spot
         }
         work(level, mob, state, kind, action, route, now);
@@ -666,7 +669,7 @@ public final class SiegeAI {
         state.lookAt = target;
         if (mob.getEyePosition().distanceTo(target) > REACH) {
             state.status("walk", index, route.last());
-            hopIfStuck(level, mob, state, route, now);
+            nudgeIfStuck(level, mob, state, route, now);
             return true; // still walking up to it
         }
         work(level, mob, state, kind, second, route, now);
@@ -746,7 +749,7 @@ public final class SiegeAI {
         state.walkLimit = Math.min(job.landing().index(), route.last());
         state.lookAt = null;
         state.status("to_landing");
-        hopIfStuck(level, mob, state, route, now);
+        nudgeIfStuck(level, mob, state, route, now);
         return true;
     }
 
@@ -796,7 +799,6 @@ public final class SiegeAI {
             state.footSince = now;
         }
         BlockPos goal = rejoin ? route.node(nearest) : foot;
-        int goalIndex = rejoin ? nearest : 0;
         Vec3 target = Vec3.atBottomCenterOf(goal);
         double distance = mob.position().distanceTo(target);
         if (distance < state.footBest - 0.5) {
@@ -807,18 +809,8 @@ public final class SiegeAI {
         }
         long stuck = now - state.footSince;
         if (distance <= 4.0 && stuck >= HOP_TICKS) {
-            // Right there but cannot step onto it (an edge, a fence ...): hop over.
-            AABB box = mob.getBoundingBox().move(target.subtract(mob.position()));
-            if (level.noCollision(mob, box)) {
-                mob.getNavigation().stop();
-                mob.teleportTo(target.x, target.y, target.z);
-                state.routeIndex = goalIndex;
-                state.lastIndex = goalIndex;
-                state.lastAdvance = now;
-                state.footBest = 0.0;
-                state.footSince = now;
-                return;
-            }
+            // Right there but cannot step onto it (an edge, a fence ...): hop and push, no teleport.
+            nudge(mob, state, target, now);
         }
         int lostSeconds = Config.LOST_SECONDS.get();
         if (lostSeconds > 0 && stuck > Math.min(lostSeconds, FOOT_TIMEOUT_SECONDS) * 20L) {
@@ -855,9 +847,10 @@ public final class SiegeAI {
 
     /**
      * Vanilla movement sometimes gets caught on block edges. A mob that should walk along the route but has not
-     * reached the next step for two seconds hops onto it.
+     * reached the next step for two seconds jumps and gets a small push towards it (like a player who hops over
+     * an edge). It never teleports; in water only swimming and the current decide.
      */
-    private static void hopIfStuck(ServerLevel level, Mob mob, MobState state, Route route, long now) {
+    private static void nudgeIfStuck(ServerLevel level, Mob mob, MobState state, Route route, long now) {
         int index = state.routeIndex;
         if (index >= state.walkLimit || index >= route.last() || now - state.lastAdvance < HOP_TICKS) {
             return;
@@ -868,16 +861,26 @@ public final class SiegeAI {
             state.lastAdvance = now;
             return;
         }
-        AABB box = mob.getBoundingBox().move(target.subtract(mob.position()));
-        if (!level.noCollision(mob, box)) {
-            state.lastAdvance = now - HOP_TICKS / 2; // try again a bit later
+        nudge(mob, state, target, now);
+        state.lastAdvance = now - HOP_TICKS / 2; // try again in a second
+    }
+
+    /**
+     * A hop and a small push towards {@code target}, at most once per second. Only on the ground: in water or lava
+     * the mob swims (see {@link SiegeSwimGoal}) and the current is not worked against with tricks.
+     */
+    private static void nudge(Mob mob, MobState state, Vec3 target, long now) {
+        if (now < state.nextNudge || !mob.onGround() || mob.isInWater() || mob.isInLava()) {
             return;
         }
-        mob.getNavigation().stop();
-        mob.teleportTo(target.x, target.y, target.z);
-        state.routeIndex = index + 1;
-        state.lastIndex = index + 1;
-        state.lastAdvance = now;
+        state.nextNudge = now + HOP_TICKS / 2;
+        double dx = target.x - mob.getX();
+        double dz = target.z - mob.getZ();
+        double length = Math.sqrt(dx * dx + dz * dz);
+        if (length > 1.0E-3) {
+            mob.setDeltaMovement(mob.getDeltaMovement().add(dx / length * NUDGE_PUSH, 0.0, dz / length * NUDGE_PUSH));
+        }
+        mob.getJumpControl().jump();
     }
 
     static void control(MobState state, Mode mode, long now) {
@@ -919,20 +922,17 @@ public final class SiegeAI {
         return true;
     }
 
-    /** Lifts everybody standing in this block onto it (like pillaring up). True if the block is free afterwards. */
+    /**
+     * Everybody standing in this block is pushed out of it sideways (nobody is teleported); the builder tries again
+     * a moment later. True if the block is free right now.
+     */
     private static boolean clearSpot(ServerLevel level, BlockPos pos) {
         for (LivingEntity entity : level.getEntitiesOfClass(LivingEntity.class, new AABB(pos),
                 e -> e.isAlive() && !(e instanceof CoreTargetEntity))) {
-            double lift = pos.getY() + 1.0 - entity.getY();
-            if (lift > 0.0 && lift <= 1.25 && level.noCollision(entity, entity.getBoundingBox().move(0.0, lift, 0.0))) {
-                entity.teleportTo(entity.getX(), pos.getY() + 1.0, entity.getZ());
-            } else {
-                // Cannot lift (ceiling): push it out sideways.
-                double dx = entity.getX() - (pos.getX() + 0.5);
-                double dz = entity.getZ() - (pos.getZ() + 0.5);
-                double length = Math.max(0.1, Math.sqrt(dx * dx + dz * dz));
-                entity.push(dx / length * 0.4, 0.1, dz / length * 0.4);
-            }
+            double dx = entity.getX() - (pos.getX() + 0.5);
+            double dz = entity.getZ() - (pos.getZ() + 0.5);
+            double length = Math.max(0.1, Math.sqrt(dx * dx + dz * dz));
+            entity.push(dx / length * 0.4, 0.1, dz / length * 0.4);
         }
         return level.isUnobstructed(ModBlocks.SIEGE_STONE.get().defaultBlockState(), pos, CollisionContext.empty());
     }
