@@ -24,6 +24,20 @@ jobs:
           echo "eula=true" > run/server/eula.txt
           timeout 900 ./gradlew runServer --stacktrace 2>&1 | tee probe.log || true
           grep "PROBE" probe.log || true
+      - name: Publish results to branch probe-results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          grep "PROBE" probe.log > out/probe-results.txt || echo "no PROBE lines" > out/probe-results.txt
+          tail -n 80 probe.log > out/probe-tail.txt
+          cd out
+          git init -q -b probe-results
+          git config user.name probe
+          git config user.email probe@example.invalid
+          git add -A
+          git commit -qm "probe results"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" probe-results
       - uses: actions/upload-artifact@v4
         with:
           name: probe-log
