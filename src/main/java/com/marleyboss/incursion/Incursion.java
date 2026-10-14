@@ -35,6 +35,9 @@ public class Incursion {
         modEventBus.addListener(Fallout::registerTickets);
         SiegeEvents.register();
         Fallout.register();
+        if (System.getenv("INCURSION_PROBE") != null) {
+            com.marleyboss.incursion.dev.PhysicsProbe.register(); // development measurement, see the Probe workflow
+        }
 
         // Server config: stored per world in <world>/serverconfig/incursion-server.toml
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SPEC);

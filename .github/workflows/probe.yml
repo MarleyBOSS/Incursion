@@ -1,0 +1,30 @@
+name: Probe
+
+# Starts a headless server, builds water channels and logs how zombies swim in them (see PhysicsProbe).
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Run probe server
+        env:
+          INCURSION_PROBE: "1"
+        run: |
+          mkdir -p run run/server
+          echo "eula=true" > run/eula.txt
+          echo "eula=true" > run/server/eula.txt
+          timeout 900 ./gradlew runServer --stacktrace 2>&1 | tee probe.log || true
+          grep "PROBE" probe.log || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-log
+          path: probe.log
