@@ -981,6 +981,14 @@ public final class SiegeAI {
             mob.getLookControl().setLookAt(state.lookAt.x, state.lookAt.y, state.lookAt.z);
         }
         if (state.mode == Mode.GOTO && state.gotoPos != null) {
+            if (swimmingDeep(mob)) {
+                // Measured in the game (PhysicsProbe): pathfinding does not move a mob in deep water at all, while
+                // steering it directly makes it swim well, even against a current. So it swims straight to the goal.
+                BlockPos pos = state.gotoPos;
+                mob.getNavigation().stop();
+                mob.getMoveControl().setWantedPosition(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 1.0);
+                return;
+            }
             if (mob.getNavigation().isDone() || mob.tickCount % 20 == 0) {
                 BlockPos pos = state.gotoPos;
                 if (!mob.getNavigation().moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 1.0)) {
@@ -1033,6 +1041,11 @@ public final class SiegeAI {
             }
         }
         holdOnLadder(mob);
+    }
+
+    /** In water deep enough to swim (not just wading). */
+    private static boolean swimmingDeep(Mob mob) {
+        return mob.isInWater() && mob.getFluidHeight(net.minecraft.tags.FluidTags.WATER) > mob.getFluidJumpThreshold();
     }
 
     /** A mob on a ladder (e.g. an old siege ladder) that should not climb does not slide down. */
