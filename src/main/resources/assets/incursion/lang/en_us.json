@@ -126,6 +126,8 @@
   "incursion.configuration.hunterRange": "Hunter range",
   "incursion.configuration.bodyguardRange": "Bodyguard range",
   "incursion.configuration.landingsEnabled": "Build landings along the stairs",
+  "incursion.configuration.widenAccess": "Dig extra access next to the attack position",
+  "incursion.configuration.hardDigWorkers": "Diggers at one very hard block",
   "incursion.configuration.landingSpacing": "Steps between landings",
   "incursion.configuration.siegeExplosionsSpareMobs": "Siege explosions spare siege mobs",
   "incursion.configuration.stallSeconds": "Reinforcements after stall (seconds)",

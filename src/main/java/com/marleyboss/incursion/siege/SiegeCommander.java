@@ -302,7 +302,9 @@ public final class SiegeCommander {
         }
         int miners = 0;
         if (front.pendingDig > 0) {
-            int wanted = front.hardDig > 0 ? 3 : (front.pendingDig >= 6 ? 2 : 1);
+            // Very hard blocks (obsidian): their dig progress adds up, so more miners are worth it.
+            int wanted = front.hardDig > 0 ? Math.min(5, Config.HARD_DIG_WORKERS.get())
+                    : (front.pendingDig >= 6 ? 2 : 1);
             miners = Math.max(1, Math.min(wanted, workersCap - builders));
         }
         if (front.builders() < builders) {

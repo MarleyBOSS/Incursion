@@ -522,6 +522,16 @@ public final class Config {
                     "positions and posts, and mobs have room on the way up.")
             .define("landingsEnabled", true);
 
+    public static final ModConfigSpec.BooleanValue WIDEN_ACCESS = BUILDER
+            .comment("If true, waiting miners and fighters dig extra access cells into the wall right next to the attack",
+                    "position at the Core (a Core walled in obsidian gets more room to be attacked from).")
+            .define("widenAccess", true);
+
+    public static final ModConfigSpec.IntValue HARD_DIG_WORKERS = BUILDER
+            .comment("At most this many mobs dig at the same very hard block (obsidian ...) at once. Their progress adds up.",
+                    "For ordinary blocks the limit is 3.")
+            .defineInRange("hardDigWorkers", 6, 3, 12);
+
     public static final ModConfigSpec.IntValue LANDING_SPACING = BUILDER
             .comment("A landing every this many steps of a staircase (the last one is right below the platform at the Core).")
             .defineInRange("landingSpacing", 6, 3, 30);

@@ -726,6 +726,14 @@ public final class RoutePlanner {
      * below is solid or can be placed, and the cell is in nobody's way (this route, other fronts)?
      */
     private boolean usableSpot(BlockPos spot, RouteSets sets) {
+        return usableSpot(spot, sets, false);
+    }
+
+    /**
+     * Like {@link #usableSpot(BlockPos, RouteSets)}; with {@code allowDig} the spot may also be solid wall that the
+     * siege can dig out (not fluid, not protected): extra access next to the attack position.
+     */
+    private boolean usableSpot(BlockPos spot, RouteSets sets, boolean allowDig) {
         long below = spot.below().asLong();
         if (sets.clear().contains(below) || sets.support().contains(spot.asLong())
                 || sets.support().contains(spot.above().asLong()) || sets.nodes().contains(spot.asLong())) {
@@ -735,9 +743,17 @@ public final class RoutePlanner {
                 || avoidSupport.contains(spot.above().asLong())) {
             return false; // another front's way
         }
-        return cell(spot.getX(), spot.getY(), spot.getZ()).clear() == 0.0F
-                && cell(spot.getX(), spot.getY() + 1, spot.getZ()).clear() == 0.0F
-                && cell(spot.getX(), spot.getY() - 1, spot.getZ()).support() != SUPPORT_NONE;
+        float own = cell(spot.getX(), spot.getY(), spot.getZ()).clear();
+        float upper = cell(spot.getX(), spot.getY() + 1, spot.getZ()).clear();
+        if (allowDig) {
+            if (own == INF || upper == INF
+                    || !level.getFluidState(spot).isEmpty() || !level.getFluidState(spot.above()).isEmpty()) {
+                return false;
+            }
+        } else if (own != 0.0F || upper != 0.0F) {
+            return false;
+        }
+        return cell(spot.getX(), spot.getY() - 1, spot.getZ()).support() != SUPPORT_NONE;
     }
 
     /**
@@ -749,6 +765,7 @@ public final class RoutePlanner {
         BlockPos attackPos = route.node(route.last());
         Direction left = side.getClockWise();
         List<BlockPos> platform = new ArrayList<>();
+        int widened = 0;
         for (int along = 0; along <= 2; along++) {
             for (int across : new int[]{0, -1, 1, -2, 2}) {
                 if (along == 0 && across == 0) {
@@ -757,6 +774,11 @@ public final class RoutePlanner {
                 BlockPos spot = attackPos.relative(side, along).relative(left, across);
                 if (usableSpot(spot, sets)) {
                     platform.add(spot.immutable());
+                } else if (Config.WIDEN_ACCESS.get() && widened < MAX_WIDE_SPOTS && along <= 1 && Math.abs(across) <= 1
+                        && usableSpot(spot, sets, true)) {
+                    // Wall right next to the attack position (the Core's shell): waiting mobs dig it out for more access.
+                    platform.add(spot.immutable());
+                    widened++;
                 }
             }
         }
@@ -764,6 +786,8 @@ public final class RoutePlanner {
     }
 
     private static final int MAX_LANDINGS = 6;
+    /** At most this many wall cells next to the attack position are dug out as extra access. */
+    private static final int MAX_WIDE_SPOTS = 4;
 
     /**
      * Landings: wide platforms beside the stairs (up to 2 cells on each side), every few steps, the last one close

@@ -551,7 +551,11 @@ public final class SiegeAI {
         if (pending < 0) {
             // The way is open: everybody storms up together. Workers build the platform at the top.
             route.noteMember(mob.getId(), index, false, now);
-            if ((kind.canBuild || kind.canDig) && platformWork(level, mob, state, kind, front, now)) {
+            // Builders always help with the platform. Diggers only while they wait in the queue (or if they are
+            // workers): whoever already stands at the Core hits it instead of digging.
+            boolean digsPlatform = kind.canBuild
+                    || (kind.canDig && kind != Kind.CREEPER && (index < last || MobRoles.of(mob).isWorker()));
+            if (digsPlatform && platformWork(level, mob, state, kind, front, now)) {
                 return;
             }
             if (kind.canBuild && front.platformWork == 0 && landingWork(level, mob, state, front, index, now)) {
@@ -580,7 +584,7 @@ public final class SiegeAI {
         }
         boolean waiting = action.work() == Route.Work.WAIT; // a fluid is running dry: nothing to do but wait
         boolean capable = !waiting && (action.dig() ? canDig(level, mob, kind, action.pos(), front, now) : kind.canBuild);
-        int maxWorkers = action.dig() ? MAX_DIG_WORKERS : MAX_BUILD_WORKERS;
+        int maxWorkers = action.dig() ? digSlots(level, action.pos()) : MAX_BUILD_WORKERS;
         if (capable && route.countAhead(mob.getId(), index, true, now) >= maxWorkers) {
             capable = false; // more would only stand in each other's way
         }
@@ -599,7 +603,9 @@ public final class SiegeAI {
             // A few wait right behind the work, the rest gathers at the foot (the group waits together and
             // storms up once the way is open). Nobody walks back down.
             int waitFront = Math.max(0, pending - 4);
-            boolean nearFront = route.countAhead(mob.getId(), index, false, now) < Config.FRONT_WAITERS.get();
+            // Workers always wait right behind the work (ready to step in), never down at the foot.
+            boolean nearFront = MobRoles.of(mob).isWorker()
+                    || route.countAhead(mob.getId(), index, false, now) < Config.FRONT_WAITERS.get();
             int wait = nearFront ? waitFront : Math.min(waitFront, route.stagingIndex(level, waitFront));
             state.walkLimit = nearFront ? Math.max(index, waitFront) : Math.max(Math.min(index, waitFront), wait);
             state.lookAt = null;
@@ -665,6 +671,15 @@ public final class SiegeAI {
         }
         work(level, mob, state, kind, second, route, now);
         return true;
+    }
+
+    /** How many mobs may dig at this block at once: very hard blocks (obsidian) take more, their progress adds up. */
+    private static int digSlots(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getDestroySpeed(level, pos) >= Route.HARD_BLOCK) {
+            return Math.max(MAX_DIG_WORKERS, Config.HARD_DIG_WORKERS.get());
+        }
+        return MAX_DIG_WORKERS;
     }
 
     /** Does one step of the work (digging or building); counts as progress when the block is done. */
@@ -741,6 +756,9 @@ public final class SiegeAI {
         Route.Action action = front.platformAction(level, kind.canDig, kind.canBuild);
         if (action == null) {
             return false;
+        }
+        if (action.dig() && !canDig(level, mob, kind, action.pos(), front, now)) {
+            return false; // a better digger does this (a builder does not dig obsidian by hand)
         }
         if (mob.getEyePosition().distanceTo(Vec3.atCenterOf(action.pos())) > REACH) {
             return false; // walk on up the way first

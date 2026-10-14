@@ -126,6 +126,8 @@
   "incursion.configuration.hunterRange": "Reichweite der Jäger",
   "incursion.configuration.bodyguardRange": "Reichweite der Leibwächter",
   "incursion.configuration.landingsEnabled": "Zwischenplattformen an den Treppen bauen",
+  "incursion.configuration.widenAccess": "Zusätzliche Zugänge neben dem Angriffsplatz graben",
+  "incursion.configuration.hardDigWorkers": "Gräber an einem sehr harten Block",
   "incursion.configuration.landingSpacing": "Stufen zwischen den Plattformen",
   "incursion.configuration.siegeExplosionsSpareMobs": "Belagerungs-Explosionen schonen eigene Mobs",
   "incursion.configuration.stallSeconds": "Verstärkung nach Stillstand (Sekunden)",
