@@ -7,36 +7,47 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Siege mobs in flowing water: slower, and they resist part of the current, so they make slow headway against it
- * instead of being carried away helplessly. Flowing water stays a good defence for players (it slows the siege
- * down a lot), it just no longer stops swimming mobs completely. Both strengths are in the config.
+ * Siege mobs in flowing water. In vanilla the current pushes an entity with 0.014 per tick, while a zombie swims
+ * with only about 0.005 per tick: it can never get against the current. Here the push is cancelled down to a
+ * fraction of the mob's own swimming thrust, so it makes slow but steady headway upstream (and holds its place
+ * instead of being swept away). The fraction is the config {@code currentHeadwayPercent}: the mob swims upstream
+ * at that percentage of its normal swimming speed. Flowing water is still a good defence for players.
  */
 final class SiegeCurrents {
-    /** The push vanilla gives every non-player entity in flowing water, per tick. */
+    /** The push vanilla gives every non-player entity in flowing water, per tick (the flow direction is normalised). */
     private static final double VANILLA_PUSH = 0.014;
+    /** A swimming mob's thrust per tick is this times its movement speed (LivingEntity.travel in water). */
+    private static final double WATER_THRUST = 0.02;
+    /** Water drag per tick (the push of one tick is scaled by this before the next tick). */
+    private static final double WATER_DRAG = 0.8;
 
     private SiegeCurrents() {
     }
 
     /** Called every tick for a tracked mob that is in water. Still water (no current) is left alone. */
     static void tick(ServerLevel level, Mob mob) {
-        double resistance = Config.CURRENT_RESISTANCE.get();
-        double slowdown = Config.CURRENT_SLOWDOWN.get();
-        if (resistance <= 0.0 && slowdown >= 1.0) {
-            return;
-        }
         Vec3 flow = flowAround(level, mob);
-        if (flow.lengthSqr() < 1.0E-6) {
+        double horizontal = Math.sqrt(flow.x * flow.x + flow.z * flow.z);
+        if (horizontal < 1.0E-3) {
+            return; // no current (or only falling water: the jump control keeps the mob up)
+        }
+        // The push along the flow, as vanilla applies it (3D direction normalised, so only its horizontal share).
+        double push = VANILLA_PUSH * horizontal / flow.length();
+        // What the mob can swim against: its thrust. At x percent headway the push left over is (1 - x) of the thrust.
+        double thrust = WATER_THRUST * mob.getAttributeValue(Attributes.MOVEMENT_SPEED);
+        double headway = Config.CURRENT_HEADWAY_PERCENT.get() / 100.0;
+        double cancel = Math.max(0.0, push - (1.0 - headway) * thrust) * WATER_DRAG;
+        if (cancel <= 0.0) {
             return;
         }
-        Vec3 counter = flow.normalize().scale(VANILLA_PUSH * resistance);
         Vec3 motion = mob.getDeltaMovement();
-        mob.setDeltaMovement(motion.x * slowdown - counter.x, motion.y - counter.y, motion.z * slowdown - counter.z);
+        mob.setDeltaMovement(motion.x - flow.x / horizontal * cancel, motion.y, motion.z - flow.z / horizontal * cancel);
     }
 
     /** The water current at the mob (all water cells it overlaps, like the vanilla push). */

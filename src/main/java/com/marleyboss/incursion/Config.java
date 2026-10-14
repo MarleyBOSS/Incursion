@@ -429,14 +429,11 @@ public final class Config {
                     "(a pond yes, a lake or an ocean no).")
             .defineInRange("drainMaxSources", 16, 1, 128);
 
-    public static final ModConfigSpec.DoubleValue CURRENT_RESISTANCE = BUILDER
-            .comment("How much of the water current siege mobs resist (0 = pushed like every mob, 1 = no push at all).",
-                    "Flowing water stays a good defence: mobs are slowed down and make only slow headway against it.")
-            .defineInRange("currentResistance", 0.5, 0.0, 1.0);
-
-    public static final ModConfigSpec.DoubleValue CURRENT_SLOWDOWN = BUILDER
-            .comment("Siege mobs in flowing water move at this fraction of their speed (1 = no slowdown).")
-            .defineInRange("currentSlowdown", 0.6, 0.1, 1.0);
+    public static final ModConfigSpec.IntValue CURRENT_HEADWAY_PERCENT = BUILDER
+            .comment("Against flowing water a siege mob swims upstream at this percentage of its normal swimming speed",
+                    "(vanilla: it is swept away). 0 = it can only hold its position, 100 = the current does not slow it down.",
+                    "Around 40 is slow but steady; flowing water stays a good defence for players.")
+            .defineInRange("currentHeadwayPercent", 40, 0, 100);
 
     public static final ModConfigSpec.BooleanValue LADDERS_ENABLED = BUILDER
             .comment("No longer used (since 0.7.1 the siege builds staircases instead of ladders).")
