@@ -11,43 +11,57 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 /**
- * Siege mobs in flowing water. In vanilla the current pushes an entity with 0.014 per tick, while a zombie swims
- * with only about 0.005 per tick: it can never get against the current. Here the push is cancelled down to a
- * fraction of the mob's own swimming thrust, so it makes slow but steady headway upstream (and holds its place
- * instead of being swept away). The fraction is the config {@code currentHeadwayPercent}: the mob swims upstream
- * at that percentage of its normal swimming speed. Flowing water is still a good defence for players.
+ * Siege mobs in flowing water. In vanilla the current pushes every mob with 0.014 per tick, while a zombie swims
+ * with only about 0.005 per tick, so it is swept away. A siege mob that has an order to move (see
+ * {@link SiegeAI#drive}) therefore does not feel the current: while it is in flowing water, its horizontal
+ * movement is set directly to a slow swim towards its goal ({@code currentHeadwayPercent} of its normal swimming
+ * speed), in any direction. A mob that holds its place (working, waiting) is held in the current. Flowing water
+ * stays a good defence for players: it slows the siege down a lot, but it no longer stops it.
  */
 final class SiegeCurrents {
-    /** The push vanilla gives every non-player entity in flowing water, per tick (the flow direction is normalised). */
-    private static final double VANILLA_PUSH = 0.014;
-    /** A swimming mob's thrust per tick is this times its movement speed (LivingEntity.travel in water). */
-    private static final double WATER_THRUST = 0.02;
-    /** Water drag per tick (the push of one tick is scaled by this before the next tick). */
-    private static final double WATER_DRAG = 0.8;
+    /**
+     * Normal swimming speed in still water per tick: thrust (0.02 x movement speed) divided by the water drag
+     * (1 - 0.8) = 4 x 0.02 x movement speed (LivingEntity.travel in water).
+     */
+    private static final double SWIM_SPEED_FACTOR = 0.08;
+    /** Closer to the goal than this (blocks): the mob stays where it is. */
+    private static final double ARRIVED = 0.15;
 
     private SiegeCurrents() {
     }
 
-    /** Called every tick for a tracked mob that is in water. Still water (no current) is left alone. */
-    static void tick(ServerLevel level, Mob mob) {
-        Vec3 flow = flowAround(level, mob);
-        double horizontal = Math.sqrt(flow.x * flow.x + flow.z * flow.z);
-        if (horizontal < 1.0E-3) {
-            return; // no current (or only falling water: the jump control keeps the mob up)
+    /**
+     * Called every tick for a mob that is driven by the siege AI. If it is in flowing water, its horizontal movement
+     * is set to a slow swim towards {@code target} (null: hold the place). Returns true if it did that; still water
+     * and falling water are left to vanilla.
+     */
+    static boolean swim(ServerLevel level, Mob mob, @Nullable Vec3 target) {
+        if (!mob.isInWater()) {
+            return false;
         }
-        // The push along the flow, as vanilla applies it (3D direction normalised, so only its horizontal share).
-        double push = VANILLA_PUSH * horizontal / flow.length();
-        // What the mob can swim against: its thrust. At x percent headway the push left over is (1 - x) of the thrust.
-        double thrust = WATER_THRUST * mob.getAttributeValue(Attributes.MOVEMENT_SPEED);
-        double headway = Config.CURRENT_HEADWAY_PERCENT.get() / 100.0;
-        double cancel = Math.max(0.0, push - (1.0 - headway) * thrust) * WATER_DRAG;
-        if (cancel <= 0.0) {
-            return;
+        Vec3 flow = flowAround(level, mob);
+        if (flow.x * flow.x + flow.z * flow.z < 1.0E-6) {
+            return false; // no current (or only falling water: the jump control keeps the mob up)
+        }
+        double speed = SWIM_SPEED_FACTOR * mob.getAttributeValue(Attributes.MOVEMENT_SPEED)
+                * Config.CURRENT_HEADWAY_PERCENT.get() / 100.0;
+        double vx = 0.0;
+        double vz = 0.0;
+        if (target != null) {
+            double dx = target.x - mob.getX();
+            double dz = target.z - mob.getZ();
+            double length = Math.sqrt(dx * dx + dz * dz);
+            if (length > ARRIVED) {
+                vx = dx / length * speed;
+                vz = dz / length * speed;
+            }
         }
         Vec3 motion = mob.getDeltaMovement();
-        mob.setDeltaMovement(motion.x - flow.x / horizontal * cancel, motion.y, motion.z - flow.z / horizontal * cancel);
+        mob.setDeltaMovement(vx, motion.y, vz);
+        return true;
     }
 
     /** The water current at the mob (all water cells it overlaps, like the vanilla push). */

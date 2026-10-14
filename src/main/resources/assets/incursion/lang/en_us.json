@@ -202,6 +202,7 @@
   "debug.incursion.team.hunter": " (Hunter)",
   "debug.incursion.team.bodyguard": " (Bodyguard)",
   "debug.incursion.team.core": " (Core team)",
+  "debug.incursion.in_current": " (in current)",
   "debug.incursion.status.guard": "holding a post",
   "debug.incursion.status.goto_post": "going to a post",
   "debug.incursion.status.landing": "building a landing",

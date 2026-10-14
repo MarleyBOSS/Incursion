@@ -149,6 +149,8 @@ public final class SiegeAI {
         long nextAttack;
         long nextTeleport;
         long nextNudge;
+        /** The mob was swimming in a current until this game time (see SiegeCurrents). */
+        long currentUntil;
         // Archers
         @Nullable
         BlockPos spot;
@@ -294,9 +296,6 @@ public final class SiegeAI {
     public static void onEntityTick(EntityTickEvent.Post event) {
         if (!(event.getEntity() instanceof Mob mob) || !(mob.level() instanceof ServerLevel level)) {
             return;
-        }
-        if (mob.isInWater() && MOBS.containsKey(mob)) {
-            SiegeCurrents.tick(level, mob); // every tick: the current pushes every tick
         }
         if ((mob.tickCount + mob.getId()) % INTERVAL != 0 || !mob.isAlive()) {
             return;
@@ -989,6 +988,12 @@ public final class SiegeAI {
                     state.pathFailures++;
                 }
             }
+            Vec3 next = state.gotoPos != null ? Vec3.atBottomCenterOf(state.gotoPos) : null;
+            net.minecraft.world.level.pathfinder.Path path = mob.getNavigation().getPath();
+            if (path != null && !path.isDone()) {
+                next = path.getNextEntityPos(mob);
+            }
+            swimInCurrent(mob, state, next);
             return;
         }
         if (state.mode == Mode.DIRECT && state.directTarget != null) {
@@ -1002,6 +1007,9 @@ public final class SiegeAI {
         if (state.mode != Mode.ROUTE || route == null || state.routeIndex < 0) {
             mob.getNavigation().stop();
             holdOnLadder(mob);
+            if (state.mode == Mode.HOLD) {
+                swimInCurrent(mob, state, null); // working in flowing water: braced against the current
+            }
             return;
         }
         int limit = Math.min(state.walkLimit, route.last());
@@ -1034,7 +1042,15 @@ public final class SiegeAI {
                 mob.getJumpControl().jump(); // step up the stairs
             }
         }
+        swimInCurrent(mob, state, isAt(mob, goal) ? null : Vec3.atBottomCenterOf(goal));
         holdOnLadder(mob);
+    }
+
+    /** In flowing water the mob swims slowly towards its goal instead of being swept away (see SiegeCurrents). */
+    private static void swimInCurrent(Mob mob, MobState state, @Nullable Vec3 target) {
+        if (mob.level() instanceof ServerLevel level && SiegeCurrents.swim(level, mob, target)) {
+            state.currentUntil = level.getGameTime() + 10;
+        }
     }
 
     /** A mob on a ladder (e.g. an old siege ladder) that should not climb does not slide down. */

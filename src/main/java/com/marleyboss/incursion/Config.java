@@ -430,8 +430,9 @@ public final class Config {
             .defineInRange("drainMaxSources", 16, 1, 128);
 
     public static final ModConfigSpec.IntValue CURRENT_HEADWAY_PERCENT = BUILDER
-            .comment("Against flowing water a siege mob swims upstream at this percentage of its normal swimming speed",
-                    "(vanilla: it is swept away). 0 = it can only hold its position, 100 = the current does not slow it down.",
+            .comment("In flowing water a siege mob that has a place to go swims there at this percentage of its normal",
+                    "swimming speed, in any direction (the current does not carry it away; vanilla mobs are swept away).",
+                    "A mob that holds its place is not pushed either. 0 = it cannot move in flowing water at all.",
                     "Around 40 is slow but steady; flowing water stays a good defence for players.")
             .defineInRange("currentHeadwayPercent", 40, 0, 100);
 

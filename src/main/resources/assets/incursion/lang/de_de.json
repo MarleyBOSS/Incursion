@@ -202,6 +202,7 @@
   "debug.incursion.team.hunter": " (Jäger)",
   "debug.incursion.team.bodyguard": " (Leibwächter)",
   "debug.incursion.team.core": " (Kern-Team)",
+  "debug.incursion.in_current": " (Strömung)",
   "debug.incursion.status.guard": "hält einen Posten",
   "debug.incursion.status.goto_post": "geht zu einem Posten",
   "debug.incursion.status.landing": "baut eine Zwischenplattform",
