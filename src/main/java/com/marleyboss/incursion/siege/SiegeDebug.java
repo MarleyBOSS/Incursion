@@ -43,9 +43,6 @@ public final class SiegeDebug {
         name.withStyle(ChatFormatting.GOLD).append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
                 .append(Component.translatable("debug.incursion.status." + state.status, state.statusArgs)
                         .withStyle(ChatFormatting.WHITE));
-        if (mob.level().getGameTime() <= state.currentUntil) {
-            name.append(Component.translatable("debug.incursion.in_current").withStyle(ChatFormatting.AQUA));
-        }
         mob.setCustomName(name);
         mob.setCustomNameVisible(true);
         mob.addTag(TAG);

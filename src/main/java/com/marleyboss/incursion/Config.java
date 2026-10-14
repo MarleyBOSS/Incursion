@@ -429,12 +429,12 @@ public final class Config {
                     "(a pond yes, a lake or an ocean no).")
             .defineInRange("drainMaxSources", 16, 1, 128);
 
-    public static final ModConfigSpec.IntValue CURRENT_HEADWAY_PERCENT = BUILDER
-            .comment("In flowing water a siege mob that has a place to go swims there at this percentage of its normal",
-                    "swimming speed, in any direction (the current does not carry it away; vanilla mobs are swept away).",
-                    "A mob that holds its place is not pushed either. 0 = it cannot move in flowing water at all.",
-                    "Around 40 is slow but steady; flowing water stays a good defence for players.")
-            .defineInRange("currentHeadwayPercent", 40, 0, 100);
+    public static final ModConfigSpec.IntValue SWIM_EFFICIENCY_PERCENT = BUILDER
+            .comment("How well siege mobs swim: the vanilla attribute \"water movement efficiency\" (the effect of Depth Strider)",
+                    "in percent. 0 = like vanilla mobs (very slow, swept away by every current), 100 = they swim as fast as they walk",
+                    "and a current hardly bothers them. Roughly: 30 = fast enough to get out of a pond, a current still slows them;",
+                    "60 = a good swimmer (default), flowing water is only a small obstacle.")
+            .defineInRange("swimEfficiencyPercent", 60, 0, 100);
 
     public static final ModConfigSpec.BooleanValue LADDERS_ENABLED = BUILDER
             .comment("No longer used (since 0.7.1 the siege builds staircases instead of ladders).")

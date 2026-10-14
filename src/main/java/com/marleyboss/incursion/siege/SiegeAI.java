@@ -83,9 +83,9 @@ public final class SiegeAI {
     /** Extra workers (beyond the slots at the first pending step) take the work of the next few steps. */
     private static final int MAX_HELPERS = 2;
     private static final int HELP_STEPS = 4;
-    /** A mob pushed off its way rejoins it if it is this close (blocks), for this long, before it walks back to the foot. */
-    private static final double REJOIN_RANGE = 6.0;
-    private static final long REJOIN_TICKS = 100;
+    /** A mob pushed off its way (or into the water) rejoins it at the nearest step if it is this close (blocks), for this long, before it walks back to the foot. */
+    private static final double REJOIN_RANGE = 20.0;
+    private static final long REJOIN_TICKS = 600;
     /** A mob that would need longer than this to dig the block leaves it to a better digger (if one is there). */
     private static final float SLOW_DIG_TICKS = 400.0F;
     /** Riders get off a spider that is this close to the Core, or stuck. */
@@ -149,8 +149,6 @@ public final class SiegeAI {
         long nextAttack;
         long nextTeleport;
         long nextNudge;
-        /** The mob was swimming in a current until this game time (see SiegeCurrents). */
-        long currentUntil;
         // Archers
         @Nullable
         BlockPos spot;
@@ -313,6 +311,7 @@ public final class SiegeAI {
         long now = level.getGameTime();
         Digging.cleanup(level, now);
         SiegeCurrents.dropOldFireResistance(mob);
+        SiegeCurrents.ensureSwimmer(mob);
         MobState state = MOBS.computeIfAbsent(mob, m -> new MobState(now));
         tickMob(level, mob, state, siege, now);
         if (!mob.isAlive()) {
@@ -988,12 +987,6 @@ public final class SiegeAI {
                     state.pathFailures++;
                 }
             }
-            Vec3 next = state.gotoPos != null ? Vec3.atBottomCenterOf(state.gotoPos) : null;
-            net.minecraft.world.level.pathfinder.Path path = mob.getNavigation().getPath();
-            if (path != null && !path.isDone()) {
-                next = path.getNextEntityPos(mob);
-            }
-            swimInCurrent(mob, state, next);
             return;
         }
         if (state.mode == Mode.DIRECT && state.directTarget != null) {
@@ -1007,9 +1000,6 @@ public final class SiegeAI {
         if (state.mode != Mode.ROUTE || route == null || state.routeIndex < 0) {
             mob.getNavigation().stop();
             holdOnLadder(mob);
-            if (state.mode == Mode.HOLD) {
-                swimInCurrent(mob, state, null); // working in flowing water: braced against the current
-            }
             return;
         }
         int limit = Math.min(state.walkLimit, route.last());
@@ -1042,15 +1032,7 @@ public final class SiegeAI {
                 mob.getJumpControl().jump(); // step up the stairs
             }
         }
-        swimInCurrent(mob, state, isAt(mob, goal) ? null : Vec3.atBottomCenterOf(goal));
         holdOnLadder(mob);
-    }
-
-    /** In flowing water the mob swims slowly towards its goal instead of being swept away (see SiegeCurrents). */
-    private static void swimInCurrent(Mob mob, MobState state, @Nullable Vec3 target) {
-        if (mob.level() instanceof ServerLevel level && SiegeCurrents.swim(level, mob, target)) {
-            state.currentUntil = level.getGameTime() + 10;
-        }
     }
 
     /** A mob on a ladder (e.g. an old siege ladder) that should not climb does not slide down. */
