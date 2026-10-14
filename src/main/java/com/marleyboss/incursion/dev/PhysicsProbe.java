@@ -32,10 +32,14 @@ public final class PhysicsProbe {
     private static final int RUN_TICKS = 400;
     private static final double START_X = 6.5;
 
-    private static final String[] KINDS = {"still-deep", "flow-shallow", "flow-deep"};
-    private static final double[] EFFICIENCY = {0.0, 0.6, 1.0};
+    private record Lane(String name, int z, double efficiency, boolean stillWater, int depth, boolean nav, boolean ledge) {
+        double goalX() {
+            return ledge ? -0.5 : 0.5;
+        }
 
-    private record Lane(String name, int z, double efficiency, boolean stillWater, int depth) {
+        double goalY() {
+            return FLOOR + (ledge ? 5.0 : 1.0);
+        }
     }
 
     private static final List<Lane> LANES = new ArrayList<>();
@@ -83,14 +87,15 @@ public final class PhysicsProbe {
 
     private static void build(ServerLevel level) {
         level.setDayTime(18000);
-        int index = 0;
-        for (String kind : KINDS) {
-            for (double efficiency : EFFICIENCY) {
-                int depth = kind.equals("flow-shallow") ? 1 : 3;
-                LANES.add(new Lane(kind + "/eff" + efficiency, index * 4, efficiency, kind.startsWith("still"), depth));
-                index++;
-            }
-        }
+        LANES.add(new Lane("flow-deep/move/eff0.6", 0, 0.6, false, 3, false, false));
+        LANES.add(new Lane("flow-deep/nav/eff0.6", 4, 0.6, false, 3, true, false));
+        LANES.add(new Lane("still-deep/nav/eff0.6", 8, 0.6, true, 3, true, false));
+        LANES.add(new Lane("flow-deep/move/ledge/eff0.6", 12, 0.6, false, 3, false, true));
+        LANES.add(new Lane("flow-deep/nav/ledge/eff0.6", 16, 0.6, false, 3, true, true));
+        LANES.add(new Lane("flow-deep/nav/ledge/eff1.0", 20, 1.0, false, 3, true, true));
+        LANES.add(new Lane("still-deep/nav/ledge/eff0.6", 24, 0.6, true, 3, true, true));
+        LANES.add(new Lane("still-deep/move/ledge/eff0.6", 28, 0.6, true, 3, false, true));
+        int index = LANES.size();
         for (int cz = -1; cz <= (index * 4) / 16 + 1; cz++) {
             for (int cx = -1; cx <= 1; cx++) {
                 level.setChunkForced(cx, cz, true);
@@ -112,6 +117,13 @@ public final class PhysicsProbe {
                 }
                 level.setBlock(new BlockPos(-1, y, z), Blocks.STONE.defaultBlockState(), 2);
                 level.setBlock(new BlockPos(9, y, z), Blocks.STONE.defaultBlockState(), 2);
+            }
+            if (lane.ledge()) {
+                for (int x = -3; x <= -1; x++) {
+                    for (int y = FLOOR + 1; y <= FLOOR + 4; y++) {
+                        level.setBlock(new BlockPos(x, y, z), Blocks.STONE.defaultBlockState(), 2);
+                    }
+                }
             }
             int sources = lane.stillWater() ? 9 : 1;
             for (int x = 0; x < sources; x++) {
@@ -155,23 +167,33 @@ public final class PhysicsProbe {
             if (!zombie.isAlive()) {
                 continue;
             }
-            zombie.getMoveControl().setWantedPosition(0.5, FLOOR + 1.0, lane.z() + 0.5, 1.0);
+            if (lane.nav()) {
+                if (zombie.getNavigation() instanceof net.minecraft.world.entity.ai.navigation.GroundPathNavigation navigation) {
+                    navigation.setCanFloat(true);
+                }
+                if (zombie.getNavigation().isDone() || t % 20 == 0) {
+                    zombie.getNavigation().moveTo(lane.goalX(), lane.goalY(), lane.z() + 0.5, 1.0);
+                }
+            } else {
+                zombie.getMoveControl().setWantedPosition(lane.goalX(), lane.goalY(), lane.z() + 0.5, 1.0);
+            }
             if (zombie.isInWater() && zombie.getFluidHeight(FluidTags.WATER) > zombie.getFluidJumpThreshold()
                     && zombie.getRandom().nextFloat() < 0.8F) {
                 zombie.getJumpControl().jump();
             }
             if (t % 20 == 0) {
                 Vec3 motion = zombie.getDeltaMovement();
-                Incursion.LOGGER.info("PROBE lane {} t={} x={} y={} vx={} inWater={} ground={}", lane.name(), t,
-                        round(zombie.getX()), round(zombie.getY()), round(motion.x), zombie.isInWater(), zombie.onGround());
+                Incursion.LOGGER.info("PROBE lane {} t={} x={} y={} vx={} inWater={} ground={} navDone={}", lane.name(), t,
+                        round(zombie.getX()), round(zombie.getY()), round(motion.x), zombie.isInWater(), zombie.onGround(),
+                        zombie.getNavigation().isDone());
             }
         }
         if (t == RUN_TICKS - 1) {
             for (int i = 0; i < LANES.size(); i++) {
                 Lane lane = LANES.get(i);
                 Zombie zombie = MOBS.get(i);
-                Incursion.LOGGER.info("PROBE RESULT lane {} start x={} end x={} progress={} blocks in {} s", lane.name(), START_X,
-                        round(zombie.getX()), round(START_X - zombie.getX()), RUN_TICKS / 20);
+                Incursion.LOGGER.info("PROBE RESULT lane {} start x={} end x={} y={} progress={} blocks in {} s", lane.name(), START_X,
+                        round(zombie.getX()), round(zombie.getY()), round(START_X - zombie.getX()), RUN_TICKS / 20);
             }
         }
     }
