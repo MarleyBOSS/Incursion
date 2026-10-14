@@ -131,6 +131,8 @@ public final class SiegeAI {
         long lastAdvance;
         double footBest = Double.MAX_VALUE;
         long footSince;
+        /** Since when the mob has been "deep in a cave" without a way (see SiegeManager.inCave), or -1. */
+        long caveSince = -1;
         /** Since when the mob has been off its way (-1: on it), and whether it is heading for the nearest step. */
         long offSince = -1;
         boolean rejoining;
@@ -621,7 +623,8 @@ public final class SiegeAI {
                     return;
                 }
             }
-            state.status(gathering ? "gather" : waiting ? "wait_drain" : action.dig() ? "wait_digger" : "wait_builder");
+            state.status(gathering ? "gather" : waiting ? "wait_drain" : action.dig() ? "wait_digger" : "wait_builder",
+                    index, pending, state.walkLimit);
             nudgeIfStuck(level, mob, state, route, now);
             return;
         }
@@ -630,7 +633,7 @@ public final class SiegeAI {
         double reach = mob.getEyePosition().distanceTo(Vec3.atCenterOf(action.pos()));
         boolean waitedLong = index >= state.walkLimit && now - state.lastAdvance > HOP_TICKS;
         if (reach > REACH && !(waitedLong && reach <= FAR_REACH)) {
-            state.status("walk", index, last);
+            state.status("walk_work", index, last, pending, state.walkLimit);
             nudgeIfStuck(level, mob, state, route, now);
             return; // still walking up to the work spot
         }

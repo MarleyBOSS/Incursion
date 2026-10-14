@@ -580,6 +580,7 @@ public final class SiegeManager {
     private static final int UNDERGROUND_BELOW_SEA = 8;
     /** A mob this far below the surface (outside the core zone) is in a cave. */
     private static final int CAVE_DEPTH = 5;
+    private static final long CAVE_GRACE_TICKS = 900;
 
     /**
      * True if the mob is deep in a cave (below the surface) while the Core is not underground. Siege mobs on a
@@ -595,7 +596,20 @@ public final class SiegeManager {
             return false; // on the surface, or not below the Core (then it is in some building, not in a cave)
         }
         SiegeAI.MobState state = SiegeAI.stateOf(mob);
-        return state == null || state.routeIndex < 0;
+        if (state == null) {
+            return true;
+        }
+        if (state.routeIndex >= 0) {
+            state.caveSince = -1;
+            return false;
+        }
+        // Not at once: a mob knocked off a bridge lies below the "surface" (the bridge counts as one) for a moment
+        // and gets the chance to climb back (it was recalled instantly before 0.7.15).
+        long now = level.getGameTime();
+        if (state.caveSince < 0) {
+            state.caveSince = now;
+        }
+        return now - state.caveSince > CAVE_GRACE_TICKS;
     }
     /** Underground Core: mobs may spawn in caves and tunnels this close to the Core's height. */
     private static final int CAVE_BAND = 5;
