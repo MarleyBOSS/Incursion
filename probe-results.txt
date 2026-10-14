@@ -1,0 +1,178 @@
+[22:44:47] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE built 8 lanes
+[22:44:52] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 flow@x3=(1.0, 0.0, 0.0) fluid=minecraft:flowing_water[falling=false,level=6] speedAttr=0.23000000417232513 waterEff=0.6
+[22:44:52] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 flow@x3=(1.0, 0.0, 0.0) fluid=minecraft:flowing_water[falling=false,level=6] speedAttr=0.23000000417232513 waterEff=0.6
+[22:44:52] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 flow@x3=(0.0, 0.0, 0.0) fluid=minecraft:water[falling=false] speedAttr=0.23000000417232513 waterEff=0.6
+[22:44:52] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 flow@x3=(1.0, 0.0, 0.0) fluid=minecraft:flowing_water[falling=false,level=6] speedAttr=0.23000000417232513 waterEff=0.6
+[22:44:52] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 flow@x3=(1.0, 0.0, 0.0) fluid=minecraft:flowing_water[falling=false,level=6] speedAttr=0.23000000417232513 waterEff=0.6
+[22:44:52] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 flow@x3=(1.0, 0.0, 0.0) fluid=minecraft:flowing_water[falling=false,level=6] speedAttr=0.23000000417232513 waterEff=1.0
+[22:44:52] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 flow@x3=(0.0, 0.0, 0.0) fluid=minecraft:water[falling=false] speedAttr=0.23000000417232513 waterEff=0.6
+[22:44:52] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 flow@x3=(0.0, 0.0, 0.0) fluid=minecraft:water[falling=false] speedAttr=0.23000000417232513 waterEff=0.6
+[22:44:53] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=20 x=5.808 y=202.841 vx=-0.037 inWater=false ground=false navDone=true
+[22:44:53] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=20 x=5.921 y=201.359 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:53] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=20 x=6.5 y=202.635 vx=0.0 inWater=true ground=false navDone=false
+[22:44:53] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=20 x=5.808 y=202.841 vx=-0.037 inWater=false ground=false navDone=true
+[22:44:53] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=20 x=5.886 y=201.359 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:53] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=20 x=5.534 y=201.333 vx=-0.029 inWater=true ground=false navDone=false
+[22:44:53] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=20 x=6.5 y=203.322 vx=0.0 inWater=true ground=false navDone=false
+[22:44:53] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=20 x=5.623 y=207.662 vx=-0.045 inWater=false ground=false navDone=true
+[22:44:54] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=40 x=5.034 y=201.0 vx=-0.026 inWater=true ground=true navDone=true
+[22:44:54] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=40 x=5.533 y=201.035 vx=-0.021 inWater=true ground=false navDone=false
+[22:44:54] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=40 x=6.5 y=203.963 vx=0.0 inWater=false ground=false navDone=true
+[22:44:54] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=40 x=5.003 y=201.482 vx=-0.027 inWater=true ground=false navDone=true
+[22:44:54] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=40 x=5.512 y=201.023 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:54] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=40 x=4.666 y=201.239 vx=-0.029 inWater=true ground=false navDone=false
+[22:44:54] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=40 x=6.5 y=202.036 vx=0.0 inWater=true ground=false navDone=false
+[22:44:54] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=40 x=4.52 y=207.094 vx=-0.047 inWater=false ground=false navDone=true
+[22:44:55] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=60 x=4.299 y=202.579 vx=-0.028 inWater=false ground=false navDone=true
+[22:44:55] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=60 x=5.144 y=201.366 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:55] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=60 x=6.5 y=203.267 vx=0.0 inWater=true ground=false navDone=false
+[22:44:55] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=60 x=4.226 y=201.295 vx=-0.03 inWater=true ground=false navDone=true
+[22:44:55] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=60 x=5.138 y=201.186 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:55] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=60 x=3.799 y=201.425 vx=-0.029 inWater=true ground=false navDone=false
+[22:44:55] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=60 x=6.5 y=204.779 vx=0.0 inWater=false ground=false navDone=true
+[22:44:55] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=60 x=3.374 y=202.891 vx=-0.049 inWater=true ground=false navDone=true
+[22:44:56] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=80 x=3.544 y=203.074 vx=-0.033 inWater=false ground=false navDone=true
+[22:44:56] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=80 x=4.769 y=201.175 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:56] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=80 x=6.5 y=201.969 vx=0.0 inWater=true ground=false navDone=false
+[22:44:56] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=80 x=3.501 y=202.827 vx=-0.03 inWater=false ground=false navDone=true
+[22:44:56] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=80 x=4.764 y=201.171 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:56] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=80 x=2.932 y=201.584 vx=-0.029 inWater=true ground=false navDone=false
+[22:44:56] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=80 x=6.5 y=202.17 vx=0.0 inWater=true ground=false navDone=false
+[22:44:56] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=80 x=2.278 y=202.417 vx=-0.048 inWater=true ground=false navDone=true
+[22:44:57] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=100 x=2.786 y=202.61 vx=-0.037 inWater=false ground=false navDone=true
+[22:44:57] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=100 x=4.395 y=201.156 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:57] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=100 x=6.5 y=203.364 vx=0.0 inWater=true ground=false navDone=false
+[22:44:57] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=100 x=2.759 y=202.996 vx=-0.035 inWater=false ground=false navDone=true
+[22:44:57] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=100 x=4.39 y=201.114 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:57] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=100 x=2.033 y=201.431 vx=-0.035 inWater=true ground=false navDone=false
+[22:44:57] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=100 x=6.5 y=204.725 vx=0.0 inWater=false ground=false navDone=true
+[22:44:57] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=100 x=1.166 y=205.301 vx=-0.046 inWater=false ground=false navDone=true
+[22:44:58] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=120 x=2.127 y=205.393 vx=-0.023 inWater=false ground=false navDone=true
+[22:44:58] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=120 x=4.021 y=201.431 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:58] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=120 x=6.5 y=202.077 vx=0.0 inWater=true ground=false navDone=false
+[22:44:58] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=120 x=2.124 y=204.16 vx=-0.024 inWater=false ground=false navDone=true
+[22:44:58] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=120 x=4.015 y=201.34 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:58] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=120 x=0.996 y=202.931 vx=-0.032 inWater=true ground=false navDone=false
+[22:44:58] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=120 x=6.5 y=202.881 vx=0.0 inWater=true ground=false navDone=false
+[22:44:58] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=120 x=0.013 y=206.0 vx=-0.054 inWater=false ground=true navDone=true
+[22:44:59] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=140 x=1.506 y=205.125 vx=-0.024 inWater=false ground=false navDone=true
+[22:44:59] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=140 x=3.647 y=201.504 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:59] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=140 x=6.5 y=204.768 vx=0.0 inWater=false ground=false navDone=true
+[22:44:59] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=140 x=1.62 y=204.402 vx=-0.033 inWater=false ground=false navDone=true
+[22:44:59] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=140 x=3.641 y=201.518 vx=-0.014 inWater=true ground=false navDone=false
+[22:44:59] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=140 x=0.628 y=203.393 vx=0.026 inWater=true ground=false navDone=true
+[22:44:59] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=140 x=6.5 y=202.673 vx=0.0 inWater=true ground=false navDone=false
+[22:44:59] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=140 x=-0.535 y=206.0 vx=-0.023 inWater=false ground=true navDone=true
+[22:45:00] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=160 x=0.902 y=205.256 vx=-0.021 inWater=false ground=false navDone=true
+[22:45:00] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=160 x=3.273 y=201.508 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:00] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=160 x=6.5 y=202.278 vx=0.0 inWater=true ground=false navDone=false
+[22:45:00] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=160 x=1.035 y=205.331 vx=-0.035 inWater=false ground=false navDone=true
+[22:45:00] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=160 x=3.267 y=201.286 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:00] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=160 x=1.043 y=203.656 vx=-0.026 inWater=true ground=false navDone=false
+[22:45:00] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=160 x=6.5 y=202.841 vx=0.0 inWater=true ground=false navDone=false
+[22:45:00] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=160 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:01] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=180 x=0.573 y=205.076 vx=-0.008 inWater=false ground=false navDone=true
+[22:45:01] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=180 x=2.899 y=201.635 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:01] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=180 x=6.5 y=204.283 vx=0.0 inWater=false ground=false navDone=true
+[22:45:01] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=180 x=0.462 y=206.914 vx=-0.029 inWater=false ground=false navDone=true
+[22:45:01] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=180 x=2.893 y=201.476 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:01] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=180 x=0.987 y=203.687 vx=0.018 inWater=true ground=false navDone=true
+[22:45:01] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=180 x=6.5 y=202.386 vx=0.0 inWater=true ground=false navDone=false
+[22:45:01] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=180 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:02] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=200 x=0.541 y=204.086 vx=-0.006 inWater=true ground=false navDone=true
+[22:45:02] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=200 x=2.524 y=201.428 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:02] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=200 x=6.5 y=202.989 vx=0.0 inWater=true ground=false navDone=false
+[22:45:02] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=200 x=-0.534 y=206.0 vx=-0.02 inWater=false ground=true navDone=true
+[22:45:02] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=200 x=2.519 y=201.724 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:02] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=200 x=0.946 y=203.707 vx=-0.024 inWater=true ground=false navDone=false
+[22:45:02] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=200 x=6.5 y=203.378 vx=0.0 inWater=true ground=false navDone=false
+[22:45:02] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=200 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:03] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=220 x=0.497 y=205.982 vx=-0.015 inWater=false ground=false navDone=true
+[22:45:03] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=220 x=2.15 y=201.418 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:03] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=220 x=6.5 y=202.402 vx=0.0 inWater=true ground=false navDone=false
+[22:45:03] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=220 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:03] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=220 x=2.145 y=201.727 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:03] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=220 x=1.062 y=203.518 vx=-0.005 inWater=true ground=false navDone=false
+[22:45:03] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=220 x=6.5 y=202.099 vx=0.0 inWater=true ground=false navDone=false
+[22:45:03] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=220 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:04] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=240 x=0.469 y=205.583 vx=-0.002 inWater=false ground=false navDone=true
+[22:45:04] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=240 x=1.865 y=202.136 vx=0.018 inWater=true ground=false navDone=false
+[22:45:04] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=240 x=6.5 y=203.568 vx=0.0 inWater=true ground=false navDone=false
+[22:45:04] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=240 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:04] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=240 x=1.653 y=203.369 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:04] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=240 x=0.988 y=203.581 vx=0.018 inWater=true ground=false navDone=true
+[22:45:04] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=240 x=6.5 y=204.778 vx=0.0 inWater=false ground=false navDone=true
+[22:45:04] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=240 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:05] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=260 x=0.569 y=205.029 vx=-0.011 inWater=false ground=false navDone=true
+[22:45:05] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=260 x=2.522 y=201.364 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:05] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=260 x=6.5 y=202.711 vx=0.0 inWater=true ground=false navDone=false
+[22:45:05] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=260 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:05] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=260 x=1.269 y=202.998 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:05] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=260 x=0.946 y=203.699 vx=-0.024 inWater=true ground=false navDone=false
+[22:45:05] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=260 x=6.5 y=202.489 vx=0.0 inWater=true ground=false navDone=false
+[22:45:05] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=260 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:06] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=280 x=0.565 y=206.044 vx=-0.014 inWater=false ground=false navDone=true
+[22:45:06] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=280 x=2.172 y=201.201 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:06] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=280 x=6.5 y=202.696 vx=0.0 inWater=true ground=false navDone=false
+[22:45:06] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=280 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:06] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=280 x=0.894 y=203.74 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:06] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=280 x=1.062 y=203.737 vx=-0.004 inWater=true ground=false navDone=false
+[22:45:06] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=280 x=6.5 y=203.303 vx=0.0 inWater=true ground=false navDone=false
+[22:45:06] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=280 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:07] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=300 x=0.623 y=205.893 vx=-0.008 inWater=false ground=false navDone=true
+[22:45:07] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=300 x=1.726 y=202.817 vx=-0.017 inWater=true ground=false navDone=false
+[22:45:07] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=300 x=6.5 y=203.153 vx=0.0 inWater=true ground=false navDone=false
+[22:45:07] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=300 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:07] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=300 x=0.52 y=203.674 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:07] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=300 x=0.987 y=203.686 vx=0.018 inWater=true ground=false navDone=true
+[22:45:07] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=300 x=6.5 y=204.075 vx=0.0 inWater=true ground=false navDone=false
+[22:45:07] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=300 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:08] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=320 x=0.605 y=202.464 vx=0.007 inWater=true ground=false navDone=true
+[22:45:08] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=320 x=2.135 y=202.876 vx=0.078 inWater=true ground=false navDone=false
+[22:45:08] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=320 x=6.5 y=202.162 vx=0.0 inWater=true ground=false navDone=false
+[22:45:08] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=320 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:08] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=320 x=0.567 y=203.653 vx=0.028 inWater=true ground=false navDone=false
+[22:45:08] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=320 x=0.945 y=203.43 vx=-0.024 inWater=true ground=false navDone=false
+[22:45:08] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=320 x=6.5 y=204.242 vx=0.0 inWater=false ground=false navDone=true
+[22:45:08] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=320 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:09] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=340 x=0.619 y=202.862 vx=0.014 inWater=true ground=false navDone=true
+[22:45:09] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=340 x=2.633 y=201.759 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:09] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=340 x=6.5 y=203.536 vx=0.0 inWater=true ground=false navDone=false
+[22:45:09] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=340 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:09] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=340 x=0.602 y=203.46 vx=-0.001 inWater=true ground=false navDone=false
+[22:45:09] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=340 x=1.061 y=203.586 vx=-0.004 inWater=true ground=false navDone=false
+[22:45:09] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=340 x=6.5 y=202.919 vx=0.0 inWater=true ground=false navDone=false
+[22:45:09] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=340 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:10] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=360 x=0.525 y=202.919 vx=0.04 inWater=true ground=false navDone=true
+[22:45:10] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=360 x=2.283 y=201.715 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:10] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=360 x=6.5 y=202.124 vx=0.0 inWater=true ground=false navDone=false
+[22:45:10] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=360 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:10] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=360 x=0.561 y=203.703 vx=-0.009 inWater=true ground=false navDone=false
+[22:45:10] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=360 x=0.986 y=203.737 vx=0.018 inWater=true ground=false navDone=true
+[22:45:10] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=360 x=6.5 y=202.421 vx=0.0 inWater=true ground=false navDone=false
+[22:45:10] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=360 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=380 x=0.547 y=202.841 vx=0.044 inWater=true ground=false navDone=true
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=380 x=1.791 y=203.135 vx=-0.014 inWater=true ground=false navDone=false
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=380 x=6.5 y=204.848 vx=0.0 inWater=false ground=false navDone=true
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=380 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=380 x=0.499 y=203.451 vx=-0.011 inWater=true ground=false navDone=false
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=380 x=0.944 y=203.408 vx=-0.024 inWater=true ground=false navDone=false
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=380 x=6.5 y=204.661 vx=0.0 inWater=false ground=false navDone=true
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=380 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE RESULT lane flow-deep/move/eff0.6 start x=6.5 end x=0.435 y=204.372 progress=6.065 blocks in 20 s
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE RESULT lane flow-deep/nav/eff0.6 start x=6.5 end x=2.523 y=203.115 progress=3.977 blocks in 20 s
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE RESULT lane still-deep/nav/eff0.6 start x=6.5 end x=6.5 y=202.284 progress=0.0 blocks in 20 s
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE RESULT lane flow-deep/move/ledge/eff0.6 start x=6.5 end x=-0.476 y=206.0 progress=6.976 blocks in 20 s
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE RESULT lane flow-deep/nav/ledge/eff0.6 start x=6.5 end x=0.562 y=203.513 progress=5.938 blocks in 20 s
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE RESULT lane flow-deep/nav/ledge/eff1.0 start x=6.5 end x=1.067 y=203.631 progress=5.433 blocks in 20 s
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE RESULT lane still-deep/nav/ledge/eff0.6 start x=6.5 end x=6.5 y=202.589 progress=0.0 blocks in 20 s
+[22:45:11] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE RESULT lane still-deep/move/ledge/eff0.6 start x=6.5 end x=-0.499 y=206.0 progress=6.999 blocks in 20 s
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/eff0.6 t=400 x=0.44 y=203.805 vx=0.017 inWater=true ground=false navDone=true
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/eff0.6 t=400 x=2.58 y=202.988 vx=0.052 inWater=false ground=false navDone=true
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/eff0.6 t=400 x=6.5 y=202.402 vx=0.0 inWater=true ground=false navDone=false
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/move/ledge/eff0.6 t=400 x=-0.498 y=206.0 vx=-0.012 inWater=false ground=true navDone=true
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff0.6 t=400 x=0.586 y=203.58 vx=0.018 inWater=true ground=false navDone=false
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane flow-deep/nav/ledge/eff1.0 t=400 x=1.06 y=203.609 vx=-0.004 inWater=true ground=false navDone=false
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/nav/ledge/eff0.6 t=400 x=6.5 y=202.662 vx=0.0 inWater=true ground=false navDone=false
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE lane still-deep/move/ledge/eff0.6 t=400 x=-0.538 y=206.0 vx=-0.022 inWater=false ground=true navDone=true
+[22:45:12] [Server thread/INFO] [co.ma.in.Incursion/]: PROBE DONE
