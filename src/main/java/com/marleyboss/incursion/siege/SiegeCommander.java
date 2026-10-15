@@ -215,7 +215,7 @@ public final class SiegeCommander {
         assemblyDistance = Math.min(assemblyDistance, bound - 4.0);
         return new RoutePlanner(level, siege.corePos, siege.coreLevel, bound, assemblyDistance, siege.elevation,
                 siege.underground, wards, Config.WARD_RADIUS.get(), avoidClear, avoidSupport, otherNodes, usedSides,
-                now);
+                now).withSafeSquare(siege.corePos, siege.safeHalf);
     }
 
     /**
@@ -223,13 +223,15 @@ public final class SiegeCommander {
      * from the ways to the Core (never builds into them, never digs their floors away).
      */
     static RoutePlanner newHuntPlanner(ServerLevel level, BlockPos target, int coreLevel, int bound,
-                                       double assemblyDistance, boolean underground, List<BlockPos> wards, long now) {
+                                       double assemblyDistance, boolean underground, List<BlockPos> wards, long now,
+                                       BlockPos corePos, int safeHalf) {
         LongOpenHashSet avoidClear = new LongOpenHashSet();
         LongOpenHashSet avoidSupport = new LongOpenHashSet();
         LongOpenHashSet otherNodes = new LongOpenHashSet();
         collectAvoid(avoidClear, avoidSupport, otherNodes, EnumSet.noneOf(Direction.class));
         return new RoutePlanner(level, target, coreLevel, bound, assemblyDistance, 0, underground, wards,
-                Config.WARD_RADIUS.get(), avoidClear, avoidSupport, otherNodes, EnumSet.noneOf(Direction.class), now);
+                Config.WARD_RADIUS.get(), avoidClear, avoidSupport, otherNodes, EnumSet.noneOf(Direction.class), now)
+                .withSafeSquare(corePos, safeHalf); // hunters never start inside the safe zone either
     }
 
     /** Cells of the existing ways to the Core that a new plan must not use (see {@link RoutePlanner}). */

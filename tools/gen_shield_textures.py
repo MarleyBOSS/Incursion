@@ -62,7 +62,7 @@ def hex_texture():
     edge = np.clip((t - 0.80) / 0.20, 0.0, 1.0)
     line = edge ** 1.5                                    # bright, soft ridge on the cell border
     core_glow = (1.0 - np.clip(t, 0, 1)) ** 2.0           # faint glow in the middle of a cell
-    fill = 0.10 + 0.20 * flicker                          # every cell glows a bit differently
+    fill = 0.30 + 0.30 * flicker                          # every cell glows a bit differently
     alpha = np.clip(line * 1.0 + fill * (0.35 + 0.65 * core_glow) * (1.0 - line), 0.0, 1.0)
     # sharpen the very edge so it reads as a crisp line
     alpha = np.clip(alpha + (edge > 0.93) * 0.35, 0.0, 1.0)
@@ -88,14 +88,20 @@ def plasma_texture(size=256, seed=11):
     veins = 1.0 - np.abs(field - 0.5) * 2.0
     veins = np.clip(veins, 0.0, 1.0) ** 10.0
     clouds = np.clip((field - 0.55) / 0.45, 0.0, 1.0) ** 1.5
-    alpha = np.clip(veins * 0.85 + clouds * 0.30, 0.0, 1.0)
+    alpha = np.clip(veins * 0.95 + clouds * 0.55, 0.0, 1.0)
     img = np.zeros((size, size, 4), dtype=np.uint8)
     img[..., :3] = 255
     img[..., 3] = (alpha * 255).astype(np.uint8)
     Image.fromarray(img, "RGBA").save(os.path.join(OUT, "shield_plasma.png"))
 
 
+def ground_tint_texture():
+    img = np.full((16, 16, 4), 255, dtype=np.uint8)
+    Image.fromarray(img, "RGBA").save(os.path.join(OUT, "ground_tint.png"))
+
+
 if __name__ == "__main__":
     hex_texture()
     plasma_texture()
+    ground_tint_texture()
     print("written to", os.path.abspath(OUT))

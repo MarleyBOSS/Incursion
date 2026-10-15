@@ -496,6 +496,12 @@ public final class Config {
                     "Core's height (e.g. a cave base). Saves performance; such mobs could not reach the Core anyway.")
             .define("blockCaveSpawns", true);
 
+    public static final ModConfigSpec.BooleanValue SAFE_ZONE_BLOCKS_NATURAL_SPAWNS = BUILDER
+            .comment("If true, no hostile monster spawns naturally inside the safe zone (the squares around the Core",
+                    "and around every ward totem, see the \"Borders\" switch in the Core GUI).",
+                    "Siege mobs never spawn there, whatever this is set to.")
+            .define("safeZoneBlocksNaturalSpawns", true);
+
     public static final ModConfigSpec.IntValue GUARD_RANGE = BUILDER
             .comment("Warriors attack players within this many blocks, in every zone (also next to the Core).",
                     "Archers give cover fire on players within this range while they cannot shoot the Core.")

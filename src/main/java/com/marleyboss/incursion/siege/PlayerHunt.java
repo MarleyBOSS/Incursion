@@ -289,7 +289,7 @@ public final class PlayerHunt {
                 boolean moved = hunt.target == null || movedAway(hunt.target, at);
                 if (front == null || (moved && now - front.created >= REPLAN_TICKS)) {
                     job = SiegeCommander.newHuntPlanner(level, at, siege.coreLevel, BOUND, ASSEMBLY_DISTANCE,
-                            SiegeManager.isUnderground(level, at), wards, now);
+                            SiegeManager.isUnderground(level, at), wards, now, siege.corePos, siege.safeHalf);
                     jobHunt = hunt;
                     jobTarget = at;
                     break;

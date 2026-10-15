@@ -129,6 +129,11 @@ Mit jeder Stufe stärker:
 - **Reparatur** (Knopf im Kern-GUI) repariert den äußersten kaputten Schild und kostet **eine Kernstufe**. Möglich ab Mindeststufe (Standard 5) und nur, wenn der Schild danach noch existiert (z. B. Schild 1 ab Stufe 6).
 - Entschärfen und Neu-Aktivieren setzen alle Schilde zurück.
 
+## Safezone (v0.8.2)
+
+- Die Safezone ist das Quadrat um den Kern (Halbseite Kernzone + 6) und um jedes Schutztotem (Halbseite `wardRadius`); „Grenzen“ im Kern-GUI zeigt sie mit grünen Strahlen an den Ecken und hellgrünem Boden.
+- **Nichts spawnt dort:** weder Belagerer (Sammelplätze, Notfall-Spawns, Jagd, Phantom-Start) noch natürliche Monster (Config `safeZoneBlocksNaturalSpawns`). Belagerer laufen hinein, um den Kern anzugreifen; die Luftlandung setzt Mobs bewusst nahe am Kern ab.
+
 ## Config (geplant)
 
 Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerungsradius, Mob-Anzahl und -Stärke pro Stufe, Lebenspunkte des Kerns, Schild-Radius und Reparatur-Mindeststufe, Explosionsradius und Verseuchung, Creeper-Blockschaden, Ausnahmeliste.

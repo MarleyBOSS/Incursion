@@ -1,11 +1,14 @@
 package com.marleyboss.incursion.siege;
 
+import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.entity.CoreTargetEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 /**
  * Snapshot of the currently running siege, refreshed every second by the active core.
@@ -35,11 +38,17 @@ public final class ActiveSiege {
     public final int elevation;
     /** The Core is deep underground (a cave base): caves at about its height belong to the siege. */
     public final boolean underground;
+    /** Half side of the square safe zone around the Core (nothing spawns inside it). */
+    public final int safeHalf;
+    /** Half side of the square safe zone around every ward totem. */
+    public final int wardHalf;
+    private final int[] wardX;
+    private final int[] wardZ;
     private final long validUntil;
 
     private ActiveSiege(ServerLevel level, BlockPos corePos, CoreTargetEntity target, int coreZoneRadius,
                         int siegeRadius, int playerAggroRange, int coreLevel, boolean showBorders, boolean showDebug,
-                        int elevation, boolean underground) {
+                        int elevation, boolean underground, List<BlockPos> wards) {
         this.level = level;
         this.corePos = corePos.immutable();
         this.target = target;
@@ -51,14 +60,38 @@ public final class ActiveSiege {
         this.showDebug = showDebug;
         this.elevation = elevation;
         this.underground = underground;
+        this.safeHalf = coreZoneRadius + 6;
+        this.wardHalf = Config.WARD_RADIUS.get();
+        this.wardX = new int[wards.size()];
+        this.wardZ = new int[wards.size()];
+        for (int i = 0; i < wards.size(); i++) {
+            wardX[i] = wards.get(i).getX();
+            wardZ[i] = wards.get(i).getZ();
+        }
         this.validUntil = level.getGameTime() + 60;
     }
 
     public static void update(ServerLevel level, BlockPos corePos, CoreTargetEntity target, int coreZoneRadius,
                               int siegeRadius, int playerAggroRange, int coreLevel, boolean showBorders,
-                              boolean showDebug, int elevation, boolean underground) {
+                              boolean showDebug, int elevation, boolean underground, List<BlockPos> wards) {
         current = new ActiveSiege(level, corePos, target, coreZoneRadius, siegeRadius, playerAggroRange, coreLevel,
-                showBorders, showDebug, elevation, underground);
+                showBorders, showDebug, elevation, underground, wards);
+    }
+
+    /**
+     * True if the block column (x, z) is inside the safe zone: the square around the Core or around a ward totem.
+     * (The same squares the client draws with the "Borders" switch.) Nothing may spawn there.
+     */
+    public boolean isSafe(int x, int z) {
+        if (Math.abs(x - corePos.getX()) <= safeHalf && Math.abs(z - corePos.getZ()) <= safeHalf) {
+            return true;
+        }
+        for (int i = 0; i < wardX.length; i++) {
+            if (Math.abs(x - wardX[i]) <= wardHalf && Math.abs(z - wardZ[i]) <= wardHalf) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static void clear() {

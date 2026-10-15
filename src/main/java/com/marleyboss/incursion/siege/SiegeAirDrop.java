@@ -114,10 +114,22 @@ public final class SiegeAirDrop {
         if (phantom == null) {
             return false;
         }
-        double angle = random.nextDouble() * Math.PI * 2.0;
-        double distance = minDistance + random.nextDouble() * Math.max(1, maxDistance - minDistance);
-        double x = core.getX() + 0.5 + Math.cos(angle) * distance;
-        double z = core.getZ() + 0.5 + Math.sin(angle) * distance;
+        ActiveSiege siege = ActiveSiege.get(level);
+        double angle = 0.0;
+        double x = 0.0;
+        double z = 0.0;
+        boolean found = false;
+        for (int attempt = 0; attempt < 12 && !found; attempt++) {
+            angle = random.nextDouble() * Math.PI * 2.0;
+            double distance = minDistance + random.nextDouble() * Math.max(1, maxDistance - minDistance);
+            x = core.getX() + 0.5 + Math.cos(angle) * distance;
+            z = core.getZ() + 0.5 + Math.sin(angle) * distance;
+            found = siege == null || !siege.isSafe(Mth.floor(x), Mth.floor(z)); // starts outside the safe zone
+        }
+        if (!found) {
+            phantom.discard();
+            return false;
+        }
         if (!level.isLoaded(BlockPos.containing(x, core.getY(), z))) {
             phantom.discard();
             return false;

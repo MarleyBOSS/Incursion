@@ -52,7 +52,7 @@ public final class SiegeEvents {
      * fill the area. Only if the Core itself is underground (a cave base), caves at about its height are left alone.
      */
     private static void onSpawnCheck(MobSpawnEvent.PositionCheck event) {
-        if (event.getSpawnType() != MobSpawnType.NATURAL || !Config.BLOCK_CAVE_SPAWNS.get()) {
+        if (event.getSpawnType() != MobSpawnType.NATURAL) {
             return;
         }
         Mob mob = event.getEntity();
@@ -60,10 +60,18 @@ public final class SiegeEvents {
             return;
         }
         ActiveSiege siege = ActiveSiege.get(mob.level());
-        if (siege == null || siege.zoneOf(mob) == ActiveSiege.ZONE_OUTSIDE) {
+        if (siege == null) {
             return;
         }
         BlockPos pos = BlockPos.containing(event.getX(), event.getY(), event.getZ());
+        // The safe zone (squares around the Core and the ward totems): no hostile monster spawns there at all.
+        if (Config.SAFE_ZONE_BLOCKS_NATURAL_SPAWNS.get() && siege.isSafe(pos.getX(), pos.getZ())) {
+            event.setResult(MobSpawnEvent.PositionCheck.Result.FAIL);
+            return;
+        }
+        if (!Config.BLOCK_CAVE_SPAWNS.get() || siege.zoneOf(mob) == ActiveSiege.ZONE_OUTSIDE) {
+            return;
+        }
         int surface = mob.level().getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, pos.getX(), pos.getZ());
         if (pos.getY() >= surface - 1) {
             return; // on the surface

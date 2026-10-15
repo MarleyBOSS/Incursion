@@ -94,8 +94,9 @@ public final class SiegeManager {
         int aggroRange = Config.PLAYER_AGGRO_RANGE.get();
         int elevation = Math.max(0, SiegeAirDrop.elevation(level, pos, coreZone + 6));
         boolean underground = isUnderground(level, pos);
+        List<BlockPos> wards = WardBlockEntity.wardsNear(level, pos, siegeRadius);
         ActiveSiege.update(level, pos, target, coreZone, siegeRadius, aggroRange, coreLevel,
-                core.isShowBorders(), core.isShowAi(), elevation, underground);
+                core.isShowBorders(), core.isShowAi(), elevation, underground, wards);
         ActiveSiege siege = ActiveSiege.get(level);
         if (siege == null) {
             return;
@@ -150,7 +151,6 @@ public final class SiegeManager {
         SiegeExplosives.tickTnt(level, fireArchers, now);
 
         // 7. The commander analyses the situation, plans the fronts and decides which roles are needed.
-        List<BlockPos> wards = WardBlockEntity.wardsNear(level, pos, siegeRadius);
         boolean stalled = SiegeProgress.isStalled(now);
         int max = Config.maxSiegeMobs(coreLevel) + wards.size() * Config.WARD_EXTRA_MOBS.get();
         if (stalled) {
@@ -278,6 +278,7 @@ public final class SiegeManager {
         if (pool.isEmpty()) {
             return 0;
         }
+        ActiveSiege siege = ActiveSiege.get(level);
         RandomSource random = level.getRandom();
         int minDistance = Config.coreZoneRadius(coreLevel) + 6;
         int maxDistance = Math.min(Config.SPAWN_MAX_DISTANCE.get(), Config.siegeRadiusBlocks(coreLevel) - 4);
@@ -318,8 +319,8 @@ public final class SiegeManager {
                 }
                 int x = core.getX() + Mth.floor(Math.cos(angle) * distance);
                 int z = core.getZ() + Mth.floor(Math.sin(angle) * distance);
-                if (insideWard(wards, x, z, wardRadius)) {
-                    continue;
+                if (insideWard(wards, x, z, wardRadius) || (siege != null && siege.isSafe(x, z))) {
+                    continue; // never inside the safe zone (square around the Core / ward totems)
                 }
                 BlockPos spawnPos = findStandingPos(level, x, z, core.getY(), underground, elevation);
                 if (spawnPos == null) {
@@ -432,10 +433,14 @@ public final class SiegeManager {
     /** The assembly point itself or a free spot right next to it (on the same natural ground). */
     @Nullable
     private static BlockPos assemblySpot(ServerLevel level, BlockPos assembly, RandomSource random) {
+        ActiveSiege siege = ActiveSiege.get(level);
         List<BlockPos> spots = new ArrayList<>();
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 BlockPos pos = assembly.offset(dx, 0, dz);
+                if (siege != null && siege.isSafe(pos.getX(), pos.getZ())) {
+                    continue; // nothing spawns inside the safe zone, not even one block into it
+                }
                 if (isStandable(level, pos)) {
                     spots.add(pos);
                 }

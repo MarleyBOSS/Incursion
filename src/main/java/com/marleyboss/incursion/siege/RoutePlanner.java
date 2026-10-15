@@ -114,6 +114,9 @@ public final class RoutePlanner {
     private final double assemblyDistance;
     private final List<BlockPos> wards;
     private final int wardRadius;
+    /** Square around the real Core in which nothing may assemble (the safe zone); also set for hunts. */
+    private BlockPos safeCenter;
+    private int safeHalf = -1;
     private final boolean underground;
     private final boolean canBuild;
     private final float placeCost;
@@ -249,6 +252,13 @@ public final class RoutePlanner {
     // Search
     // ------------------------------------------------------------------
 
+    /** Nothing assembles (so nothing spawns) inside the square of the given half side around {@code center}. */
+    public RoutePlanner withSafeSquare(BlockPos center, int half) {
+        this.safeCenter = center;
+        this.safeHalf = half;
+        return this;
+    }
+
     /** Natural ground at the surface (or in a cave at about the height of an underground Core), far enough out. */
     private boolean isAssembly(Node n) {
         if (n.next == null) {
@@ -259,6 +269,10 @@ public final class RoutePlanner {
         // The no-assembly area around the Core is a square (like the border shown in the Core GUI).
         double distance = Math.max(Math.abs(dx), Math.abs(dz));
         if (distance < assemblyDistance || Math.abs(dx) > bound - 2 || Math.abs(dz) > bound - 2) {
+            return false;
+        }
+        // One block of margin, because mobs may spawn one block next to the assembly point.
+        if (safeCenter != null && Math.max(Math.abs(n.x - safeCenter.getX()), Math.abs(n.z - safeCenter.getZ())) <= safeHalf + 1) {
             return false;
         }
         if (cell(n.x, n.y, n.z).clear() != 0.0F || cell(n.x, n.y + 1, n.z).clear() != 0.0F) {
@@ -284,7 +298,7 @@ public final class RoutePlanner {
         for (BlockPos ward : wards) {
             double wx = n.x - ward.getX();
             double wz = n.z - ward.getZ();
-            if (Math.abs(wx) <= wardRadius && Math.abs(wz) <= wardRadius) { // square, like the border shown
+            if (Math.abs(wx) <= wardRadius + 1 && Math.abs(wz) <= wardRadius + 1) { // square, like the border shown
                 return false;
             }
         }

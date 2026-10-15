@@ -7,6 +7,7 @@ import com.marleyboss.incursion.siege.Shields;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -31,7 +32,7 @@ import java.util.WeakHashMap;
  *     <li>the shields as glowing, see-through plasma domes with a hexagon texture (one sphere per intact shield),
  *     with a shockwave when a shield breaks;</li>
  *     <li>the borders (switch "Borders" in the Core GUI): a square around the Core and around every ward totem,
- *     with a beacon-like beam at each corner.</li>
+ *     with a green beacon-like beam at each corner and a light green tint on the ground inside.</li>
  * </ul>
  * Everything is driven by the synced block entity data (level, broken shields, ward positions).
  */
@@ -40,6 +41,9 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
             "textures/effect/shield_hex.png");
     private static final ResourceLocation PLASMA = ResourceLocation.fromNamespaceAndPath(Incursion.MODID,
             "textures/effect/shield_plasma.png");
+
+    private static final ResourceLocation GROUND_TINT = ResourceLocation.fromNamespaceAndPath(Incursion.MODID,
+            "textures/effect/ground_tint.png");
 
     /** Sphere resolution (same for every dome; the geometry is precomputed). */
     private static final int LON = 48;
@@ -72,11 +76,15 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
     };
     private static final float PULSE_TICKS = 16.0F;
     private static final int BEAM_HEIGHT = 1024;
-    private static final int COLOR_CORE_BEAM = 0xFFB84DFF;
-    private static final int COLOR_WARD_BEAM = 0xFF4DFF66;
+    /** All safe-zone beams are green. */
+    private static final int COLOR_BEAM = 0xFF4DFF66;
+    /** The ground inside the squares is tinted only this far around the camera (blocks) and this strongly. */
+    private static final int TINT_RANGE = 40;
+    private static final float TINT_ALPHA = 0.22F;
 
     /** Per-frame scratch values of one sphere. */
     private final float[] alphas = new float[VERTS];
+    private final LongOpenHashSet tinted = new LongOpenHashSet();
     private final Map<CoreBlockEntity, Anim> anims = new WeakHashMap<>();
 
     /** Client-only animation state of one Core. */
@@ -172,7 +180,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
                 float uRepeat = Math.max(3, Math.round(radius * 0.6F));
                 float vRepeat = uRepeat * 0.2886F;
                 float scroll = (i % 2 == 0 ? 1.0F : -1.0F) * time * 0.0006F;
-                drawSphere(last, hex, radius, camX, camY, camZ, tint, 0.85F * anim.alpha[i] * flicker,
+                drawSphere(last, hex, radius, camX, camY, camZ, tint, 1.0F * anim.alpha[i] * flicker,
                         uRepeat, vRepeat, scroll, 0.0F);
             }
             if (anim.pulseStart[i] >= 0.0F) {
@@ -193,7 +201,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
             }
             float radius = Config.shieldRadius(i);
             float flicker = 0.80F + 0.20F * Mth.sin(time * 0.17F + i * 1.3F);
-            drawSphere(last, plasma, radius, camX, camY, camZ, TINTS[i], 0.70F * anim.alpha[i] * flicker,
+            drawSphere(last, plasma, radius, camX, camY, camZ, TINTS[i], 0.95F * anim.alpha[i] * flicker,
                     3.0F, 1.5F, time * 0.0020F, -time * 0.0014F);
         }
         pose.popPose();
@@ -216,7 +224,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
                 double length = Math.sqrt(vx * vx + vy * vy + vz * vz);
                 double facing = length < 1.0E-4 ? 0.0 : Math.abs((UX[i] * vx + UY[i] * vy + UZ[i] * vz) / length);
                 float rim = (float) Math.pow(1.0 - Math.min(1.0, facing), 1.5);
-                alphas[i] = alpha * (0.30F + 0.70F * rim) * poleFade;
+                alphas[i] = alpha * (0.55F + 0.45F * rim) * poleFade;
             }
         }
         for (int lat = 0; lat < LAT; lat++) {
@@ -263,11 +271,55 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
         }
         BlockPos corePos = core.getBlockPos();
         int coreHalf = Config.coreZoneRadius(Math.max(1, core.getCoreLevel())) + 6;
-        cornerBeams(core, anim, level, corePos, coreHalf, COLOR_CORE_BEAM, partialTick, pose, buffer);
+        cornerBeams(core, anim, level, corePos, coreHalf, COLOR_BEAM, partialTick, pose, buffer);
         int wardHalf = Config.WARD_RADIUS.get();
         for (BlockPos ward : core.getSyncedWards()) {
-            cornerBeams(core, anim, level, ward, wardHalf, COLOR_WARD_BEAM, partialTick, pose, buffer);
+            cornerBeams(core, anim, level, ward, wardHalf, COLOR_BEAM, partialTick, pose, buffer);
         }
+        // Light green tint on the ground of every square (each column once, even where squares overlap).
+        tinted.clear();
+        VertexConsumer tint = buffer.getBuffer(RenderType.entityTranslucentEmissive(GROUND_TINT));
+        Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+        tintSquare(core, anim, level, corePos, coreHalf, camera, pose, tint);
+        for (BlockPos ward : core.getSyncedWards()) {
+            tintSquare(core, anim, level, ward, wardHalf, camera, pose, tint);
+        }
+    }
+
+    private void tintSquare(CoreBlockEntity core, Anim anim, Level level, BlockPos center, int half, Vec3 camera,
+                            PoseStack pose, VertexConsumer consumer) {
+        BlockPos corePos = core.getBlockPos();
+        int camX = Mth.floor(camera.x);
+        int camZ = Mth.floor(camera.z);
+        int x0 = Math.max(center.getX() - half, camX - TINT_RANGE);
+        int x1 = Math.min(center.getX() + half, camX + TINT_RANGE);
+        int z0 = Math.max(center.getZ() - half, camZ - TINT_RANGE);
+        int z1 = Math.min(center.getZ() + half, camZ + TINT_RANGE);
+        PoseStack.Pose last = pose.last();
+        for (int x = x0; x <= x1; x++) {
+            for (int z = z0; z <= z1; z++) {
+                if (!tinted.add(BlockPos.asLong(x, 0, z)) || !level.hasChunk(x >> 4, z >> 4)) {
+                    continue;
+                }
+                float y = groundY(level, anim, x, z, corePos.getY()) - corePos.getY() + 0.02F;
+                float px = x - corePos.getX();
+                float pz = z - corePos.getZ();
+                groundVertex(consumer, last, px, y, pz, 0.0F, 0.0F);
+                groundVertex(consumer, last, px, y, pz + 1.0F, 0.0F, 1.0F);
+                groundVertex(consumer, last, px + 1.0F, y, pz + 1.0F, 1.0F, 1.0F);
+                groundVertex(consumer, last, px + 1.0F, y, pz, 1.0F, 0.0F);
+            }
+        }
+    }
+
+    private static void groundVertex(VertexConsumer consumer, PoseStack.Pose pose, float x, float y, float z,
+                                     float u, float v) {
+        consumer.addVertex(pose, x, y, z)
+                .setColor(0.30F, 1.0F, 0.40F, TINT_ALPHA)
+                .setUv(u, v)
+                .setOverlay(OverlayTexture.NO_OVERLAY)
+                .setLight(LightTexture.FULL_BRIGHT)
+                .setNormal(pose, 0.0F, 1.0F, 0.0F);
     }
 
     /** A beacon-like beam at each of the four corners of the square of the given half-size around {@code center}. */
