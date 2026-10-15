@@ -121,7 +121,7 @@ Mit jeder Stufe stärker:
 
 ## Schild (v0.8.0)
 
-- Bis zu **drei Partikelkuppeln** hintereinander (außen nach innen): Schild 1 ab Stufe 5 (Radius 10), Schild 2 ab Stufe 10 (Radius 5), Schild 3 ab Stufe 15 (Radius 2). Stufe, Radius und Schalter sind in der Config (`shields`) einstellbar. Stufe-20-Sonderschild folgt später.
+- Bis zu **drei Plasma-Kuppeln** (gerenderte, leuchtende Kugeln mit Hexagon-Textur, keine Partikel) hintereinander (außen nach innen): Schild 1 ab Stufe 5 (Radius 10), Schild 2 ab Stufe 10 (Radius 5), Schild 3 ab Stufe 15 (Radius 2). Stufe, Radius und Schalter sind in der Config (`shields`) einstellbar. Stufe-20-Sonderschild folgt später.
 - **Durchbruch:** Betritt ein feindlicher Angreifer den äußersten intakten Schild, bricht dieser.
 - **Puls:** Er tötet alle Angreifer im Umkreis (Schildradius + 12 Blöcke) und entfernt die Baumeister-Blöcke (Belagerungsstein, Belagerungsleitern) außerhalb des Schildes. Kein Blockschaden, Spielerblöcke bleiben unberührt. Chat-Meldung an alle.
 - **Kernschaden:** Solange ein Schild intakt ist, nimmt der Kern keinen Schaden (Pfeile von weitem nützen nichts).

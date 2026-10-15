@@ -256,7 +256,8 @@ public final class RoutePlanner {
         }
         double dx = n.x - core.getX();
         double dz = n.z - core.getZ();
-        double distance = Math.sqrt(dx * dx + dz * dz);
+        // The no-assembly area around the Core is a square (like the border shown in the Core GUI).
+        double distance = Math.max(Math.abs(dx), Math.abs(dz));
         if (distance < assemblyDistance || Math.abs(dx) > bound - 2 || Math.abs(dz) > bound - 2) {
             return false;
         }
@@ -283,7 +284,7 @@ public final class RoutePlanner {
         for (BlockPos ward : wards) {
             double wx = n.x - ward.getX();
             double wz = n.z - ward.getZ();
-            if (wx * wx + wz * wz <= (double) wardRadius * wardRadius) {
+            if (Math.abs(wx) <= wardRadius && Math.abs(wz) <= wardRadius) { // square, like the border shown
                 return false;
             }
         }
@@ -309,7 +310,7 @@ public final class RoutePlanner {
     private float heuristic(int x, int y, int z) {
         double dx = x - core.getX();
         double dz = z - core.getZ();
-        float horizontal = (float) Math.max(0.0, assemblyDistance - Math.sqrt(dx * dx + dz * dz)) * WALK;
+        float horizontal = (float) Math.max(0.0, assemblyDistance - Math.max(Math.abs(dx), Math.abs(dz))) * WALK;
         float vertical = 0.0F;
         int top = columnTop(x, z);
         if (top != Integer.MAX_VALUE) {

@@ -1,6 +1,8 @@
 package com.marleyboss.incursion;
 
+import com.marleyboss.incursion.client.CoreRenderer;
 import com.marleyboss.incursion.client.CoreScreen;
+import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModEntities;
 import com.marleyboss.incursion.registry.ModMenus;
 import net.minecraft.client.renderer.entity.NoopRenderer;
@@ -31,5 +33,7 @@ public class IncursionClient {
     private static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         // The Core target is invisible.
         event.registerEntityRenderer(ModEntities.CORE_TARGET.get(), NoopRenderer::new);
+        // Shield domes and border beams.
+        event.registerBlockEntityRenderer(ModBlockEntities.CORE.get(), CoreRenderer::new);
     }
 }

@@ -5,21 +5,17 @@ import com.marleyboss.incursion.block.CoreBlockEntity;
 import com.marleyboss.incursion.registry.ModBlocks;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.util.Mth;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import org.joml.Vector3f;
 
 import java.util.List;
 
@@ -35,14 +31,8 @@ import java.util.List;
  * The broken state is stored in the Core block entity.
  */
 public final class Shields {
-    private static final DustParticleOptions[] COLORS = {
-            new DustParticleOptions(new Vector3f(0.3F, 0.7F, 1.0F), 1.3F),
-            new DustParticleOptions(new Vector3f(0.3F, 1.0F, 0.8F), 1.3F),
-            new DustParticleOptions(new Vector3f(1.0F, 0.9F, 0.4F), 1.3F)
-    };
-    /** Breach check every this many ticks; the domes are redrawn every {@link #DRAW_TICKS} ticks. */
+    /** Breach check every this many ticks. The domes themselves are drawn by the client renderer. */
     private static final int CHECK_TICKS = 5;
-    private static final int DRAW_TICKS = 10;
 
     private Shields() {
     }
@@ -137,36 +127,8 @@ public final class Shields {
         if (!Config.SHIELDS_ENABLED.get()) {
             return;
         }
-        if (tickCounter % DRAW_TICKS == 0) {
-            draw(level, pos, core);
-        }
         if (tickCounter % CHECK_TICKS == 0) {
             checkBreach(level, pos, core);
-        }
-    }
-
-    private static void draw(ServerLevel level, BlockPos pos, CoreBlockEntity core) {
-        if (level.players().isEmpty()) {
-            return;
-        }
-        RandomSource random = level.getRandom();
-        double cx = pos.getX() + 0.5;
-        double cy = pos.getY() + 0.5;
-        double cz = pos.getZ() + 0.5;
-        for (int i = 0; i < Config.SHIELD_COUNT; i++) {
-            if (!isIntact(core, i)) {
-                continue;
-            }
-            double radius = Config.shieldRadius(i);
-            int points = Mth.clamp((int) (radius * radius * 1.5), 30, 150);
-            for (int k = 0; k < points; k++) {
-                // Random point on the sphere (uniform).
-                double y = random.nextDouble() * 2.0 - 1.0;
-                double phi = random.nextDouble() * Math.PI * 2.0;
-                double ring = Math.sqrt(1.0 - y * y);
-                SpawnRings.send(level, COLORS[i],
-                        cx + Math.cos(phi) * ring * radius, cy + y * radius, cz + Math.sin(phi) * ring * radius);
-            }
         }
     }
 
@@ -193,6 +155,7 @@ public final class Shields {
 
     private static void breach(ServerLevel level, BlockPos pos, CoreBlockEntity core, int index) {
         core.setShieldBroken(index, true);
+        core.forceSync(); // the client plays the break effect (shockwave) when it sees the change
         double radius = Config.shieldRadius(index);
         double pulse = radius + Config.SHIELD_PULSE_EXTRA_RADIUS.get();
         double cx = pos.getX() + 0.5;
@@ -217,7 +180,8 @@ public final class Shields {
         }
 
         // 3. Show and tell.
-        effects(level, pos, pulse);
+        level.playSound(null, pos, SoundEvents.GLASS_BREAK, SoundSource.BLOCKS, 4.0F, 0.6F);
+        level.playSound(null, pos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 3.0F, 1.4F);
         int left = countIntact(core);
         level.getServer().getPlayerList().broadcastSystemMessage(Component.translatable(
                 "message.incursion.shield.broken", index + 1, killed, wiped, left)
@@ -255,25 +219,6 @@ public final class Shields {
         return wiped;
     }
 
-    private static void effects(ServerLevel level, BlockPos pos, double pulse) {
-        double cx = pos.getX() + 0.5;
-        double cy = pos.getY() + 0.5;
-        double cz = pos.getZ() + 0.5;
-        level.playSound(null, pos, SoundEvents.GLASS_BREAK, SoundSource.BLOCKS, 4.0F, 0.6F);
-        level.playSound(null, pos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 3.0F, 1.4F);
-        level.sendParticles(ParticleTypes.FLASH, cx, cy + 0.5, cz, 1, 0.0, 0.0, 0.0, 0.0);
-        // The pulse as a sphere of sparks at its full radius.
-        RandomSource random = level.getRandom();
-        int points = Mth.clamp((int) (pulse * pulse * 0.6), 80, 400);
-        for (int k = 0; k < points; k++) {
-            double y = random.nextDouble() * 2.0 - 1.0;
-            double phi = random.nextDouble() * Math.PI * 2.0;
-            double ring = Math.sqrt(1.0 - y * y);
-            SpawnRings.send(level, ParticleTypes.END_ROD,
-                    cx + Math.cos(phi) * ring * pulse, cy + y * pulse, cz + Math.sin(phi) * ring * pulse);
-        }
-    }
-
     /** Small spark when the shield swallows a hit that would have damaged the Core. */
     public static void spark(ServerLevel level, BlockPos pos) {
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK, pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
@@ -290,6 +235,7 @@ public final class Shields {
         if (!Config.SHIELDS_ENABLED.get()) {
             return;
         }
+        core.forceSync();
         for (int i = 0; i < Config.SHIELD_COUNT; i++) {
             int minLevel = Config.shieldMinLevel(i);
             if (oldLevel < minLevel && newLevel >= minLevel) {
@@ -321,9 +267,8 @@ public final class Shields {
         core.setShieldBroken(index, false);
         core.setCoreLevel(newLevel);
         core.setHealth(core.getHealth()); // clamps to the lower maximum
+        core.forceSync();
         level.playSound(null, pos, SoundEvents.BEACON_POWER_SELECT, SoundSource.BLOCKS, 1.0F, 1.4F);
-        level.sendParticles(ParticleTypes.END_ROD, pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
-                40, 0.6, 0.6, 0.6, 0.05);
         player.displayClientMessage(Component.translatable("message.incursion.shield.repaired",
                 index + 1, newLevel).withStyle(ChatFormatting.AQUA), false);
     }

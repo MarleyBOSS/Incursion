@@ -11,6 +11,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,12 +21,16 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -37,6 +44,8 @@ public class CoreBlockEntity extends BlockEntity {
     private static final String TAG_SHOW_BORDERS = "ShowBorders";
     private static final String TAG_SHOW_AI = "ShowAI";
     private static final String TAG_BROKEN_SHIELDS = "BrokenShields";
+    /** Only in the client update tag (never saved to disk): ward totems whose border the client draws. */
+    private static final String TAG_WARDS = "Wards";
 
     private int coreLevel = 0;
     private float health = 0;
@@ -48,6 +57,9 @@ public class CoreBlockEntity extends BlockEntity {
     private boolean showAi = false;
     /** Bit i is set if shield i + 1 (0 = outermost) is broken. Cleared by repairing, defusing or reactivating. */
     private int brokenShields = 0;
+    /** Ward totem positions (packed) sent to clients for the border display. */
+    private long[] syncedWards = new long[0];
+    private int syncSignature = Integer.MIN_VALUE;
 
     // Runtime only (not saved)
     @Nullable
@@ -123,6 +135,62 @@ public class CoreBlockEntity extends BlockEntity {
     public void setLoadedChunkRadius(int loadedChunkRadius) {
         this.loadedChunkRadius = loadedChunkRadius;
         setChanged();
+    }
+
+    // ------------------------------------------------------------------
+    // Client sync (shields, borders and level are drawn by the client renderer)
+    // ------------------------------------------------------------------
+
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        CompoundTag tag = saveWithoutMetadata(registries);
+        tag.putLongArray(TAG_WARDS, syncedWards);
+        return tag;
+    }
+
+    @Nullable
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    /** Sends the state the client needs if it changed (called once per second by the siege). */
+    public void syncToClient(List<BlockPos> wards) {
+        long[] packed = new long[wards.size()];
+        for (int i = 0; i < packed.length; i++) {
+            packed[i] = wards.get(i).asLong();
+        }
+        Arrays.sort(packed);
+        int signature = Objects.hash(coreLevel, showBorders, brokenShields, Arrays.hashCode(packed));
+        if (signature != syncSignature) {
+            syncSignature = signature;
+            syncedWards = packed;
+            forceSync();
+        }
+    }
+
+    /** Sends the current state to all clients that track this block right away. */
+    public void forceSync() {
+        if (level != null && !level.isClientSide) {
+            BlockState state = getBlockState();
+            level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
+        }
+    }
+
+    /** Client side: positions of the ward totems around this Core. */
+    public List<BlockPos> getSyncedWards() {
+        List<BlockPos> result = new ArrayList<>(syncedWards.length);
+        for (long packed : syncedWards) {
+            result.add(BlockPos.of(packed));
+        }
+        return result;
+    }
+
+    @Override
+    public AABB getRenderBoundingBox() {
+        // The dome, the border squares and their beams reach far beyond the block.
+        int range = Config.siegeRadiusBlocks(Math.max(1, coreLevel)) + Config.WARD_RADIUS.get() + 8;
+        return new AABB(worldPosition).inflate(range).expandTowards(0, 320, 0);
     }
 
     public boolean isShieldBroken(int index) {
@@ -327,6 +395,7 @@ public class CoreBlockEntity extends BlockEntity {
         showBorders = tag.getBoolean(TAG_SHOW_BORDERS);
         showAi = tag.getBoolean(TAG_SHOW_AI);
         brokenShields = tag.getInt(TAG_BROKEN_SHIELDS);
+        syncedWards = tag.contains(TAG_WARDS) ? tag.getLongArray(TAG_WARDS) : new long[0];
     }
 
     public boolean isShowBorders() {
@@ -336,6 +405,7 @@ public class CoreBlockEntity extends BlockEntity {
     public void toggleShowBorders() {
         showBorders = !showBorders;
         setChanged();
+        forceSync();
     }
 
     public boolean isShowAi() {

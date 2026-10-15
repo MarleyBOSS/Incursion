@@ -159,14 +159,9 @@ public final class SiegeManager {
         SiegeCommander.tick(level, siege, attackers, wards, max, now);
         PlayerHunt.tick(level, siege, attackers, wards, max, now);
 
-        // 8. Show where mobs cannot spawn (and the AI view), if switched on in the Core GUI.
-        int minDistance = Config.coreZoneRadius(coreLevel) + 6;
-        if (siege.showBorders) {
-            SpawnRings.drawCore(level, pos, minDistance);
-            for (BlockPos ward : wards) {
-                SpawnRings.drawWard(level, ward, Config.WARD_RADIUS.get());
-            }
-        }
+        // 8. Show the borders and the AI view, if switched on in the Core GUI.
+        // The borders (squares with beams at the corners) are drawn by the client renderer from synced data.
+        core.syncToClient(wards);
         if (siege.showDebug) {
             SiegeDebug.drawRoutes(level, siege, now);
         }
@@ -554,9 +549,7 @@ public final class SiegeManager {
 
     private static boolean insideWard(List<BlockPos> wards, int x, int z, int radius) {
         for (BlockPos ward : wards) {
-            double dx = x + 0.5 - (ward.getX() + 0.5);
-            double dz = z + 0.5 - (ward.getZ() + 0.5);
-            if (dx * dx + dz * dz <= (double) radius * radius) {
+            if (Math.abs(x - ward.getX()) <= radius && Math.abs(z - ward.getZ()) <= radius) { // square area
                 return true;
             }
         }
