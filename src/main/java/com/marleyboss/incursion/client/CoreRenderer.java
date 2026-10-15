@@ -21,6 +21,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Map;
@@ -104,6 +105,16 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
     @Override
     public boolean shouldRenderOffScreen(CoreBlockEntity core) {
         return true;
+    }
+
+    /**
+     * The frustum check for always-drawn block entities uses this box. The default is the Core block itself, so
+     * everything vanished when the Core was behind the player. A box around the whole siege area is always
+     * "in view" while the player is inside it.
+     */
+    @Override
+    public AABB getRenderBoundingBox(CoreBlockEntity core) {
+        return new AABB(core.getBlockPos()).inflate(300.0, 400.0, 300.0);
     }
 
     @Override

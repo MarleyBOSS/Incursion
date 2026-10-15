@@ -78,6 +78,10 @@ public final class SiegeCommander {
     }
 
     /** True if no way to the Core could be found (the siege falls back to scattered spawns and air drops). */
+    static int frontCount() {
+        return FRONTS.size();
+    }
+
     static boolean planFailed() {
         return failed && FRONTS.isEmpty();
     }

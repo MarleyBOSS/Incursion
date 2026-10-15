@@ -37,7 +37,9 @@ import net.neoforged.neoforge.event.EventHooks;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /** All siege logic that runs once per second for the active Core. */
@@ -182,6 +184,9 @@ public final class SiegeManager {
                 free = 1; // a front has nobody who can do its work: one worker may come on top
             }
             int toSpawn = Math.min(free, 1 + coreLevel / 4 + (stalled || urgent ? 1 : 0));
+            if (toSpawn <= 0) {
+                spawnDebug(level, "limit", "Kein Platz im Limit: " + siegeMobs + " Belagerer, Maximum " + max);
+            }
             if (toSpawn > 0) {
                 int spawned;
                 if (SiegeCommander.planFailed()) {
@@ -193,6 +198,10 @@ public final class SiegeManager {
                     // With a plan, the siege takes its way; only a few attackers come by air.
                     double airChance = Config.AIR_DROP_BASE_CHANCE.get() + Config.AIR_DROP_CHANCE_PER_LEVEL.get() * coreLevel;
                     spawned = spawnForFronts(level, pos, coreLevel, toSpawn, target, now, airChance, max);
+                }
+                if (spawned == 0) {
+                    spawnDebug(level, "none", "Runde ohne Spawn (Fronten: " + SiegeCommander.frontCount()
+                            + ", Plan fehlgeschlagen: " + SiegeCommander.planFailed() + ")");
                 }
                 core.setSiegeMobCount(siegeMobs + spawned);
             }
@@ -270,6 +279,24 @@ public final class SiegeManager {
     // ------------------------------------------------------------------
     // Spawning
     // ------------------------------------------------------------------
+
+    private static final Map<String, Long> DEBUG_LAST = new HashMap<>();
+
+    /** With the AI view switched on: tells (at most every 10 s per key) why nothing spawned. */
+    private static void spawnDebug(ServerLevel level, String key, String text) {
+        ActiveSiege siege = ActiveSiege.get(level);
+        if (siege == null || !siege.showDebug) {
+            return;
+        }
+        long now = level.getGameTime();
+        Long last = DEBUG_LAST.get(key);
+        if (last != null && now - last < 200) {
+            return;
+        }
+        DEBUG_LAST.put(key, now);
+        level.getServer().getPlayerList().broadcastSystemMessage(
+                Component.literal("[Spawn] " + text).withStyle(ChatFormatting.DARK_GRAY), false);
+    }
 
     private static int spawnScattered(ServerLevel level, BlockPos core, int coreLevel, int count,
                                       CoreTargetEntity target, List<BlockPos> wards, long now, double airChance,
@@ -376,6 +403,7 @@ public final class SiegeManager {
         for (int i = 0; i < count; i++) {
             SiegeCommander.SpawnOrder order = SiegeCommander.nextSpawn(max);
             if (order == null) {
+                spawnDebug(level, "order", "Kein Bedarf: keine Front oder nichts bestellt");
                 break; // nothing needed right now (the workers are busy, the attackers come when the way is open)
             }
             MobRoles.Role role = order.role();
@@ -391,13 +419,19 @@ public final class SiegeManager {
             }
             BlockPos spawnPos = assemblySpot(level, order.front().assembly(), random);
             if (spawnPos == null) {
+                BlockPos at = order.front().assembly();
+                spawnDebug(level, "spot", "Kein freier Platz am Sammelplatz " + at.getX() + " " + at.getY() + " "
+                        + at.getZ() + " (in Safezone: " + (ActiveSiege.get(level) != null
+                        && ActiveSiege.get(level).isSafe(at.getX(), at.getZ())) + ")");
                 continue; // somebody stands on every spot of this front's assembly point: maybe another front
             }
             Mob mob = createSiegeMob(level, type, spawnPos, coreLevel, random, now, role, true);
             if (mob == null) {
+                spawnDebug(level, "create", "Mob konnte nicht erzeugt werden: " + type);
                 continue;
             }
             if (!level.noCollision(mob) || level.containsAnyLiquid(mob.getBoundingBox())) {
+                spawnDebug(level, "collision", "Sammelplatz blockiert (Kollision/Flüssigkeit) bei " + spawnPos.toShortString());
                 mob.discard();
                 continue;
             }
