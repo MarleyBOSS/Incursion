@@ -84,7 +84,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
     private static final int COLOR_BEAM = 0xFF4DFF66;
     /** The ground inside the squares is tinted only this far around the camera (blocks) and this strongly. */
     private static final int TINT_RANGE = 40;
-    private static final float TINT_ALPHA = 0.40F;
+    private static final float TINT_ALPHA = 0.50F;
 
     /** Per-frame scratch values of one sphere. */
     private final float[] alphas = new float[VERTS];
@@ -446,7 +446,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
     private static void groundVertex(VertexConsumer consumer, PoseStack.Pose pose, float x, float y, float z,
                                      float u, float v) {
         consumer.addVertex(pose, x, y, z)
-                .setColor(0.30F, 1.0F, 0.40F, TINT_ALPHA)
+                .setColor(0.10F, 0.90F, 1.00F, TINT_ALPHA) // aqua: stands out on grass, sand, stone and snow
                 .setUv(u, v)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(LightTexture.FULL_BRIGHT)
