@@ -21,6 +21,7 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     private static final int COLOR_MUTED = 0xFF9A90A8;
     private static final int COLOR_TITLE = 0xFFFFC040;
     private static final int COLOR_DEFUSE = 0xFFFFD040;
+    private static final int COLOR_SHIELD = 0xFF60C8FF;
 
     private static final int BAR_X = 10;
     private static final int BAR_WIDTH = 196;
@@ -29,11 +30,12 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     private Button defuseButton;
     private Button bordersButton;
     private Button aiButton;
+    private Button repairButton;
 
     public CoreScreen(CoreMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 216;
-        this.imageHeight = 240;
+        this.imageHeight = 264;
     }
 
     @Override
@@ -53,6 +55,9 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
         aiButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_AI_VIEW))
                 .bounds(leftPos + 14 + half, topPos + imageHeight - 72, half, 20)
                 .tooltip(Tooltip.create(Component.translatable("gui.incursion.core.ai_view_tooltip")))
+                .build());
+        repairButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_REPAIR_SHIELD))
+                .bounds(leftPos + 10, topPos + imageHeight - 96, imageWidth - 20, 20)
                 .build());
         updateButton();
     }
@@ -75,13 +80,24 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     }
 
     private void updateButton() {
-        if (actionButton == null || defuseButton == null || bordersButton == null || aiButton == null) {
+        if (actionButton == null || defuseButton == null || bordersButton == null || aiButton == null
+                || repairButton == null) {
             return;
         }
         boolean active = menu.isActive();
         defuseButton.visible = active;
         bordersButton.visible = active;
         aiButton.visible = active;
+        int repairState = menu.get(CoreMenu.DATA_REPAIR_STATE);
+        repairButton.visible = active && repairState != 0;
+        if (repairButton.visible) {
+            int repairCost = menu.get(CoreMenu.DATA_REPAIR_COST);
+            repairButton.setMessage(Component.translatable("gui.incursion.core.button.repair_shield", repairCost));
+            repairButton.active = repairState == 1;
+            repairButton.setTooltip(Tooltip.create(repairState == 1
+                    ? Component.translatable("gui.incursion.core.repair_tooltip", repairCost)
+                    : Component.translatable("gui.incursion.core.repair_need_level", menu.get(CoreMenu.DATA_REPAIR_LEVEL))));
+        }
         bordersButton.setMessage(Component.translatable(menu.get(CoreMenu.DATA_SHOW_BORDERS) != 0
                 ? "gui.incursion.core.button.borders_on" : "gui.incursion.core.button.borders_off"));
         aiButton.setMessage(Component.translatable(menu.get(CoreMenu.DATA_SHOW_AI) != 0
@@ -209,9 +225,21 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
         if (active && defuseLeft > 0) {
             graphics.drawString(font, Component.translatable("gui.incursion.core.defusing",
                     (defuseLeft + 19) / 20), 10, 148, COLOR_DEFUSE, false);
+        } else if (active) {
+            int available = menu.get(CoreMenu.DATA_SHIELDS_AVAILABLE);
+            int firstLevel = menu.get(CoreMenu.DATA_FIRST_SHIELD_LEVEL);
+            if (available > 0) {
+                int intact = menu.get(CoreMenu.DATA_SHIELDS_INTACT);
+                graphics.drawString(font, Component.translatable("gui.incursion.core.shields", intact, available),
+                        10, 148, intact > 0 ? COLOR_SHIELD : COLOR_HEALTH, false);
+            } else if (firstLevel > 0) {
+                graphics.drawString(font, Component.translatable("gui.incursion.core.shields_none", firstLevel),
+                        10, 148, COLOR_MUTED, false);
+            } else {
+                graphics.drawString(font, Component.translatable("gui.incursion.core.rewards"), 10, 148, COLOR_MUTED, false);
+            }
         } else {
-            graphics.drawString(font, Component.translatable(active
-                    ? "gui.incursion.core.rewards" : "gui.incursion.core.inactive_hint"), 10, 148, COLOR_MUTED, false);
+            graphics.drawString(font, Component.translatable("gui.incursion.core.inactive_hint"), 10, 148, COLOR_MUTED, false);
         }
     }
 }

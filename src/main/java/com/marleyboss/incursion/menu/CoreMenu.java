@@ -5,6 +5,7 @@ import com.marleyboss.incursion.block.CoreActions;
 import com.marleyboss.incursion.block.CoreBlockEntity;
 import com.marleyboss.incursion.registry.ModBlocks;
 import com.marleyboss.incursion.registry.ModMenus;
+import com.marleyboss.incursion.siege.Shields;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -29,6 +30,7 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int BUTTON_DEFUSE = 2;
     public static final int BUTTON_BORDERS = 3;
     public static final int BUTTON_AI_VIEW = 4;
+    public static final int BUTTON_REPAIR_SHIELD = 5;
 
     public static final int DATA_ACTIVE = 0;
     public static final int DATA_LEVEL = 1;
@@ -48,7 +50,14 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int DATA_DEFUSE_SECONDS = 15;
     public static final int DATA_SHOW_BORDERS = 16;
     public static final int DATA_SHOW_AI = 17;
-    public static final int DATA_COUNT = 18;
+    public static final int DATA_SHIELDS_AVAILABLE = 18;
+    public static final int DATA_SHIELDS_INTACT = 19;
+    /** 0 = nothing broken, 1 = repair possible, 2 = Core level too low. */
+    public static final int DATA_REPAIR_STATE = 20;
+    public static final int DATA_REPAIR_LEVEL = 21;
+    public static final int DATA_REPAIR_COST = 22;
+    public static final int DATA_FIRST_SHIELD_LEVEL = 23;
+    public static final int DATA_COUNT = 24;
 
     private final ContainerData data;
     private final ContainerLevelAccess access;
@@ -102,6 +111,12 @@ public class CoreMenu extends AbstractContainerMenu {
                     case DATA_DEFUSE_SECONDS -> Config.defuseTicks(level) / 20;
                     case DATA_SHOW_BORDERS -> core.isShowBorders() ? 1 : 0;
                     case DATA_SHOW_AI -> core.isShowAi() ? 1 : 0;
+                    case DATA_SHIELDS_AVAILABLE -> Shields.countAvailable(core);
+                    case DATA_SHIELDS_INTACT -> Shields.countIntact(core);
+                    case DATA_REPAIR_STATE -> Shields.repairState(core);
+                    case DATA_REPAIR_LEVEL -> Shields.nextRepairLevel(core);
+                    case DATA_REPAIR_COST -> Config.SHIELD_REPAIR_LEVEL_COST.get();
+                    case DATA_FIRST_SHIELD_LEVEL -> Config.SHIELDS_ENABLED.get() ? firstShieldLevel() : 0;
                     default -> 0;
                 };
                 // Data slots are synced as 16-bit numbers.
@@ -118,6 +133,15 @@ public class CoreMenu extends AbstractContainerMenu {
             }
         };
         addDataSlots(data);
+    }
+
+    /** Lowest Core level at which any shield exists. */
+    private static int firstShieldLevel() {
+        int lowest = Integer.MAX_VALUE;
+        for (int i = 0; i < Config.SHIELD_COUNT; i++) {
+            lowest = Math.min(lowest, Config.shieldMinLevel(i));
+        }
+        return lowest;
     }
 
     public int get(int index) {
@@ -163,6 +187,10 @@ public class CoreMenu extends AbstractContainerMenu {
         }
         if (id == BUTTON_AI_VIEW) {
             core.toggleShowAi();
+            return true;
+        }
+        if (id == BUTTON_REPAIR_SHIELD) {
+            Shields.tryRepair(level, pos, core, player);
             return true;
         }
         return false;

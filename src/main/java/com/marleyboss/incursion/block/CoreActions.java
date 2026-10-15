@@ -3,6 +3,7 @@ package com.marleyboss.incursion.block;
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.data.CoreWorldData;
 import com.marleyboss.incursion.siege.ChunkLoading;
+import com.marleyboss.incursion.siege.Shields;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -44,6 +45,7 @@ public final class CoreActions {
         removeItems(player, activationItem, 1);
         data.setActiveCore(level.dimension(), pos);
         core.setCoreLevel(1);
+        core.resetShields();
         core.setHealth(core.getMaxHealth());
         level.setBlock(pos, state.setValue(CoreBlock.ACTIVE, true), Block.UPDATE_ALL);
         int radius = Config.siegeChunkRadius(1);
@@ -85,6 +87,7 @@ public final class CoreActions {
         level.playSound(null, pos, SoundEvents.BEACON_POWER_SELECT, SoundSource.BLOCKS, 1.0F, 0.8F);
         player.displayClientMessage(Component.translatable("message.incursion.core.upgraded", targetLevel, maxLevel)
                 .withStyle(ChatFormatting.LIGHT_PURPLE), false);
+        Shields.onLevelUp(level, pos, core, currentLevel, targetLevel, player);
     }
 
     // ------------------------------------------------------------------

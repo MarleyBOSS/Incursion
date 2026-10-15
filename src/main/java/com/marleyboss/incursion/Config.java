@@ -602,9 +602,92 @@ public final class Config {
         BUILDER.pop();
     }
 
+    // ------------------------------------------------------------------
+    // Shields
+    // ------------------------------------------------------------------
+
+    static {
+        BUILDER.comment("Shields: particle domes around the Core, outermost first.",
+                "A hostile mob that enters a dome breaks it and triggers a pulse that kills the attackers nearby.")
+                .push("shields");
+    }
+
+    public static final ModConfigSpec.BooleanValue SHIELDS_ENABLED = BUILDER
+            .comment("Master switch for all shields.")
+            .define("shieldsEnabled", true);
+
+    public static final ModConfigSpec.IntValue SHIELD1_MIN_LEVEL = BUILDER
+            .comment("Core level from which shield 1 (the outermost) exists.")
+            .defineInRange("shield1MinLevel", 5, 1, 100);
+
+    public static final ModConfigSpec.IntValue SHIELD1_RADIUS = BUILDER
+            .comment("Radius of shield 1 in blocks.")
+            .defineInRange("shield1Radius", 10, 1, 64);
+
+    public static final ModConfigSpec.IntValue SHIELD2_MIN_LEVEL = BUILDER
+            .comment("Core level from which shield 2 exists.")
+            .defineInRange("shield2MinLevel", 10, 1, 100);
+
+    public static final ModConfigSpec.IntValue SHIELD2_RADIUS = BUILDER
+            .comment("Radius of shield 2 in blocks.")
+            .defineInRange("shield2Radius", 5, 1, 64);
+
+    public static final ModConfigSpec.IntValue SHIELD3_MIN_LEVEL = BUILDER
+            .comment("Core level from which shield 3 (the innermost) exists.")
+            .defineInRange("shield3MinLevel", 15, 1, 100);
+
+    public static final ModConfigSpec.IntValue SHIELD3_RADIUS = BUILDER
+            .comment("Radius of shield 3 in blocks.")
+            .defineInRange("shield3Radius", 2, 1, 64);
+
+    public static final ModConfigSpec.IntValue SHIELD_PULSE_EXTRA_RADIUS = BUILDER
+            .comment("The pulse of a breaking shield reaches this many blocks beyond the shield's own radius.")
+            .defineInRange("shieldPulseExtraRadius", 12, 0, 64);
+
+    public static final ModConfigSpec.BooleanValue SHIELD_WIPE_BUILDER_BLOCKS = BUILDER
+            .comment("If true, the pulse also removes siege stone and siege ladders (the attackers' stairs and bridges)",
+                    "outside the shield. Blocks placed by players are never touched.")
+            .define("shieldWipeBuilderBlocks", true);
+
+    public static final ModConfigSpec.BooleanValue SHIELD_ABSORBS_DAMAGE = BUILDER
+            .comment("If true, the Core takes no damage while at least one shield is intact (arrows from afar do nothing).")
+            .define("shieldAbsorbsDamage", true);
+
+    public static final ModConfigSpec.IntValue SHIELD_REPAIR_MIN_LEVEL = BUILDER
+            .comment("A broken shield can only be repaired from this Core level.",
+                    "Repairing also needs enough level left so that the shield still exists afterwards.")
+            .defineInRange("shieldRepairMinLevel", 5, 1, 100);
+
+    public static final ModConfigSpec.IntValue SHIELD_REPAIR_LEVEL_COST = BUILDER
+            .comment("Repairing a shield costs this many Core levels.")
+            .defineInRange("shieldRepairLevelCost", 1, 0, 20);
+
+    static {
+        BUILDER.pop();
+    }
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
+    /** Number of shields (index 0 = outermost). */
+    public static final int SHIELD_COUNT = 3;
+
     private Config() {
+    }
+
+    public static int shieldMinLevel(int index) {
+        return switch (index) {
+            case 0 -> SHIELD1_MIN_LEVEL.get();
+            case 1 -> SHIELD2_MIN_LEVEL.get();
+            default -> SHIELD3_MIN_LEVEL.get();
+        };
+    }
+
+    public static int shieldRadius(int index) {
+        return switch (index) {
+            case 0 -> SHIELD1_RADIUS.get();
+            case 1 -> SHIELD2_RADIUS.get();
+            default -> SHIELD3_RADIUS.get();
+        };
     }
 
     // ------------------------------------------------------------------

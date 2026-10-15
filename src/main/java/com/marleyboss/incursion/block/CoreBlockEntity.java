@@ -4,6 +4,7 @@ import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.entity.CoreTargetEntity;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModEntities;
+import com.marleyboss.incursion.siege.Shields;
 import com.marleyboss.incursion.siege.SiegeManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -35,6 +36,7 @@ public class CoreBlockEntity extends BlockEntity {
     private static final String TAG_LOADED_RADIUS = "LoadedChunkRadius";
     private static final String TAG_SHOW_BORDERS = "ShowBorders";
     private static final String TAG_SHOW_AI = "ShowAI";
+    private static final String TAG_BROKEN_SHIELDS = "BrokenShields";
 
     private int coreLevel = 0;
     private float health = 0;
@@ -44,6 +46,8 @@ public class CoreBlockEntity extends BlockEntity {
     private boolean showBorders = false;
     /** AI view: name tags with what every attacker is doing, routes as particles. */
     private boolean showAi = false;
+    /** Bit i is set if shield i + 1 (0 = outermost) is broken. Cleared by repairing, defusing or reactivating. */
+    private int brokenShields = 0;
 
     // Runtime only (not saved)
     @Nullable
@@ -71,6 +75,10 @@ public class CoreBlockEntity extends BlockEntity {
             if (!core.isActive()) {
                 return;
             }
+        }
+        Shields.tick(serverLevel, pos, core, core.tickCounter);
+        if (!core.isActive()) {
+            return;
         }
         if (core.tickCounter % 20 == 0) {
             SiegeManager.tickCore(serverLevel, pos, core, core.tickCounter);
@@ -114,6 +122,20 @@ public class CoreBlockEntity extends BlockEntity {
 
     public void setLoadedChunkRadius(int loadedChunkRadius) {
         this.loadedChunkRadius = loadedChunkRadius;
+        setChanged();
+    }
+
+    public boolean isShieldBroken(int index) {
+        return (brokenShields & (1 << index)) != 0;
+    }
+
+    public void setShieldBroken(int index, boolean broken) {
+        brokenShields = broken ? brokenShields | (1 << index) : brokenShields & ~(1 << index);
+        setChanged();
+    }
+
+    public void resetShields() {
+        brokenShields = 0;
         setChanged();
     }
 
@@ -252,6 +274,10 @@ public class CoreBlockEntity extends BlockEntity {
         if (!isActive() || amount <= 0) {
             return;
         }
+        if (Shields.absorbs(this)) {
+            Shields.spark(level, getBlockPos());
+            return;
+        }
         health = Math.max(0, health - amount);
         setChanged();
 
@@ -288,6 +314,7 @@ public class CoreBlockEntity extends BlockEntity {
         tag.putInt(TAG_LOADED_RADIUS, loadedChunkRadius);
         tag.putBoolean(TAG_SHOW_BORDERS, showBorders);
         tag.putBoolean(TAG_SHOW_AI, showAi);
+        tag.putInt(TAG_BROKEN_SHIELDS, brokenShields);
     }
 
     @Override
@@ -299,6 +326,7 @@ public class CoreBlockEntity extends BlockEntity {
         loadedChunkRadius = tag.contains(TAG_LOADED_RADIUS) ? tag.getInt(TAG_LOADED_RADIUS) : -1;
         showBorders = tag.getBoolean(TAG_SHOW_BORDERS);
         showAi = tag.getBoolean(TAG_SHOW_AI);
+        brokenShields = tag.getInt(TAG_BROKEN_SHIELDS);
     }
 
     public boolean isShowBorders() {

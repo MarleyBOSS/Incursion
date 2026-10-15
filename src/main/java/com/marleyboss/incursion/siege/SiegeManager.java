@@ -707,6 +707,7 @@ public final class SiegeManager {
         stopSiege(level, pos, core);
         clearSiegeMobs(level, pos, core.getCoreLevel());
         core.setCoreLevel(0);
+        core.resetShields();
         core.setHealth(0);
         BlockState state = level.getBlockState(pos);
         if (state.getBlock() instanceof CoreBlock) {

@@ -119,12 +119,15 @@ Mit jeder Stufe stärker:
   - **Dynamische Teams:** Einmal pro Sekunde: Sind Spieler in Kernnähe, sind `hunterPercent` der Kämpfer Jäger (die Nächsten am Spieler), sonst gehören **alle** zum Kern-Team; kommt ein Spieler, splitten sie sich wieder auf. Jäger-Baumeister/-Gräber ohne Aufgabe (Weg fertig oder keine Jagd) gehen ins Kern-Team über und bekommen eine Kern-Front. Jäger jagen auch ohne Sichtkontakt (Reichweite 96).
 - **Kern-GUI (v0.5):** Schalter „Grenzen“ (grüner Ring um Totems, lila Ring um den Kern, weit sichtbar) und „KI-Anzeige“ (Namensschild mit Rolle und Tätigkeit über jedem Angreifer, Routen als Partikel: weiß Weg, rot abbauen, blau bauen, gelb Leiter).
 
-## Schild
+## Schild (v0.8.0)
 
-- Visuelle **Partikel-Kuppel** um den Kern, Radius wächst mit der Stufe.
-- Durchbricht ein Mob die Kuppel: **Sicherungsexplosion**, die alle Mobs im Umkreis tötet – **ohne Blockschaden**.
-- Danach ist der Schild kaputt, weitere Angreifer kommen ungehindert durch.
-- **Reparatur kostet eine Kernstufe**, möglich ab einer Mindeststufe (Config, Standard: Stufe 5).
+- Bis zu **drei Partikelkuppeln** hintereinander (außen nach innen): Schild 1 ab Stufe 5 (Radius 10), Schild 2 ab Stufe 10 (Radius 5), Schild 3 ab Stufe 15 (Radius 2). Stufe, Radius und Schalter sind in der Config (`shields`) einstellbar. Stufe-20-Sonderschild folgt später.
+- **Durchbruch:** Betritt ein feindlicher Angreifer den äußersten intakten Schild, bricht dieser.
+- **Puls:** Er tötet alle Angreifer im Umkreis (Schildradius + 12 Blöcke) und entfernt die Baumeister-Blöcke (Belagerungsstein, Belagerungsleitern) außerhalb des Schildes. Kein Blockschaden, Spielerblöcke bleiben unberührt. Chat-Meldung an alle.
+- **Kernschaden:** Solange ein Schild intakt ist, nimmt der Kern keinen Schaden (Pfeile von weitem nützen nichts).
+- Ein gebrochener Schild bleibt gebrochen, weitere Angreifer kommen durch, bis der nächste innere Schild sie aufhält.
+- **Reparatur** (Knopf im Kern-GUI) repariert den äußersten kaputten Schild und kostet **eine Kernstufe**. Möglich ab Mindeststufe (Standard 5) und nur, wenn der Schild danach noch existiert (z. B. Schild 1 ab Stufe 6).
+- Entschärfen und Neu-Aktivieren setzen alle Schilde zurück.
 
 ## Config (geplant)
 
@@ -145,7 +148,7 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 | v0.7.2 | Mehrere Fronten, alle Angreifer sofort, breite Treppe, 3×3-Plattform, keine Höhlen-Sammelplätze, Dorfbewohner ignoriert | getestet: viel besser, aber keine Plattformen, Skelette unzuverlässig |
 | v0.7.3 | Zwischenplattformen, Baumeister bauen aus, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | getestet: Kern fällt, aber keine Plattformen |
 | v0.7.4 | Plattformbau parallel, Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | gebaut, **Test ausstehend** |
-| v0.8 | Schild-Kuppel, Sicherungsexplosion, Reparatur | geplant |
+| v0.8 | Schilde (3 Kuppeln), Puls, Reparatur | gebaut, Test ausstehend |
 | v0.9 | Vorteile: Items, Energie, Buffs | geplant |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Anbindung, eigene Items | geplant |
 
