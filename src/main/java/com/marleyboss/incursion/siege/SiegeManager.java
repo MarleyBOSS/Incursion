@@ -422,7 +422,8 @@ public final class SiegeManager {
                 BlockPos at = order.front().assembly();
                 spawnDebug(level, "spot", "Kein freier Platz am Sammelplatz " + at.getX() + " " + at.getY() + " "
                         + at.getZ() + " (in Safezone: " + (ActiveSiege.get(level) != null
-                        && ActiveSiege.get(level).isSafe(at.getX(), at.getZ())) + ")");
+                        && ActiveSiege.get(level).isSafe(at.getX(), at.getZ())) + "; Kern " + core.toShortString()
+                        + ", Halbseite " + (ActiveSiege.get(level) != null ? ActiveSiege.get(level).safeHalf : -1) + ")");
                 continue; // somebody stands on every spot of this front's assembly point: maybe another front
             }
             Mob mob = createSiegeMob(level, type, spawnPos, coreLevel, random, now, role, true);

@@ -118,6 +118,16 @@ public final class SiegeCommander {
             front.landingWork = front.countLandingWork(level);
             boolean stale = !front.open && now - front.route.lastProgress() > STALE_TICKS
                     && now - front.created > STALE_TICKS;
+            BlockPos foot = front.assembly();
+            if (siege.isSafe(foot.getX(), foot.getZ())) {
+                // The safe zone grew (Core upgrade, new ward totem) over the foot of this way: nothing may spawn there.
+                front.route.invalidate();
+                if (siege.showDebug) {
+                    announce(level, siege, Component.literal("[Spawn] Front verworfen: Sammelplatz " + foot.toShortString()
+                            + " liegt in der Safezone (Kern " + siege.corePos.toShortString() + ", Halbseite "
+                            + siege.safeHalf + ", Stufe " + siege.coreLevel + ", Totems-Halbseite " + siege.wardHalf + ")"));
+                }
+            }
             if (front.route.isInvalid() || stale) {
                 iterator.remove();
                 announce(level, siege, Component.translatable("message.incursion.plan.replan"));
