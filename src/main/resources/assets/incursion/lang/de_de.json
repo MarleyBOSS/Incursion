@@ -142,7 +142,7 @@
   "gui.incursion.core.button.borders_off": "Grenzen: AUS",
   "gui.incursion.core.button.ai_on": "KI-Anzeige: AN",
   "gui.incursion.core.button.ai_off": "KI-Anzeige: AUS",
-  "gui.incursion.core.borders_tooltip": "Zeigt, wo keine Belagerer spawnen: ein Quadrat um den Kern und um jedes Schutztotem, mit einem grünen Strahl an jeder Ecke. Der Boden darin ist hellgrün getönt.",
+  "gui.incursion.core.borders_tooltip": "Zeigt die Safezone (hier spawnt nichts): Kern und alle Schutztotems zusammen als ein Gebiet, mit einem grünen Strahl an jeder Ecke des Umrisses. Der Boden darin ist hellgrün getönt.",
   "gui.incursion.core.ai_view_tooltip": "Zeigt über jedem Angreifer, was er tut, den Belagerungsplan im Chat und die geplanten Wege (gelb = Sammelplatz, weiß = Weg, lila = Plattform, rot = nächster Block zum Abbauen, blau = nächster Block zum Bauen).",
   "debug.incursion.role.warrior": "Krieger",
   "debug.incursion.role.miner": "Gräber",

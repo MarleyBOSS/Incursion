@@ -24,6 +24,9 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -81,7 +84,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
     private static final int COLOR_BEAM = 0xFF4DFF66;
     /** The ground inside the squares is tinted only this far around the camera (blocks) and this strongly. */
     private static final int TINT_RANGE = 40;
-    private static final float TINT_ALPHA = 0.22F;
+    private static final float TINT_ALPHA = 0.40F;
 
     /** Per-frame scratch values of one sphere. */
     private final float[] alphas = new float[VERTS];
@@ -97,6 +100,8 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
         float last = 0.0F;
         final Long2IntOpenHashMap ground = new Long2IntOpenHashMap();
         long groundStamp = Long.MIN_VALUE / 2;
+        int[] outline;
+        long outlineKey;
     }
 
     public CoreRenderer(BlockEntityRendererProvider.Context context) {
@@ -282,19 +287,134 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
         }
         BlockPos corePos = core.getBlockPos();
         int coreHalf = Config.coreZoneRadius(Math.max(1, core.getCoreLevel())) + 6;
-        cornerBeams(core, anim, level, corePos, coreHalf, COLOR_BEAM, partialTick, pose, buffer);
         int wardHalf = Config.WARD_RADIUS.get();
-        for (BlockPos ward : core.getSyncedWards()) {
-            cornerBeams(core, anim, level, ward, wardHalf, COLOR_BEAM, partialTick, pose, buffer);
+        List<BlockPos> wards = core.getSyncedWards();
+
+        // One safe zone: the union of the Core square and all ward squares. Beams only at the corners of the union.
+        long key = ((long) coreHalf * 31 + wardHalf) * 31 + wards.hashCode();
+        if (anim.outline == null || anim.outlineKey != key) {
+            anim.outline = outlineCorners(corePos, coreHalf, wards, wardHalf);
+            anim.outlineKey = key;
         }
-        // Light green tint on the ground of every square (each column once, even where squares overlap).
+        for (int i = 0; i < anim.outline.length; i += 2) {
+            int x = anim.outline[i];
+            int z = anim.outline[i + 1];
+            int y = groundY(level, anim, x, z, corePos.getY());
+            pose.pushPose();
+            pose.translate(x - corePos.getX(), y - corePos.getY(), z - corePos.getZ());
+            BeaconRenderer.renderBeaconBeam(pose, buffer, BeaconRenderer.BEAM_LOCATION, partialTick, 1.0F,
+                    gameTime, 0, BEAM_HEIGHT, COLOR_BEAM, 0.2F, 0.25F);
+            pose.popPose();
+        }
+
+        // Light green tint on the ground of the whole zone (each column once, even where squares overlap).
         tinted.clear();
         VertexConsumer tint = buffer.getBuffer(RenderType.entityTranslucentEmissive(GROUND_TINT));
         Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
         tintSquare(core, anim, level, corePos, coreHalf, camera, pose, tint);
-        for (BlockPos ward : core.getSyncedWards()) {
+        for (BlockPos ward : wards) {
             tintSquare(core, anim, level, ward, wardHalf, camera, pose, tint);
         }
+    }
+
+    /**
+     * Block columns {x0, z0, x1, z1, ...} at the corners of the outline of the union of the squares (outer corners and
+     * inner corners where the squares meet). A coordinate grid is built from all square edges; a grid vertex is a
+     * corner if one or three of the four cells around it are inside (or two diagonal ones).
+     */
+    private static int[] outlineCorners(BlockPos core, int coreHalf, List<BlockPos> wards, int wardHalf) {
+        int n = 1 + wards.size();
+        int[] minX = new int[n];
+        int[] maxX = new int[n];
+        int[] minZ = new int[n];
+        int[] maxZ = new int[n];
+        minX[0] = core.getX() - coreHalf;
+        maxX[0] = core.getX() + coreHalf + 1;
+        minZ[0] = core.getZ() - coreHalf;
+        maxZ[0] = core.getZ() + coreHalf + 1;
+        for (int i = 0; i < wards.size(); i++) {
+            BlockPos ward = wards.get(i);
+            minX[i + 1] = ward.getX() - wardHalf;
+            maxX[i + 1] = ward.getX() + wardHalf + 1;
+            minZ[i + 1] = ward.getZ() - wardHalf;
+            maxZ[i + 1] = ward.getZ() + wardHalf + 1;
+        }
+        int[] xs = sortedUnique(minX, maxX);
+        int[] zs = sortedUnique(minZ, maxZ);
+        boolean[][] filled = new boolean[xs.length][zs.length];
+        for (int i = 0; i < xs.length - 1; i++) {
+            for (int j = 0; j < zs.length - 1; j++) {
+                for (int k = 0; k < n; k++) {
+                    if (xs[i] >= minX[k] && xs[i] < maxX[k] && zs[j] >= minZ[k] && zs[j] < maxZ[k]) {
+                        filled[i][j] = true;
+                        break;
+                    }
+                }
+            }
+        }
+        LongOpenHashSet seen = new LongOpenHashSet();
+        List<Integer> result = new ArrayList<>();
+        for (int i = 0; i < xs.length; i++) {
+            for (int j = 0; j < zs.length; j++) {
+                boolean a = isFilled(filled, i - 1, j - 1); // north-west of the vertex
+                boolean b = isFilled(filled, i, j - 1);     // north-east
+                boolean c = isFilled(filled, i - 1, j);     // south-west
+                boolean d = isFilled(filled, i, j);         // south-east
+                int count = (a ? 1 : 0) + (b ? 1 : 0) + (c ? 1 : 0) + (d ? 1 : 0);
+                boolean saddle = count == 2 && ((a && d) || (b && c));
+                if (count != 1 && count != 3 && !saddle) {
+                    continue;
+                }
+                // The beam stands on the block of an inside cell next to the vertex (for an inner corner, the
+                // cell opposite the empty one).
+                boolean[] use = new boolean[4];
+                if (count == 1 || saddle) {
+                    use[0] = a;
+                    use[1] = b;
+                    use[2] = c;
+                    use[3] = d;
+                } else {
+                    use[0] = !d;
+                    use[1] = !c;
+                    use[2] = !b;
+                    use[3] = !a;
+                }
+                for (int cell = 0; cell < 4; cell++) {
+                    if (!use[cell]) {
+                        continue;
+                    }
+                    int x = xs[i] - (cell % 2 == 0 ? 1 : 0);
+                    int z = zs[j] - (cell < 2 ? 1 : 0);
+                    if (seen.add(BlockPos.asLong(x, 0, z))) {
+                        result.add(x);
+                        result.add(z);
+                    }
+                }
+            }
+        }
+        int[] out = new int[result.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = result.get(i);
+        }
+        return out;
+    }
+
+    private static boolean isFilled(boolean[][] filled, int i, int j) {
+        return i >= 0 && j >= 0 && i < filled.length - 1 && j < filled[0].length - 1 && filled[i][j];
+    }
+
+    private static int[] sortedUnique(int[] lows, int[] highs) {
+        int[] all = new int[lows.length + highs.length];
+        System.arraycopy(lows, 0, all, 0, lows.length);
+        System.arraycopy(highs, 0, all, lows.length, highs.length);
+        Arrays.sort(all);
+        int count = 0;
+        for (int i = 0; i < all.length; i++) {
+            if (i == 0 || all[i] != all[i - 1]) {
+                all[count++] = all[i];
+            }
+        }
+        return Arrays.copyOf(all, count);
     }
 
     private void tintSquare(CoreBlockEntity core, Anim anim, Level level, BlockPos center, int half, Vec3 camera,
@@ -312,7 +432,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
                 if (!tinted.add(BlockPos.asLong(x, 0, z)) || !level.hasChunk(x >> 4, z >> 4)) {
                     continue;
                 }
-                float y = groundY(level, anim, x, z, corePos.getY()) - corePos.getY() + 0.02F;
+                float y = groundY(level, anim, x, z, corePos.getY()) - corePos.getY() + 0.05F;
                 float px = x - corePos.getX();
                 float pz = z - corePos.getZ();
                 groundVertex(consumer, last, px, y, pz, 0.0F, 0.0F);
@@ -331,24 +451,6 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(LightTexture.FULL_BRIGHT)
                 .setNormal(pose, 0.0F, 1.0F, 0.0F);
-    }
-
-    /** A beacon-like beam at each of the four corners of the square of the given half-size around {@code center}. */
-    private void cornerBeams(CoreBlockEntity core, Anim anim, Level level, BlockPos center, int half, int color,
-                             float partialTick, PoseStack pose, MultiBufferSource buffer) {
-        BlockPos corePos = core.getBlockPos();
-        for (int sx = -1; sx <= 1; sx += 2) {
-            for (int sz = -1; sz <= 1; sz += 2) {
-                int x = center.getX() + sx * half;
-                int z = center.getZ() + sz * half;
-                int y = groundY(level, anim, x, z, corePos.getY());
-                pose.pushPose();
-                pose.translate(x - corePos.getX(), y - corePos.getY(), z - corePos.getZ());
-                BeaconRenderer.renderBeaconBeam(pose, buffer, BeaconRenderer.BEAM_LOCATION, partialTick, 1.0F,
-                        level.getGameTime(), 0, BEAM_HEIGHT, color, 0.2F, 0.25F);
-                pose.popPose();
-            }
-        }
     }
 
     /** Height of the ground at a corner; falls back to the Core's height where the chunk is not loaded. */
