@@ -129,9 +129,13 @@ Mit jeder Stufe stärker:
 - **Reparatur** (Knopf im Kern-GUI) repariert den äußersten kaputten Schild und kostet **eine Kernstufe**. Möglich ab Mindeststufe (Standard 5) und nur, wenn der Schild danach noch existiert (z. B. Schild 1 ab Stufe 6).
 - Entschärfen und Neu-Aktivieren setzen alle Schilde zurück.
 
-## Safezone (v0.8.2)
+## Laufen auf der Route (v0.8.3.1)
 
-- Die Safezone ist das Quadrat um den Kern (Halbseite Kernzone + 6) und um jedes Schutztotem (Halbseite `wardRadius`); „Grenzen“ im Kern-GUI zeigt sie mit grünen Strahlen an den Ecken und hellgrünem Boden.
+- Die Wege sind aus rechtwinkligen Schritten gebaut. Auf ebenem, freiem Boden laufen Mobs trotzdem **auf direktem Weg** zum am weitesten erreichbaren Schritt ihres Weges (Gerade geprüft alle 0,5 s: gleiche Höhe, fester Boden, Kopf und Füße frei, kein Wasser/Feuer/Kaktus/Netz; bis 24 Schritte voraus). Bei Höhenunterschieden, Hindernissen oder Arbeit bleibt es beim Weg selbst.
+
+## Safezone (v0.8.2/0.8.3)
+
+- Die Safezone ist das Quadrat um den Kern (Halbseite Kernzone + 6, **auf allen Stufen gleich**, Standard 8 + 6 = 14) und um jedes Schutztotem (Halbseite `wardRadius`); alles zusammen ist **ein** Gebiet. „Grenzen“ im Kern-GUI zeigt den Gesamtumriss mit grünen Strahlen an den Ecken und hellgrünem Boden.
 - **Nichts spawnt dort:** weder Belagerer (Sammelplätze, Notfall-Spawns, Jagd, Phantom-Start) noch natürliche Monster (Config `safeZoneBlocksNaturalSpawns`). Belagerer laufen hinein, um den Kern anzugreifen; die Luftlandung setzt Mobs bewusst nahe am Kern ab.
 
 ## Config (geplant)

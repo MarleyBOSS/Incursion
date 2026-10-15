@@ -72,13 +72,9 @@ public final class Config {
     }
 
     public static final ModConfigSpec.DoubleValue CORE_ZONE_RADIUS_BASE = BUILDER
-            .comment("Core zone radius in blocks = coreZoneRadiusBase + coreZoneRadiusPerLevel * level.",
-                    "Inside the core zone, hostile mobs ignore players and attack only the Core.")
+            .comment("Core zone radius in blocks, the same on every Core level. The safe zone around the Core is this",
+                    "plus 6 blocks. Inside the core zone, hostile mobs ignore players and attack only the Core.")
             .defineInRange("coreZoneRadiusBase", 8.0, 2.0, 64.0);
-
-    public static final ModConfigSpec.DoubleValue CORE_ZONE_RADIUS_PER_LEVEL = BUILDER
-            .comment("Additional core zone radius per level (see coreZoneRadiusBase).")
-            .defineInRange("coreZoneRadiusPerLevel", 0.5, 0.0, 8.0);
 
     public static final ModConfigSpec.DoubleValue SIEGE_CHUNK_RADIUS_BASE = BUILDER
             .comment("Siege area radius in chunks = siegeChunkRadiusBase + siegeChunkRadiusPerLevel * level.",
@@ -766,7 +762,7 @@ public final class Config {
     }
 
     public static int coreZoneRadius(int level) {
-        return (int) Math.floor(CORE_ZONE_RADIUS_BASE.get() + CORE_ZONE_RADIUS_PER_LEVEL.get() * level);
+        return (int) Math.floor(CORE_ZONE_RADIUS_BASE.get()); // the same on every level
     }
 
     public static int siegeChunkRadius(int level) {

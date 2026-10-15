@@ -10,6 +10,8 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.FlyingMob;
@@ -125,6 +127,9 @@ public final class SiegeAI {
         @Nullable
         SiegeFront front;
         int routeIndex = -1;
+        /** Route step the mob is cutting across to in a straight line (-1: none) and when that was last checked. */
+        int shortcut = -1;
+        long shortcutAt;
         int bestIndex = -1;
         int walkLimit;
         int lastIndex = -1;
@@ -519,6 +524,10 @@ public final class SiegeAI {
             return;
         }
         int index = state.routeIndex >= 0 ? route.nearestIndex(mob.position(), state.routeIndex) : -1;
+        if (index < 0 && state.routeIndex >= 0 && state.shortcut > state.routeIndex
+                && now - state.shortcutAt <= SHORTCUT_TICKS * 3L) {
+            index = state.routeIndex; // cutting across open ground to a later step: still on the way
+        }
         if (index < 0) {
             index = route.findIndex(mob.position());
         }
@@ -1020,9 +1029,10 @@ public final class SiegeAI {
             BlockPos next = route.node(index + 1);
             if (isAt(mob, next)) {
                 state.routeIndex = index + 1;
-                next = route.node(Math.min(index + 2, limit));
+                index = index + 1;
+                next = route.node(Math.min(index + 1, limit));
             }
-            goal = next;
+            goal = shortcutGoal(mob, route, state, index, limit, next);
         } else if (index > limit) {
             // Back down the stairs, one step at a time (a straight line to a lower step could leave the stairs).
             BlockPos previous = route.node(index - 1);
@@ -1044,6 +1054,106 @@ public final class SiegeAI {
             }
         }
         holdOnLadder(mob);
+    }
+
+    // ------------------------------------------------------------------
+    // Cutting across open ground
+    // ------------------------------------------------------------------
+
+    private static final int SHORTCUT_TICKS = 10;
+    private static final int SHORTCUT_RANGE = 24;
+    private static final int SHORTCUT_STEP = 3;
+
+    /**
+     * The ways are made of right-angle steps. On flat, free ground a mob does not follow them step by step but walks
+     * straight to the farthest step of its way it can reach in a straight line (checked every half second).
+     * Anything else (height changes, obstacles, water, work to do) keeps it on the way itself.
+     */
+    private static BlockPos shortcutGoal(Mob mob, Route route, MobState state, int index, int limit, BlockPos next) {
+        long now = mob.level().getGameTime();
+        if (state.shortcut > index + 1 && state.shortcut <= limit && isAt(mob, route.node(state.shortcut))) {
+            state.routeIndex = state.shortcut; // arrived
+            index = state.shortcut;
+            state.shortcut = -1;
+            state.shortcutAt = Long.MIN_VALUE / 2; // look for the next one right away
+            next = route.node(Math.min(index + 1, limit));
+        }
+        if (index >= limit || !mob.onGround() || mob.isPassenger()) {
+            state.shortcut = -1;
+            return next;
+        }
+        if (now - state.shortcutAt >= SHORTCUT_TICKS) {
+            state.shortcutAt = now;
+            state.shortcut = -1;
+            int y = Mth.floor(mob.getY() + 0.01);
+            int far = Math.min(limit, index + SHORTCUT_RANGE);
+            for (int j = far; j >= index + 2; j -= SHORTCUT_STEP) {
+                BlockPos node = route.node(j);
+                if (node.getY() == y && flatLine(mob.level(), mob.getX(), mob.getZ(), y,
+                        node.getX() + 0.5, node.getZ() + 0.5)) {
+                    state.shortcut = j;
+                    break;
+                }
+            }
+            if (state.shortcut < 0 && index + 2 <= far) {
+                BlockPos node = route.node(index + 2);
+                if (node.getY() == y && flatLine(mob.level(), mob.getX(), mob.getZ(), y,
+                        node.getX() + 0.5, node.getZ() + 0.5)) {
+                    state.shortcut = index + 2;
+                }
+            }
+        }
+        if (state.shortcut > index + 1 && state.shortcut <= limit) {
+            return route.node(state.shortcut);
+        }
+        return next;
+    }
+
+    /** True if a mob can walk the straight line on this level: solid floor, free feet and head, a bit of width. */
+    private static boolean flatLine(Level level, double fromX, double fromZ, int y, double toX, double toZ) {
+        double dx = toX - fromX;
+        double dz = toZ - fromZ;
+        double length = Math.sqrt(dx * dx + dz * dz);
+        int steps = Math.max(1, (int) Math.ceil(length / 0.5));
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        for (int k = 1; k <= steps; k++) {
+            double x = fromX + dx * k / steps;
+            double z = fromZ + dz * k / steps;
+            for (int c = 0; c < 5; c++) {
+                double ox = c == 0 ? 0.0 : (c % 2 == 1 ? 0.3 : -0.3);
+                double oz = c == 0 ? 0.0 : (c < 3 ? 0.3 : -0.3);
+                if (!walkable(level, pos, Mth.floor(x + ox), y, Mth.floor(z + oz))) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static boolean walkable(Level level, BlockPos.MutableBlockPos pos, int x, int y, int z) {
+        pos.set(x, y - 1, z);
+        if (!level.isLoaded(pos)) {
+            return false;
+        }
+        BlockState floor = level.getBlockState(pos);
+        if (!floor.isFaceSturdy(level, pos, Direction.UP) || !floor.getFluidState().isEmpty()
+                || floor.is(Blocks.MAGMA_BLOCK) || floor.is(Blocks.CAMPFIRE) || floor.is(Blocks.SOUL_CAMPFIRE)) {
+            return false;
+        }
+        pos.set(x, y, z);
+        if (!passable(level, pos)) {
+            return false;
+        }
+        pos.set(x, y + 1, z);
+        return passable(level, pos);
+    }
+
+    private static boolean passable(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        return state.getCollisionShape(level, pos).isEmpty() && state.getFluidState().isEmpty()
+                && !state.is(BlockTags.FIRE) && !state.is(Blocks.CACTUS) && !state.is(Blocks.SWEET_BERRY_BUSH)
+                && !state.is(Blocks.WITHER_ROSE) && !state.is(Blocks.COBWEB) && !state.is(Blocks.POWDER_SNOW)
+                && !state.is(Blocks.TRIPWIRE) && !state.is(Blocks.LADDER);
     }
 
     /** In water deep enough to swim (not just wading). */

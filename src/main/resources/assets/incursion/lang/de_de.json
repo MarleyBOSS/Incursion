@@ -39,7 +39,6 @@
   "incursion.configuration.warningCooldownSeconds": "Abstand der Warnungen (Sekunden)",
   "incursion.configuration.siege": "Belagerung",
   "incursion.configuration.coreZoneRadiusBase": "Kernzonen-Radius (Basis)",
-  "incursion.configuration.coreZoneRadiusPerLevel": "Kernzonen-Radius pro Stufe",
   "incursion.configuration.siegeChunkRadiusBase": "Belagerungsradius in Chunks (Basis)",
   "incursion.configuration.siegeChunkRadiusPerLevel": "Belagerungsradius pro Stufe (Chunks)",
   "incursion.configuration.siegeChunkRadiusMax": "Belagerungsradius Maximum (Chunks)",

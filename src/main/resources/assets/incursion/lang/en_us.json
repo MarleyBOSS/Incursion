@@ -39,7 +39,6 @@
   "incursion.configuration.warningCooldownSeconds": "Warning cooldown (seconds)",
   "incursion.configuration.siege": "Siege",
   "incursion.configuration.coreZoneRadiusBase": "Core zone radius (base)",
-  "incursion.configuration.coreZoneRadiusPerLevel": "Core zone radius per level",
   "incursion.configuration.siegeChunkRadiusBase": "Siege area radius in chunks (base)",
   "incursion.configuration.siegeChunkRadiusPerLevel": "Siege area radius per level (chunks)",
   "incursion.configuration.siegeChunkRadiusMax": "Siege area radius maximum (chunks)",
