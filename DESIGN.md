@@ -129,9 +129,9 @@ Mit jeder Stufe stärker:
 - **Reparatur** (Knopf im Kern-GUI) repariert den äußersten kaputten Schild und kostet **eine Kernstufe**. Möglich ab Mindeststufe (Standard 5) und nur, wenn der Schild danach noch existiert (z. B. Schild 1 ab Stufe 6).
 - Entschärfen und Neu-Aktivieren setzen alle Schilde zurück.
 
-## Laufen auf der Route (v0.8.3.1)
+## Laufen auf der Route (v0.8.3.2)
 
-- Die Wege sind aus rechtwinkligen Schritten gebaut. Auf ebenem, freiem Boden laufen Mobs trotzdem **auf direktem Weg** zum am weitesten erreichbaren Schritt ihres Weges (Gerade geprüft alle 0,5 s: gleiche Höhe, fester Boden, Kopf und Füße frei, kein Wasser/Feuer/Kaktus/Netz; bis 24 Schritte voraus). Bei Höhenunterschieden, Hindernissen oder Arbeit bleibt es beim Weg selbst.
+- Die Wege sind aus rechtwinkligen Schritten gebaut, aber Mobs laufen sie **nicht Schritt für Schritt** ab: Die normale Mob-Wegfindung (`getNavigation().moveTo`) führt sie zu einem Schritt ihres Weges bis zu 12 Schritte voraus (nie über das hinaus, was begehbar bereit ist, `walkLimit`). Sie bewegen sich dadurch wie jeder Mob, der etwas jagt. Findet die Wegfindung keinen Weg (oder im tiefen Wasser, als Passagier), läuft der Mob die Schritte wie vorher. Arbeiten (bauen, graben) und Plattformen laufen unverändert.
 
 ## Safezone (v0.8.2/0.8.3)
 
