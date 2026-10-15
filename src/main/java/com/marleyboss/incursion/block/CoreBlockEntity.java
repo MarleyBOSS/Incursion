@@ -186,13 +186,6 @@ public class CoreBlockEntity extends BlockEntity {
         return result;
     }
 
-    @Override
-    public AABB getRenderBoundingBox() {
-        // The dome, the border squares and their beams reach far beyond the block.
-        int range = Config.siegeRadiusBlocks(Math.max(1, coreLevel)) + Config.WARD_RADIUS.get() + 8;
-        return new AABB(worldPosition).inflate(range).expandTowards(0, 320, 0);
-    }
-
     public boolean isShieldBroken(int index) {
         return (brokenShields & (1 << index)) != 0;
     }
