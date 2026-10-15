@@ -6,7 +6,6 @@ import com.marleyboss.incursion.block.CoreBlockEntity;
 import com.marleyboss.incursion.siege.Shields;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
@@ -18,6 +17,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -98,8 +98,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
         final float[] alpha = new float[Config.SHIELD_COUNT];
         final float[] pulseStart = {-1.0F, -1.0F, -1.0F};
         float last = 0.0F;
-        final Long2IntOpenHashMap ground = new Long2IntOpenHashMap();
-        long groundStamp = Long.MIN_VALUE / 2;
+        final BlockPos.MutableBlockPos scratch = new BlockPos.MutableBlockPos();
         int[] outline;
         long outlineKey;
     }
@@ -281,10 +280,6 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
     private void renderBorders(CoreBlockEntity core, Anim anim, Level level, float partialTick, PoseStack pose,
                                MultiBufferSource buffer) {
         long gameTime = level.getGameTime();
-        if (gameTime - anim.groundStamp > 100) {
-            anim.ground.clear();
-            anim.groundStamp = gameTime;
-        }
         BlockPos corePos = core.getBlockPos();
         int coreHalf = Config.coreZoneRadius(Math.max(1, core.getCoreLevel())) + 6;
         int wardHalf = Config.WARD_RADIUS.get();
@@ -453,17 +448,25 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
                 .setNormal(pose, 0.0F, 1.0F, 0.0F);
     }
 
-    /** Height of the ground at a corner; falls back to the Core's height where the chunk is not loaded. */
+    /**
+     * Height of the surface at a block column: the top of the highest block that stops movement, looking past leaves
+     * (so trees do not lift the tint into the canopy). Uses the MOTION_BLOCKING heightmap, which the server sends to
+     * the client and keeps up to date when blocks change (the NO_LEAVES one is not sent and was wrong on the
+     * client). Falls back to the Core's height where the chunk is not loaded.
+     */
     private static int groundY(Level level, Anim anim, int x, int z, int fallback) {
-        long key = BlockPos.asLong(x, 0, z);
-        if (anim.ground.containsKey(key)) {
-            return anim.ground.get(key);
+        if (!level.hasChunk(x >> 4, z >> 4)) {
+            return fallback;
         }
-        int y = fallback;
-        if (level.hasChunk(x >> 4, z >> 4)) {
-            y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
+        BlockPos.MutableBlockPos pos = anim.scratch;
+        for (int i = 0; i < 24 && y > level.getMinBuildHeight(); i++) {
+            pos.set(x, y - 1, z);
+            if (!level.getBlockState(pos).is(BlockTags.LEAVES)) {
+                break;
+            }
+            y--;
         }
-        anim.ground.put(key, y);
         return y;
     }
 }
