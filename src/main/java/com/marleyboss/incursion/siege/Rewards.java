@@ -156,8 +156,12 @@ public final class Rewards {
         }
         List<LootChestBlockEntity> chests = LootChestBlockEntity.near(level, siege.corePos, Config.LOOT_CHEST_RANGE.get());
         if (chests.isEmpty()) {
+            lootDebug(level, siege, entity, event.getDrops().size(), 0,
+                    "no loot chest within " + Config.LOOT_CHEST_RANGE.get() + " blocks of the Core");
             return;
         }
+        int total = event.getDrops().size();
+        int stored = 0;
         Iterator<ItemEntity> drops = event.getDrops().iterator();
         while (drops.hasNext()) {
             ItemEntity drop = drops.next();
@@ -170,9 +174,23 @@ public final class Rewards {
             }
             if (rest.isEmpty()) {
                 drops.remove();
+                stored++;
             } else {
                 drop.setItem(rest);
             }
         }
+        lootDebug(level, siege, entity, total, stored, stored < total ? "chest full, the rest falls to the ground" : "");
+    }
+
+    /** With the AI view on, every siege mob death says what happened to its drops (to find out why a chest stays empty). */
+    private static void lootDebug(ServerLevel level, ActiveSiege siege, LivingEntity entity, int total, int stored,
+                                  String note) {
+        if (!siege.showDebug) {
+            return;
+        }
+        String text = "[Loot] " + entity.getType().getDescription().getString() + ": " + total + " drop stacks, "
+                + stored + " into the chest" + (note.isEmpty() ? "" : " (" + note + ")");
+        level.getServer().getPlayerList().broadcastSystemMessage(
+                Component.literal(text).withStyle(ChatFormatting.DARK_GRAY), false);
     }
 }

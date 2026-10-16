@@ -83,6 +83,8 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
     /** The ground inside the squares is tinted only this far around the camera (blocks) and this strongly. */
     private static final int TINT_RANGE = 40;
     private static final float TINT_ALPHA = 0.50F;
+    /** The shield domes are only faint while the Core's "Borders" view is off, so the view from the Core stays free. */
+    private static final float SHIELD_IDLE_VIEW = 0.15F;
 
     /** Per-frame scratch values of one sphere. */
     private final float[] alphas = new float[VERTS];
@@ -96,6 +98,8 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
         final float[] alpha = new float[Config.SHIELD_COUNT];
         final float[] pulseStart = {-1.0F, -1.0F, -1.0F};
         float last = 0.0F;
+        /** How strongly the domes are drawn right now: faint normally, full while the borders are shown. */
+        float view = SHIELD_IDLE_VIEW;
         final BlockPos.MutableBlockPos scratch = new BlockPos.MutableBlockPos();
         int[] edges;
         int[] heights;
@@ -155,6 +159,13 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
     private void renderShields(CoreBlockEntity core, Anim anim, float time, PoseStack pose, MultiBufferSource buffer) {
         float dt = Mth.clamp(time - anim.last, 0.0F, 4.0F);
         anim.last = time;
+        float viewTarget = core.isShowBorders() ? 1.0F : SHIELD_IDLE_VIEW;
+        if (!anim.known) {
+            anim.view = viewTarget;
+        } else {
+            float viewRate = 0.06F * dt;
+            anim.view += Mth.clamp(viewTarget - anim.view, -viewRate, viewRate);
+        }
         float pulseRadiusExtra = Config.SHIELD_PULSE_EXTRA_RADIUS.get();
         boolean any = false;
         for (int i = 0; i < Config.SHIELD_COUNT; i++) {
@@ -199,7 +210,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
                 float uRepeat = Math.max(3, Math.round(radius * 0.6F));
                 float vRepeat = uRepeat * 0.2886F;
                 float scroll = (i % 2 == 0 ? 1.0F : -1.0F) * time * 0.0006F;
-                drawSphere(last, hex, radius, camX, camY, camZ, tint, 1.0F * anim.alpha[i] * flicker,
+                drawSphere(last, hex, radius, camX, camY, camZ, tint, 1.0F * anim.alpha[i] * flicker * anim.view,
                         uRepeat, vRepeat, scroll, 0.0F);
             }
             if (anim.pulseStart[i] >= 0.0F) {
@@ -220,7 +231,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
             }
             float radius = Config.shieldRadius(i);
             float flicker = 0.80F + 0.20F * Mth.sin(time * 0.17F + i * 1.3F);
-            drawSphere(last, plasma, radius, camX, camY, camZ, TINTS[i], 0.95F * anim.alpha[i] * flicker,
+            drawSphere(last, plasma, radius, camX, camY, camZ, TINTS[i], 0.95F * anim.alpha[i] * flicker * anim.view,
                     3.0F, 1.5F, time * 0.0020F, -time * 0.0014F);
         }
         pose.popPose();

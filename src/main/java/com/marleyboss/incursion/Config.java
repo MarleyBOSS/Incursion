@@ -483,8 +483,8 @@ public final class Config {
             .defineInRange("frontWaiters", 2, 0, 32);
 
     public static final ModConfigSpec.BooleanValue NO_MOB_COLLISION = BUILDER
-            .comment("If true, siege mobs do not push each other (they put themselves on the scoreboard team \"incursion_siege\"),",
-                    "so they cannot block each other on narrow stairs and ladders.")
+            .comment("If true, siege mobs do not push anything and are not pushed (collision rule \"never\" of the scoreboard team \"incursion_siege\"),",
+                    "so they cannot block each other (builders get through) on narrow stairs, bridges and ladders.")
             .define("noMobCollision", true);
 
     public static final ModConfigSpec.BooleanValue BLOCK_CAVE_SPAWNS = BUILDER

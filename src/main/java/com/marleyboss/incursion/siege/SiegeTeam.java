@@ -26,8 +26,8 @@ public final class SiegeTeam {
         if (team == null && create) {
             team = scoreboard.addPlayerTeam(NAME);
         }
-        if (team != null && team.getCollisionRule() != Team.CollisionRule.PUSH_OTHER_TEAMS) {
-            team.setCollisionRule(Team.CollisionRule.PUSH_OTHER_TEAMS);
+        if (team != null && team.getCollisionRule() != Team.CollisionRule.NEVER) {
+            team.setCollisionRule(Team.CollisionRule.NEVER);
         }
         return team;
     }
