@@ -1,5 +1,8 @@
 {
   "variants": {
-    "": { "model": "incursion:block/loot_chest" }
+    "facing=north": { "model": "incursion:block/loot_chest" },
+    "facing=south": { "model": "incursion:block/loot_chest" },
+    "facing=west": { "model": "incursion:block/loot_chest" },
+    "facing=east": { "model": "incursion:block/loot_chest" }
   }
 }

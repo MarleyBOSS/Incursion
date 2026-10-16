@@ -7,10 +7,18 @@ import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.ContainerHelper;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.ChestLidController;
+import net.minecraft.world.level.block.entity.ContainerOpenersCounter;
+import net.minecraft.world.level.block.entity.LidBlockEntity;
 import net.minecraft.world.level.block.entity.RandomizableContainerBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -20,14 +28,40 @@ import java.util.List;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-/** Inventory of the loot chest: 54 slots (six rows). */
-public class LootChestBlockEntity extends RandomizableContainerBlockEntity {
+/**
+ * Inventory of the loot chest: 54 slots (six rows). Like a vanilla chest it counts who has it open, plays the open and
+ * close sounds and drives the lid animation (see the client renderer).
+ */
+public class LootChestBlockEntity extends RandomizableContainerBlockEntity implements LidBlockEntity {
     public static final int SIZE = 54;
 
     /** Loaded loot chests (server side), so the siege finds them without scanning blocks. */
     private static final Set<LootChestBlockEntity> LOADED = Collections.newSetFromMap(new WeakHashMap<>());
 
     private NonNullList<ItemStack> items = NonNullList.withSize(SIZE, ItemStack.EMPTY);
+    private final ChestLidController lidController = new ChestLidController();
+    private final ContainerOpenersCounter openersCounter = new ContainerOpenersCounter() {
+        @Override
+        protected void onOpen(Level level, BlockPos pos, BlockState state) {
+            playSound(level, pos, SoundEvents.CHEST_OPEN);
+        }
+
+        @Override
+        protected void onClose(Level level, BlockPos pos, BlockState state) {
+            playSound(level, pos, SoundEvents.CHEST_CLOSE);
+        }
+
+        @Override
+        protected void openerCountChanged(Level level, BlockPos pos, BlockState state, int oldCount, int newCount) {
+            // Tells the clients (block event 1) whether the lid is open.
+            level.blockEvent(pos, state.getBlock(), 1, newCount);
+        }
+
+        @Override
+        protected boolean isOwnContainer(Player player) {
+            return player.containerMenu instanceof ChestMenu menu && menu.getContainer() == LootChestBlockEntity.this;
+        }
+    };
 
     public LootChestBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.LOOT_CHEST.get(), pos, state);
@@ -41,6 +75,51 @@ public class LootChestBlockEntity extends RandomizableContainerBlockEntity {
         }
     }
 
+    private static void playSound(Level level, BlockPos pos, SoundEvent sound) {
+        level.playSound(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, sound, SoundSource.BLOCKS,
+                0.5F, level.random.nextFloat() * 0.1F + 0.9F);
+    }
+
+    /** Client tick: moves the lid. */
+    public static void lidAnimateTick(Level level, BlockPos pos, BlockState state, LootChestBlockEntity chest) {
+        chest.lidController.tickLid();
+    }
+
+    @Override
+    public boolean triggerEvent(int id, int type) {
+        if (id == 1) {
+            lidController.shouldBeOpen(type > 0);
+            return true;
+        }
+        return super.triggerEvent(id, type);
+    }
+
+    @Override
+    public void startOpen(Player player) {
+        if (!remove && !player.isSpectator() && level != null) {
+            openersCounter.incrementOpeners(player, level, getBlockPos(), getBlockState());
+        }
+    }
+
+    @Override
+    public void stopOpen(Player player) {
+        if (!remove && !player.isSpectator() && level != null) {
+            openersCounter.decrementOpeners(player, level, getBlockPos(), getBlockState());
+        }
+    }
+
+    /** Called by the block's scheduled tick: closes the lid when nobody has the chest open any more. */
+    public void recheckOpen() {
+        if (!remove && level != null) {
+            openersCounter.recheckOpeners(level, getBlockPos(), getBlockState());
+        }
+    }
+
+    @Override
+    public float getOpenNess(float partialTick) {
+        return lidController.getOpenness(partialTick);
+    }
+
     @Override
     public void setRemoved() {
         super.setRemoved();
@@ -51,7 +130,7 @@ public class LootChestBlockEntity extends RandomizableContainerBlockEntity {
      * The loaded loot chests in the given level within {@code range} blocks (square) of {@code center},
      * nearest first.
      */
-    public static List<LootChestBlockEntity> near(net.minecraft.world.level.Level level, BlockPos center, int range) {
+    public static List<LootChestBlockEntity> near(Level level, BlockPos center, int range) {
         List<LootChestBlockEntity> result = new ArrayList<>();
         for (LootChestBlockEntity chest : LOADED) {
             if (chest.level != level || chest.isRemoved()) {

@@ -92,8 +92,9 @@ public class CoreBlock extends BaseEntityBlock {
     @Override
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
                                               Player player, InteractionHand hand, BlockHitResult hit) {
-        if (stack.is(ModItems.CORE_SHARD.get())) {
-            // Shards go into the Core's balance (they can be taken out again in the GUI).
+        if (stack.is(ModItems.CORE_SHARD.get()) && player.isShiftKeyDown()) {
+            // Sneak + right-click: shards go into the Core's balance (they can be taken out again in the GUI).
+            // A plain right-click opens the GUI as usual.
             if (!level.isClientSide && level.getBlockEntity(pos) instanceof CoreBlockEntity core) {
                 Rewards.deposit(player, core, stack);
             }

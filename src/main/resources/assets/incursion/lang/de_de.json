@@ -265,7 +265,7 @@
   "gui.incursion.core.nights": "Nächte verteidigt: %s (+%s Splitter/Nacht)",
   "gui.incursion.core.kills": "Belagerungs-Mobs getötet: %s",
   "gui.incursion.core.button.withdraw": "Splitter abheben (%s)",
-  "gui.incursion.core.withdraw_tooltip": "Holt die Splitter als Items aus dem Kern (bis zu 576 pro Klick). Rechtsklick auf den Kern mit Splittern zahlt sie wieder ein.",
+  "gui.incursion.core.withdraw_tooltip": "Holt die Splitter als Items aus dem Kern (bis zu 576 pro Klick). Schleichen + Rechtsklick auf den Kern mit Splittern zahlt sie wieder ein.",
   "message.incursion.core.night_defended": "Die Nacht ist vorbei, der Kern hat gehalten! +%s Kernsplitter (Guthaben: %s, Nächte verteidigt: %s)",
   "message.incursion.core.no_shards": "Der Kern enthält keine Splitter.",
   "message.incursion.core.shards_taken": "%s Kernsplitter abgehoben (Guthaben: %s).",

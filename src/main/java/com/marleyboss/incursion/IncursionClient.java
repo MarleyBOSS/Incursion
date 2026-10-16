@@ -1,11 +1,15 @@
 package com.marleyboss.incursion;
 
 import com.marleyboss.incursion.client.CoreRenderer;
+import com.marleyboss.incursion.client.LootChestItemRenderer;
+import com.marleyboss.incursion.client.LootChestRenderer;
 import com.marleyboss.incursion.client.WardRenderer;
 import com.marleyboss.incursion.client.CoreScreen;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModEntities;
+import com.marleyboss.incursion.registry.ModItems;
 import com.marleyboss.incursion.registry.ModMenus;
+import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.client.renderer.entity.NoopRenderer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -13,6 +17,8 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
+import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 
@@ -25,6 +31,22 @@ public class IncursionClient {
 
         modEventBus.addListener(IncursionClient::registerScreens);
         modEventBus.addListener(IncursionClient::registerRenderers);
+        modEventBus.addListener(IncursionClient::registerItemExtensions);
+    }
+
+    /** The loot chest item is drawn like a chest (with the chest renderer), not as a flat cube. */
+    private static void registerItemExtensions(RegisterClientExtensionsEvent event) {
+        event.registerItem(new IClientItemExtensions() {
+            private LootChestItemRenderer renderer;
+
+            @Override
+            public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new LootChestItemRenderer();
+                }
+                return renderer;
+            }
+        }, ModItems.LOOT_CHEST.get());
     }
 
     private static void registerScreens(RegisterMenuScreensEvent event) {
@@ -38,5 +60,7 @@ public class IncursionClient {
         event.registerBlockEntityRenderer(ModBlockEntities.CORE.get(), CoreRenderer::new);
         // Health bar above ward totems.
         event.registerBlockEntityRenderer(ModBlockEntities.WARD.get(), WardRenderer::new);
+        // The loot chest with its animated lid.
+        event.registerBlockEntityRenderer(ModBlockEntities.LOOT_CHEST.get(), LootChestRenderer::new);
     }
 }
