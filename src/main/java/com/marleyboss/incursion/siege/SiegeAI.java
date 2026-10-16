@@ -398,6 +398,18 @@ public final class SiegeAI {
             return;
         }
 
+        // A fighter that found a nearer totem than its front's goal walks there on its own (vanilla AI), no route.
+        BlockPos nearWard = SiegeFocus.wardOf(mob, siege);
+        if (nearWard != null && MobRoles.isFighter(role) && !PlayerHunt.isWorker(mob)
+                && (state.front == null || !nearWard.equals(state.front.ward))) {
+            release(state);
+            state.status("approach");
+            if (isLostByDistance(state, distance, now)) {
+                removeLost(level, mob);
+            }
+            return;
+        }
+
         SiegeFront front = state.front;
         boolean huntWorker = PlayerHunt.isWorker(mob);
         if (huntWorker ? !PlayerHunt.contains(front) : !SiegeCommander.contains(front)) {

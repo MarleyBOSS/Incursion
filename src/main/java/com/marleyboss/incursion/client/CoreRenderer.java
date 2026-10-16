@@ -366,8 +366,8 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
                                    float nz, float absY, float h, float time, float phase) {
         float height = Math.max(0.0F, h);
         // Strong at the ground, weak but still visible far up; light bands run upwards.
-        float base = 0.12F + 0.50F * (float) Math.exp(-height / 45.0F);
-        float band = 0.78F + 0.22F * Mth.sin(absY * 0.11F - time * 0.22F + phase);
+        float base = 0.28F + 0.62F * (float) Math.exp(-height / 70.0F);
+        float band = 0.85F + 0.15F * Mth.sin(absY * 0.11F - time * 0.22F + phase);
         float flicker = 0.92F + 0.08F * Mth.sin(time * 0.31F + phase * 3.0F);
         float glow = (float) Math.exp(-height / 10.0F); // whiter near the ground
         consumer.addVertex(pose, x, y, z)

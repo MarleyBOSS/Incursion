@@ -42,6 +42,8 @@ public final class ActiveSiege {
     public final int safeHalf;
     /** Half side of the square safe zone around every ward totem. */
     public final int wardHalf;
+    /** The switched-on ward totems when the snapshot was taken. */
+    public final List<BlockPos> wards;
     private final int[] wardX;
     private final int[] wardZ;
     private final long validUntil;
@@ -62,6 +64,7 @@ public final class ActiveSiege {
         this.underground = underground;
         this.safeHalf = coreZoneRadius + 6;
         this.wardHalf = Config.WARD_RADIUS.get();
+        this.wards = List.copyOf(wards);
         this.wardX = new int[wards.size()];
         this.wardZ = new int[wards.size()];
         for (int i = 0; i < wards.size(); i++) {

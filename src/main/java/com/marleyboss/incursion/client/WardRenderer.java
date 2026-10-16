@@ -21,8 +21,8 @@ public class WardRenderer implements BlockEntityRenderer<WardBlockEntity> {
     /** A plain white texture; the bar colour comes from the vertex colour. */
     private static final ResourceLocation WHITE = ResourceLocation.fromNamespaceAndPath(Incursion.MODID,
             "textures/effect/ground_tint.png");
-    private static final float HALF_WIDTH = 0.45F;
-    private static final float HEIGHT = 0.09F;
+    private static final float HALF_WIDTH = 0.75F;
+    private static final float HEIGHT = 0.19F;
 
     public WardRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -40,17 +40,18 @@ public class WardRenderer implements BlockEntityRenderer<WardBlockEntity> {
         float fraction = Mth.clamp(ward.getHealth() / Math.max(1, ward.getMaxHealth()), 0.0F, 1.0F);
 
         pose.pushPose();
-        pose.translate(0.5, 1.4, 0.5);
+        pose.translate(0.5, 1.7, 0.5);
         pose.mulPose(Minecraft.getInstance().getEntityRenderDispatcher().cameraOrientation());
         VertexConsumer consumer = buffer.getBuffer(RenderType.entityTranslucentEmissive(WHITE));
         PoseStack.Pose last = pose.last();
         // Background, then the filled part (slightly closer to the camera). Green when full, red when empty.
-        quad(consumer, last, -HALF_WIDTH - 0.02F, -0.02F, HALF_WIDTH + 0.02F, HEIGHT + 0.02F, 0.0F,
-                0.05F, 0.05F, 0.05F, 0.85F);
+        quad(consumer, last, -HALF_WIDTH - 0.045F, -0.045F, HALF_WIDTH + 0.045F, HEIGHT + 0.045F, 0.0F,
+                0.95F, 0.95F, 0.95F, 1.0F); // light frame
+        quad(consumer, last, -HALF_WIDTH, 0.0F, HALF_WIDTH, HEIGHT, 0.002F, 0.08F, 0.08F, 0.08F, 1.0F);
         if (fraction > 0.0F) {
             float r = Mth.clamp(2.0F * (1.0F - fraction), 0.0F, 1.0F);
             float g = Mth.clamp(2.0F * fraction, 0.0F, 1.0F);
-            quad(consumer, last, -HALF_WIDTH, 0.0F, -HALF_WIDTH + 2.0F * HALF_WIDTH * fraction, HEIGHT, 0.004F,
+            quad(consumer, last, -HALF_WIDTH, 0.0F, -HALF_WIDTH + 2.0F * HALF_WIDTH * fraction, HEIGHT, 0.006F,
                     r, g, 0.1F, 1.0F);
         }
         pose.popPose();
