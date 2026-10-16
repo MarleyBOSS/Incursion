@@ -126,6 +126,7 @@
   "incursion.configuration.landingsEnabled": "Build landings along the stairs",
   "incursion.configuration.widenAccess": "Dig extra access next to the attack position",
   "incursion.configuration.stairWidth": "Width of stairs and towers (blocks)",
+  "incursion.configuration.stairFlight": "Minimum straight flight of stairs before a turn (steps)",
   "incursion.configuration.hardDigWorkers": "Diggers at one very hard block",
   "incursion.configuration.landingSpacing": "Steps between landings",
   "incursion.configuration.siegeExplosionsSpareMobs": "Siege explosions spare siege mobs",

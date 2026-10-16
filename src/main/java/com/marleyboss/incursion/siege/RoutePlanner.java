@@ -40,6 +40,12 @@ public final class RoutePlanner {
     static final float UP_EXTRA = 3.0F;
     /** Changing direction costs a little: straight stairs are easier to walk. */
     static final float TURN = 2.0F;
+    /**
+     * A turn right after a short straight run costs this much per missing step of the run (see {@code stairFlight}):
+     * the stairs get long straight flights with a turn (and a landing) only after some steps, not a tight corkscrew
+     * where every flight lands on the one below.
+     */
+    static final float SHORT_FLIGHT_PENALTY = 25.0F;
     static final float DIG_OVERHEAD = 6.0F;
     static final float PLACE_OVERHEAD = 15.0F;
     /** Steps on another front's way cost this much extra (a second front builds its own way). */
@@ -81,6 +87,8 @@ public final class RoutePlanner {
         int dir = -1;
         /** Side of the Core this way attacks from (2D data value). */
         int side;
+        /** How many moves in a row (from this node on, towards the Core) go in the direction {@link #dir}. */
+        int run;
         boolean closed;
         /** Cells the move from this node to {@link #next} needs free. */
         long[] moveClears = NO_CELLS;
@@ -363,7 +371,14 @@ public final class RoutePlanner {
                 continue;
             }
             int dir = direction.get2DDataValue();
-            float turn = c.dir >= 0 && c.dir != dir ? TURN : 0.0F;
+            float turn = 0.0F;
+            if (c.dir >= 0 && c.dir != dir) {
+                turn = TURN;
+                int flight = Config.STAIR_FLIGHT.get();
+                if (c.run < flight) {
+                    turn += (flight - c.run) * SHORT_FLIGHT_PENALTY; // a turn after a short flight: corkscrew
+                }
+            }
 
             // Walk: P at the same height.
             long[] flat = {key(c.x, c.y + 1, c.z), key(c.x, c.y, c.z)};
@@ -479,6 +494,7 @@ public final class RoutePlanner {
         node.h = heuristic(px, py, pz);
         node.next = c;
         node.dir = dir;
+        node.run = c.dir == dir ? c.run + 1 : 1;
         node.side = c.side;
         node.moveClears = moveClears;
         node.support = supportKey;
@@ -705,6 +721,7 @@ public final class RoutePlanner {
         if (width <= 1) {
             return wings;
         }
+        BlockPos[][] pads = cornerPads(route, keepFree);
         Direction preferred = null;
         for (int i = 1; i < route.size(); i++) {
             BlockPos support = route.support(i);
@@ -756,7 +773,55 @@ public final class RoutePlanner {
                 }
             }
         }
+        for (int i = 0; i < wings.length; i++) {
+            if (pads[i] != null) {
+                BlockPos[] own = wings[i] == null ? new BlockPos[0] : wings[i];
+                BlockPos[] all = java.util.Arrays.copyOf(own, own.length + pads[i].length);
+                System.arraycopy(pads[i], 0, all, own.length, pads[i].length);
+                wings[i] = all;
+            }
+        }
         return withoutBlockedWings(route, wings);
+    }
+
+    /**
+     * Landing at every turn of the stairs (like the landing of a stairwell): the cells beside and behind the corner,
+     * at the height of the corner's floor, so several mobs fit on the turn and the next flight starts from a
+     * platform. Only free, placeable cells that nothing of the route needs.
+     */
+    private BlockPos[][] cornerPads(Route route, LongOpenHashSet keepFree) {
+        BlockPos[][] pads = new BlockPos[route.size()][];
+        for (int i = 1; i < route.size() - 1; i++) {
+            BlockPos support = route.support(i);
+            if (support == null || cell(support.getX(), support.getY(), support.getZ()).support() != SUPPORT_PLACEABLE) {
+                continue;
+            }
+            Direction in = horizontal(route.node(i - 1), route.node(i));
+            Direction out = horizontal(route.node(i), route.node(i + 1));
+            if (in == null || out == null || in == out) {
+                continue;
+            }
+            List<BlockPos> cells = new ArrayList<>(5);
+            // Ahead of the corner (the way the mob came from is behind it): the cell ahead and the cells beside it.
+            for (int along = 0; along <= 1; along++) {
+                for (int across = -1; across <= 1; across++) {
+                    if (along == 0 && across == 0) {
+                        continue;
+                    }
+                    BlockPos pad = support.relative(in, along).relative(in.getClockWise(), across);
+                    long key = pad.asLong();
+                    if (keepFree.contains(key) || avoidClear.contains(key)
+                            || cell(pad.getX(), pad.getY(), pad.getZ()).support() != SUPPORT_PLACEABLE) {
+                        continue;
+                    }
+                    cells.add(pad.immutable());
+                }
+            }
+            if (!cells.isEmpty()) {
+                pads[i] = cells.toArray(new BlockPos[0]);
+            }
+        }
+        return pads;
     }
 
     /**
@@ -780,6 +845,9 @@ public final class RoutePlanner {
             }
             List<BlockPos> kept = new ArrayList<>(2);
             for (BlockPos wing : wings[i]) {
+                if (solid.contains(wing.asLong())) {
+                    continue; // already a block of the route (or another extra column)
+                }
                 if (solid.contains(wing.above().asLong()) || solid.contains(wing.above(2).asLong())
                         || placed.contains(wing.below().asLong()) || placed.contains(wing.below(2).asLong())) {
                     continue;
