@@ -43,6 +43,16 @@ public final class Config {
             .comment("Additional items per level (see upgradeBaseCost).")
             .defineInRange("upgradeCostPerLevel", 1, 0, 64 * 36);
 
+    public static final ModConfigSpec.BooleanValue UPGRADE_TOOL_REQUIRED = BUILDER
+            .comment("If true, upgrading the Core needs an Upgrade Tool (anywhere in the inventory) in addition to the",
+                    "upgrade items. The tool is not used up. If false, only the upgrade items are needed (old behaviour).")
+            .define("upgradeToolRequired", true);
+
+    public static final ModConfigSpec.IntValue UPGRADE_TOOL_LEVELS = BUILDER
+            .comment("Core levels covered by one Upgrade Tool tier. With 5: tier I reaches level 5, tier II level 10,",
+                    "tier III level 15, tier IV every level above. Stronger tools are crafted from the weaker one.")
+            .defineInRange("upgradeToolLevels", 5, 1, 100);
+
     public static final ModConfigSpec.IntValue CORE_HEALTH_BASE = BUILDER
             .comment("Core health = coreHealthBase + coreHealthPerLevel * level.")
             .defineInRange("coreHealthBase", 100, 1, 30000);
@@ -860,6 +870,19 @@ public final class Config {
     /** Number of upgrade items needed to reach {@code targetLevel} (targetLevel >= 2). */
     public static int upgradeCost(int targetLevel) {
         return UPGRADE_BASE_COST.get() + UPGRADE_COST_PER_LEVEL.get() * Math.max(0, targetLevel - 2);
+    }
+
+    /** Highest Upgrade Tool tier; it covers every Core level above the lower tiers. */
+    public static final int UPGRADE_TOOL_MAX_TIER = 4;
+
+    /** Upgrade Tool tier needed to reach {@code targetLevel}; 0 if no tool is required. */
+    public static int requiredToolTier(int targetLevel) {
+        if (!UPGRADE_TOOL_REQUIRED.get()) {
+            return 0;
+        }
+        int perTier = UPGRADE_TOOL_LEVELS.get();
+        int tier = (Math.max(1, targetLevel) + perTier - 1) / perTier;
+        return Math.max(1, Math.min(UPGRADE_TOOL_MAX_TIER, tier));
     }
 
     public static int maxCoreHealth(int level) {

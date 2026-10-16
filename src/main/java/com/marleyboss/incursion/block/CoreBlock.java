@@ -3,6 +3,7 @@ package com.marleyboss.incursion.block;
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.data.CoreWorldData;
 import com.marleyboss.incursion.fallout.Fallout;
+import com.marleyboss.incursion.item.UpgradeToolItem;
 import com.marleyboss.incursion.menu.CoreMenu;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModItems;
@@ -39,7 +40,8 @@ import org.jetbrains.annotations.Nullable;
  * <ul>
  *     <li>Level 0 / inactive: peaceful, can be mined and moved.</li>
  *     <li>Right-click with the activation item: becomes active at level 1 (one active core per world).</li>
- *     <li>Right-click with the upgrade item while active: pays the cost and gains a level.</li>
+ *     <li>Right-click with the upgrade item or an Upgrade Tool while active: pays the cost and gains a level
+ *     (an Upgrade Tool of a high enough tier must be in the inventory, see {@code upgradeToolRequired}).</li>
  *     <li>Right-click with anything else: opens the Core GUI (status, upgrade button).</li>
  *     <li>While active, the block entity runs the siege (see SiegeManager).</li>
  *     <li>Active cores cannot be mined in survival. If an active core is removed in any other way
@@ -102,7 +104,7 @@ public class CoreBlock extends BaseEntityBlock {
         }
         boolean active = state.getValue(ACTIVE);
         boolean isActivation = !active && stack.is(Config.activationItem());
-        boolean isUpgrade = active && stack.is(Config.upgradeItem());
+        boolean isUpgrade = active && (stack.is(Config.upgradeItem()) || stack.getItem() instanceof UpgradeToolItem);
         if (!isActivation && !isUpgrade) {
             // Falls through to useWithoutItem (opens the GUI).
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;

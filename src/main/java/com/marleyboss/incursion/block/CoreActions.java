@@ -2,6 +2,8 @@ package com.marleyboss.incursion.block;
 
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.data.CoreWorldData;
+import com.marleyboss.incursion.item.UpgradeToolItem;
+import com.marleyboss.incursion.registry.ModItems;
 import com.marleyboss.incursion.siege.ChunkLoading;
 import com.marleyboss.incursion.siege.Shields;
 import net.minecraft.ChatFormatting;
@@ -72,6 +74,13 @@ public final class CoreActions {
         }
 
         int targetLevel = currentLevel + 1;
+        int neededTier = Config.requiredToolTier(targetLevel);
+        if (neededTier > 0 && toolTier(player) < neededTier) {
+            player.displayClientMessage(Component.translatable("message.incursion.core.need_tool",
+                    ModItems.upgradeTool(neededTier).get().getDescription(), targetLevel)
+                    .withStyle(ChatFormatting.RED), true);
+            return;
+        }
         int cost = Config.upgradeCost(targetLevel);
         Item upgradeItem = Config.upgradeItem();
         if (countItem(player, upgradeItem) < cost) {
@@ -94,6 +103,21 @@ public final class CoreActions {
     // ------------------------------------------------------------------
     // Inventory helpers (creative players pay nothing)
     // ------------------------------------------------------------------
+
+    /** Highest Upgrade Tool tier in the inventory (0 = none); creative players count as the highest. */
+    public static int toolTier(Player player) {
+        if (player.getAbilities().instabuild) {
+            return Config.UPGRADE_TOOL_MAX_TIER;
+        }
+        int best = 0;
+        Inventory inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            if (inventory.getItem(i).getItem() instanceof UpgradeToolItem tool) {
+                best = Math.max(best, tool.getTier());
+            }
+        }
+        return best;
+    }
 
     public static int countItem(Player player, Item item) {
         if (player.getAbilities().instabuild) {

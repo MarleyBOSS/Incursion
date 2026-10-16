@@ -63,7 +63,10 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int DATA_NIGHTS = 25;
     public static final int DATA_KILLS = 26;
     public static final int DATA_SHARDS_PER_NIGHT = 27;
-    public static final int DATA_COUNT = 28;
+    /** Upgrade Tool tier needed for the next level (0 = no tool needed) and the best tier the player carries. */
+    public static final int DATA_NEXT_TOOL_TIER = 28;
+    public static final int DATA_TOOL_TIER_OWNED = 29;
+    public static final int DATA_COUNT = 30;
 
     private final ContainerData data;
     private final ContainerLevelAccess access;
@@ -127,6 +130,8 @@ public class CoreMenu extends AbstractContainerMenu {
                     case DATA_NIGHTS -> core.getDefendedNights();
                     case DATA_KILLS -> core.getKilledMobs();
                     case DATA_SHARDS_PER_NIGHT -> Config.SHARDS_ENABLED.get() ? Config.shardsPerNight(Math.max(1, level)) : 0;
+                    case DATA_NEXT_TOOL_TIER -> Config.requiredToolTier(level + 1);
+                    case DATA_TOOL_TIER_OWNED -> CoreActions.toolTier(player);
                     default -> 0;
                 };
                 // Data slots are synced as 16-bit numbers.

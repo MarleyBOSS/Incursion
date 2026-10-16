@@ -54,5 +54,11 @@ public class Incursion {
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             event.accept(ModItems.CORE_SHARD);
         }
+        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
+            event.accept(ModItems.UPGRADE_TOOL_1);
+            event.accept(ModItems.UPGRADE_TOOL_2);
+            event.accept(ModItems.UPGRADE_TOOL_3);
+            event.accept(ModItems.UPGRADE_TOOL_4);
+        }
     }
 }
