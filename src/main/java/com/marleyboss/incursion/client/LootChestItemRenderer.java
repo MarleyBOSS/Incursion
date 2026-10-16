@@ -24,6 +24,7 @@ public class LootChestItemRenderer extends BlockEntityWithoutLevelRenderer {
         if (dummy == null) {
             dummy = new LootChestBlockEntity(BlockPos.ZERO, ModBlocks.LOOT_CHEST.get().defaultBlockState());
         }
-        blockEntityRenderDispatcher.renderItem(dummy, poseStack, buffer, packedLight, packedOverlay);
+        Minecraft.getInstance().getBlockEntityRenderDispatcher()
+                .renderItem(dummy, poseStack, buffer, packedLight, packedOverlay);
     }
 }
