@@ -2,6 +2,7 @@ package com.marleyboss.incursion.registry;
 
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlock;
+import com.marleyboss.incursion.block.LootChestBlock;
 import com.marleyboss.incursion.block.WardBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -31,6 +32,13 @@ public final class ModBlocks {
                     .sound(SoundType.STONE)
                     .lightLevel(state -> 7)
                     .noOcclusion()));
+
+    /** Collects the drops of siege mobs near the active Core (see Rewards). */
+    public static final DeferredBlock<LootChestBlock> LOOT_CHEST = BLOCKS.register("loot_chest", () -> new LootChestBlock(
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_PURPLE)
+                    .strength(3.0F, 1200.0F)
+                    .sound(SoundType.WOOD)));
 
     /**
      * Placed by builder zombies (stairs and bridges). Explosions cannot break it, so creepers and blast arrows

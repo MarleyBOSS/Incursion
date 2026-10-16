@@ -22,6 +22,7 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     private static final int COLOR_TITLE = 0xFFFFC040;
     private static final int COLOR_DEFUSE = 0xFFFFD040;
     private static final int COLOR_SHIELD = 0xFF60C8FF;
+    private static final int COLOR_SHARD = 0xFF7FFFD4;
 
     private static final int BAR_X = 10;
     private static final int BAR_WIDTH = 196;
@@ -31,11 +32,12 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     private Button bordersButton;
     private Button aiButton;
     private Button repairButton;
+    private Button withdrawButton;
 
     public CoreScreen(CoreMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 216;
-        this.imageHeight = 264;
+        this.imageHeight = 328;
     }
 
     @Override
@@ -59,6 +61,10 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
         repairButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_REPAIR_SHIELD))
                 .bounds(leftPos + 10, topPos + imageHeight - 96, imageWidth - 20, 20)
                 .build());
+        withdrawButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_WITHDRAW))
+                .bounds(leftPos + 10, topPos + imageHeight - 120, imageWidth - 20, 20)
+                .tooltip(Tooltip.create(Component.translatable("gui.incursion.core.withdraw_tooltip")))
+                .build());
         updateButton();
     }
 
@@ -81,10 +87,15 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
 
     private void updateButton() {
         if (actionButton == null || defuseButton == null || bordersButton == null || aiButton == null
-                || repairButton == null) {
+                || repairButton == null || withdrawButton == null) {
             return;
         }
         boolean active = menu.isActive();
+        int shards = menu.get(CoreMenu.DATA_SHARDS);
+        withdrawButton.visible = true;
+        withdrawButton.active = shards > 0;
+        withdrawButton.setY(topPos + imageHeight - (active ? 120 : 72));
+        withdrawButton.setMessage(Component.translatable("gui.incursion.core.button.withdraw", shards));
         defuseButton.visible = active;
         // The borders can be shown before the Core is activated (to plan the base); then the button is full width.
         bordersButton.visible = true;
@@ -224,6 +235,14 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
                     menu.get(CoreMenu.DATA_NEXT_COST), Math.min(menu.get(CoreMenu.DATA_UPGRADE_ITEMS_OWNED), 9999)),
                     iconX + 18, costY + 4, COLOR_TEXT, false);
         }
+
+        // Rewards: shard balance and statistics (always shown, the balance stays in the Core).
+        graphics.drawString(font, Component.translatable("gui.incursion.core.shards",
+                menu.get(CoreMenu.DATA_SHARDS)), 10, 170, COLOR_SHARD, false);
+        graphics.drawString(font, Component.translatable("gui.incursion.core.nights",
+                menu.get(CoreMenu.DATA_NIGHTS), menu.get(CoreMenu.DATA_SHARDS_PER_NIGHT)), 10, 181, infoColor, false);
+        graphics.drawString(font, Component.translatable("gui.incursion.core.kills",
+                menu.get(CoreMenu.DATA_KILLS)), 10, 192, infoColor, false);
 
         int defuseLeft = menu.get(CoreMenu.DATA_DEFUSE_LEFT);
         if (active && defuseLeft > 0) {

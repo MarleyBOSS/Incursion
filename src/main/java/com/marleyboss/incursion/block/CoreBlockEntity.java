@@ -44,10 +44,22 @@ public class CoreBlockEntity extends BlockEntity {
     private static final String TAG_SHOW_BORDERS = "ShowBorders";
     private static final String TAG_SHOW_AI = "ShowAI";
     private static final String TAG_BROKEN_SHIELDS = "BrokenShields";
+    private static final String TAG_SHARDS = "Shards";
+    private static final String TAG_NIGHTS = "DefendedNights";
+    private static final String TAG_KILLS = "KilledMobs";
+    private static final String TAG_NIGHT_DAY = "NightDay";
     /** Only in the client update tag (never saved to disk): ward totems whose border the client draws. */
     private static final String TAG_WARDS = "Wards";
 
     private int coreLevel = 0;
+    /** Core shards kept in the Core (the balance). */
+    private int shards = 0;
+    /** Nights this Core has survived while active (statistic). */
+    private int defendedNights = 0;
+    /** Siege mobs that died around this Core (statistic). */
+    private int killedMobs = 0;
+    /** Day number of the night this Core saw begin while active (-1 = none); paid out at the next morning. */
+    private long nightDay = -1;
     private float health = 0;
     /** Chunk radius currently force-loaded for this core, or -1 if none. */
     private int loadedChunkRadius = -1;
@@ -224,6 +236,54 @@ public class CoreBlockEntity extends BlockEntity {
     public void resetShields() {
         brokenShields = 0;
         setChanged();
+    }
+
+    public int getShards() {
+        return shards;
+    }
+
+    public void addShards(int amount) {
+        shards = (int) Math.max(0, Math.min((long) shards + amount, Integer.MAX_VALUE));
+        setChanged();
+    }
+
+    /** Removes up to {@code amount} shards from the balance and returns how many were really taken. */
+    public int takeShards(int amount) {
+        int taken = Math.max(0, Math.min(amount, shards));
+        shards -= taken;
+        if (taken > 0) {
+            setChanged();
+        }
+        return taken;
+    }
+
+    public int getDefendedNights() {
+        return defendedNights;
+    }
+
+    public void addDefendedNight() {
+        defendedNights = (int) Math.min((long) defendedNights + 1, Integer.MAX_VALUE);
+        setChanged();
+    }
+
+    public int getKilledMobs() {
+        return killedMobs;
+    }
+
+    public void addKilledMob() {
+        killedMobs = (int) Math.min((long) killedMobs + 1, Integer.MAX_VALUE);
+        setChanged();
+    }
+
+    public long getNightDay() {
+        return nightDay;
+    }
+
+    public void setNightDay(long nightDay) {
+        if (this.nightDay != nightDay) {
+            this.nightDay = nightDay;
+            setChanged();
+        }
     }
 
     public int getSiegeMobCount() {
@@ -407,6 +467,10 @@ public class CoreBlockEntity extends BlockEntity {
         tag.putBoolean(TAG_SHOW_BORDERS, showBorders);
         tag.putBoolean(TAG_SHOW_AI, showAi);
         tag.putInt(TAG_BROKEN_SHIELDS, brokenShields);
+        tag.putInt(TAG_SHARDS, shards);
+        tag.putInt(TAG_NIGHTS, defendedNights);
+        tag.putInt(TAG_KILLS, killedMobs);
+        tag.putLong(TAG_NIGHT_DAY, nightDay);
     }
 
     @Override
@@ -419,6 +483,10 @@ public class CoreBlockEntity extends BlockEntity {
         showBorders = tag.getBoolean(TAG_SHOW_BORDERS);
         showAi = tag.getBoolean(TAG_SHOW_AI);
         brokenShields = tag.getInt(TAG_BROKEN_SHIELDS);
+        shards = tag.getInt(TAG_SHARDS);
+        defendedNights = tag.getInt(TAG_NIGHTS);
+        killedMobs = tag.getInt(TAG_KILLS);
+        nightDay = tag.contains(TAG_NIGHT_DAY) ? tag.getLong(TAG_NIGHT_DAY) : -1;
         syncedWards = tag.contains(TAG_WARDS) ? tag.getLongArray(TAG_WARDS) : new long[0];
     }
 

@@ -5,6 +5,7 @@ import com.marleyboss.incursion.block.CoreActions;
 import com.marleyboss.incursion.block.CoreBlockEntity;
 import com.marleyboss.incursion.registry.ModBlocks;
 import com.marleyboss.incursion.registry.ModMenus;
+import com.marleyboss.incursion.siege.Rewards;
 import com.marleyboss.incursion.siege.Shields;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -31,6 +32,7 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int BUTTON_BORDERS = 3;
     public static final int BUTTON_AI_VIEW = 4;
     public static final int BUTTON_REPAIR_SHIELD = 5;
+    public static final int BUTTON_WITHDRAW = 6;
 
     public static final int DATA_ACTIVE = 0;
     public static final int DATA_LEVEL = 1;
@@ -57,7 +59,11 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int DATA_REPAIR_LEVEL = 21;
     public static final int DATA_REPAIR_COST = 22;
     public static final int DATA_FIRST_SHIELD_LEVEL = 23;
-    public static final int DATA_COUNT = 24;
+    public static final int DATA_SHARDS = 24;
+    public static final int DATA_NIGHTS = 25;
+    public static final int DATA_KILLS = 26;
+    public static final int DATA_SHARDS_PER_NIGHT = 27;
+    public static final int DATA_COUNT = 28;
 
     private final ContainerData data;
     private final ContainerLevelAccess access;
@@ -117,6 +123,10 @@ public class CoreMenu extends AbstractContainerMenu {
                     case DATA_REPAIR_LEVEL -> Shields.nextRepairLevel(core);
                     case DATA_REPAIR_COST -> Config.SHIELD_REPAIR_LEVEL_COST.get();
                     case DATA_FIRST_SHIELD_LEVEL -> Config.SHIELDS_ENABLED.get() ? firstShieldLevel() : 0;
+                    case DATA_SHARDS -> core.getShards();
+                    case DATA_NIGHTS -> core.getDefendedNights();
+                    case DATA_KILLS -> core.getKilledMobs();
+                    case DATA_SHARDS_PER_NIGHT -> Config.SHARDS_ENABLED.get() ? Config.shardsPerNight(Math.max(1, level)) : 0;
                     default -> 0;
                 };
                 // Data slots are synced as 16-bit numbers.
@@ -191,6 +201,10 @@ public class CoreMenu extends AbstractContainerMenu {
         }
         if (id == BUTTON_REPAIR_SHIELD) {
             Shields.tryRepair(level, pos, core, player);
+            return true;
+        }
+        if (id == BUTTON_WITHDRAW) {
+            Rewards.withdraw(player, core);
             return true;
         }
         return false;

@@ -67,6 +67,7 @@ public final class SiegeManager {
     public static void tickCore(ServerLevel level, BlockPos pos, CoreBlockEntity core, int tickCounter) {
         core.validateHealth();
         int coreLevel = core.getCoreLevel();
+        Rewards.tickNight(level, pos, core);
 
         // 1. Keep the siege area loaded.
         int desiredRadius = Config.siegeChunkRadius(coreLevel);
@@ -747,6 +748,7 @@ public final class SiegeManager {
         clearSiegeMobs(level, pos, core.getCoreLevel());
         core.setCoreLevel(0);
         core.resetShields();
+        core.setNightDay(-1);
         core.setHealth(0);
         BlockState state = level.getBlockState(pos);
         if (state.getBlock() instanceof CoreBlock) {

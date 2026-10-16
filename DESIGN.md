@@ -129,6 +129,15 @@ Mit jeder Stufe stärker:
 - **Reparatur** (Knopf im Kern-GUI) repariert den äußersten kaputten Schild und kostet **eine Kernstufe**. Möglich ab Mindeststufe (Standard 5) und nur, wenn der Schild danach noch existiert (z. B. Schild 1 ab Stufe 6).
 - Entschärfen und Neu-Aktivieren setzen alle Schilde zurück.
 
+## Belohnungen (v0.9)
+
+- **Kernsplitter** sind die Währung der Mod. Für jede **verteidigte Nacht** zahlt der aktive Kern Splitter in sein **Guthaben** (Standard `shardsPerNightBase` 1 + `shardsPerNightPerLevel` 1,0 × (Stufe − 1), abgerundet). Eine Nacht zählt, wenn der Kern sie als aktiver Kern beginnen sah (Fenster von 2 Minuten nach Einbruch der Nacht, 13000 Ticks) und am Morgen (oder nach dem Schlafen) noch steht. Wer den Kern mitten in der Nacht aktiviert, bekommt für diese Nacht nichts. Nether/End nutzen die Uhr der Oberwelt. Bis zum Nacht-Rhythmus (v0.15) zählt jede Minecraft-Nacht.
+- **Guthaben im Kern** (Anzeige im GUI), per Knopf „Splitter abheben“ als Item (bis 576 pro Klick), per Rechtsklick auf den Kern mit Splittern wieder einzahlen. Wird ein **inaktiver** Kern abgebaut, kommen die Splitter als Items heraus; ein aktiver Kern explodiert, das Guthaben ist weg.
+- **Statistik im Kern-GUI:** verteidigte Nächte, getötete Belagerungs-Mobs (jeder Tod eines Mobs mit Belagerungs-Tag zählt, auch Lava/Sturz). Bleibt beim Entschärfen erhalten.
+- **Beute-Kiste:** eigener Block (54 Plätze), den der Spieler selbst in der Nähe des Kerns aufstellt (Standard bis 16 Blöcke, `lootChestRange`). Solange der Kern aktiv ist, landen die normalen Drops getöteter Belagerungs-Mobs dort statt auf dem Boden (nächstgelegene Kiste zuerst). Ohne Kiste oder wenn alle voll sind, fällt der Rest normal. Erfahrung (XP) fällt unverändert. Die Kiste steht im Tag `incursion:siege_proof` (Mobs/Explosionen können sie nicht abbauen). Rezept (Platzhalter): Kiste, Enderperle, 3 Obsidian.
+- Config-Gruppe `rewards`: `shardsEnabled`, `shardsPerNightBase`, `shardsPerNightPerLevel`, `lootChestEnabled`, `lootChestRange`.
+- Verwendung der Splitter (Schilde/Totems reparieren, Kern-Tisch, Skilltree, Händler) folgt in späteren Versionen; bis dahin sind sie nur sammelbar.
+
 ## Laufen auf der Route (v0.8.3.2)
 
 - Die Wege sind aus rechtwinkligen Schritten gebaut, aber Mobs laufen sie **nicht Schritt für Schritt** ab: Die normale Mob-Wegfindung (`getNavigation().moveTo`) führt sie zu einem Schritt ihres Weges bis zu 12 Schritte voraus (nie über das hinaus, was begehbar bereit ist, `walkLimit`). Sie bewegen sich dadurch wie jeder Mob, der etwas jagt. Findet die Wegfindung keinen Weg (oder im tiefen Wasser, als Passagier), läuft der Mob die Schritte wie vorher. Arbeiten (bauen, graben) und Plattformen laufen unverändert.
@@ -158,7 +167,8 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 | v0.7.3 | Zwischenplattformen, Baumeister bauen aus, Teams Jäger/Leibwächter, Posten für Schützen, Sprengschützen repariert | getestet: Kern fällt, aber keine Plattformen |
 | v0.7.4 | Plattformbau parallel, Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | gebaut, **Test ausstehend** |
 | v0.8 | Schilde (3 Kuppeln), Puls, Reparatur | gebaut, Test ausstehend |
-| v0.9 | Vorteile: Items, Energie, Buffs | geplant |
+| v0.9 | Kernsplitter pro verteidigter Nacht (Guthaben im Kern, abhebbar), Statistik, Beute-Kiste | gebaut, Test ausstehend |
+| v0.9.1 | Upgrade-Werkzeug (5 Stufen pro Werkzeug) | geplant |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Anbindung, eigene Items | geplant |
 
 ## Offene Entscheidungen

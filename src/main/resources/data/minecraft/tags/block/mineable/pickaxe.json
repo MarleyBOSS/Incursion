@@ -1,1 +1,1 @@
-{ "replace": false, "values": [ "incursion:core", "incursion:ward", "incursion:siege_stone" ] }
+{ "replace": false, "values": [ "incursion:core", "incursion:ward", "incursion:siege_stone", "incursion:loot_chest" ] }

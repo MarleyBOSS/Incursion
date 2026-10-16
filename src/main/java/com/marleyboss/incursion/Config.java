@@ -686,7 +686,47 @@ public final class Config {
         BUILDER.pop();
     }
 
+    // ------------------------------------------------------------------
+    // Rewards (Core shards and the loot chest)
+    // ------------------------------------------------------------------
+
+    static {
+        BUILDER.comment("Rewards: Core shards for every night the Core survives, and the loot chest for mob drops.")
+                .push("rewards");
+    }
+
+    public static final ModConfigSpec.BooleanValue SHARDS_ENABLED = BUILDER
+            .comment("If false, no Core shards are earned.")
+            .define("shardsEnabled", true);
+
+    public static final ModConfigSpec.IntValue SHARDS_PER_NIGHT_BASE = BUILDER
+            .comment("Core shards earned for a defended night at Core level 1.")
+            .defineInRange("shardsPerNightBase", 1, 0, 1000);
+
+    public static final ModConfigSpec.DoubleValue SHARDS_PER_NIGHT_PER_LEVEL = BUILDER
+            .comment("Extra shards per night for every Core level above 1 (rounded down in total).")
+            .defineInRange("shardsPerNightPerLevel", 1.0, 0.0, 1000.0);
+
+    public static final ModConfigSpec.BooleanValue LOOT_CHEST_ENABLED = BUILDER
+            .comment("If true, the normal drops of siege mobs go into a loot chest near the active Core",
+                    "(experience still drops normally). Without a chest, or when all chests are full, drops fall to the ground.")
+            .define("lootChestEnabled", true);
+
+    public static final ModConfigSpec.IntValue LOOT_CHEST_RANGE = BUILDER
+            .comment("A loot chest collects the drops if it stands within this many blocks of the active Core.")
+            .defineInRange("lootChestRange", 16, 1, 128);
+
+    static {
+        BUILDER.pop();
+    }
+
     public static final ModConfigSpec SPEC = BUILDER.build();
+
+    /** Core shards earned for one defended night at this Core level. */
+    public static int shardsPerNight(int level) {
+        return (int) Math.floor(SHARDS_PER_NIGHT_BASE.get()
+                + SHARDS_PER_NIGHT_PER_LEVEL.get() * Math.max(0, level - 1));
+    }
 
     /** Number of shields (index 0 = outermost). */
     public static final int SHIELD_COUNT = 3;

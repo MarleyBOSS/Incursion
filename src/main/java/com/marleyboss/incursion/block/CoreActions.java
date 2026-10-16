@@ -46,6 +46,7 @@ public final class CoreActions {
         data.setActiveCore(level.dimension(), pos);
         core.setCoreLevel(1);
         core.resetShields();
+        core.setNightDay(-1);
         core.setHealth(core.getMaxHealth());
         level.setBlock(pos, state.setValue(CoreBlock.ACTIVE, true), Block.UPDATE_ALL);
         int radius = Config.siegeChunkRadius(1);

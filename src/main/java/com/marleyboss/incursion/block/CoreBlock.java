@@ -5,6 +5,8 @@ import com.marleyboss.incursion.data.CoreWorldData;
 import com.marleyboss.incursion.fallout.Fallout;
 import com.marleyboss.incursion.menu.CoreMenu;
 import com.marleyboss.incursion.registry.ModBlockEntities;
+import com.marleyboss.incursion.registry.ModItems;
+import com.marleyboss.incursion.siege.Rewards;
 import com.marleyboss.incursion.siege.SiegeManager;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
@@ -90,6 +92,13 @@ public class CoreBlock extends BaseEntityBlock {
     @Override
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
                                               Player player, InteractionHand hand, BlockHitResult hit) {
+        if (stack.is(ModItems.CORE_SHARD.get())) {
+            // Shards go into the Core's balance (they can be taken out again in the GUI).
+            if (!level.isClientSide && level.getBlockEntity(pos) instanceof CoreBlockEntity core) {
+                Rewards.deposit(player, core, stack);
+            }
+            return level.isClientSide ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
+        }
         boolean active = state.getValue(ACTIVE);
         boolean isActivation = !active && stack.is(Config.activationItem());
         boolean isUpgrade = active && stack.is(Config.upgradeItem());
@@ -155,6 +164,9 @@ public class CoreBlock extends BaseEntityBlock {
                 CoreWorldData.get(serverLevel.getServer()).clearIfMatches(level.dimension(), pos);
             }
             Fallout.detonate(serverLevel, pos, coreLevel);
+        } else if (!state.is(newState.getBlock()) && !level.isClientSide && level instanceof ServerLevel serverLevel
+                && level.getBlockEntity(pos) instanceof CoreBlockEntity core) {
+            Rewards.dropShards(serverLevel, pos, core); // an inactive Core was picked up: keep the shards
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
     }

@@ -16,6 +16,13 @@ public final class ModItems {
     public static final DeferredItem<BlockItem> WARD = ITEMS.registerSimpleBlockItem(
             "ward", ModBlocks.WARD, new Item.Properties().rarity(Rarity.UNCOMMON));
 
+    public static final DeferredItem<BlockItem> LOOT_CHEST = ITEMS.registerSimpleBlockItem(
+            "loot_chest", ModBlocks.LOOT_CHEST, new Item.Properties());
+
+    /** The currency of the mod: earned for every night the Core survives, kept in the Core, can be taken out. */
+    public static final DeferredItem<Item> CORE_SHARD = ITEMS.registerSimpleItem(
+            "core_shard", new Item.Properties().rarity(Rarity.RARE));
+
     public static final DeferredItem<BlockItem> SIEGE_STONE = ITEMS.registerSimpleBlockItem(
             "siege_stone", ModBlocks.SIEGE_STONE, new Item.Properties());
 
