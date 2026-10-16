@@ -30,6 +30,12 @@ final class SiegeFront {
     final List<BlockPos> platform;
     final List<Landing> landings;
     final long created;
+    /**
+     * The ward totem this front attacks (the focus), or null if it attacks the Core. When the totem is switched off
+     * (or gone) the commander drops the front and plans one that goes straight for the Core.
+     */
+    @Nullable
+    final BlockPos ward;
 
     // Refreshed once per second by the commander.
     int pendingBuild;
@@ -52,7 +58,9 @@ final class SiegeFront {
     int orderedMiners;
     int orderedOthers;
 
-    SiegeFront(int id, Route route, Direction side, List<BlockPos> platform, List<Landing> landings, long created) {
+    SiegeFront(int id, Route route, Direction side, List<BlockPos> platform, List<Landing> landings, long created,
+               @Nullable BlockPos ward) {
+        this.ward = ward != null ? ward.immutable() : null;
         this.id = id;
         this.route = route;
         this.side = side;

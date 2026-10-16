@@ -81,7 +81,7 @@ final class SiegeArchers {
      * routes like a melee mob (a longer way, but better than standing around) and keeps checking.
      */
     static boolean tick(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
-        BlockPos core = siege.corePos;
+        BlockPos core = SiegeFocus.pos(mob, siege); // the Core, or the totem this front attacks
         boolean blast = MobRoles.of(mob) == Role.BLAST_ARCHER;
 
         // 1. Shoot from where it stands.
@@ -180,7 +180,7 @@ final class SiegeArchers {
 
     /** Shoots at the Core if it can be hit from where the archer stands (also while riding). */
     static boolean shootFromHere(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
-        BlockPos core = siege.corePos;
+        BlockPos core = SiegeFocus.pos(mob, siege);
         boolean blast = MobRoles.of(mob) == Role.BLAST_ARCHER;
         Vec3 eyes = mob.getEyePosition();
         double distance = SiegeAim.distanceToCore(eyes, core);

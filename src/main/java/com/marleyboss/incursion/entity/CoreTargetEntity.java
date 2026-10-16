@@ -2,6 +2,8 @@ package com.marleyboss.incursion.entity;
 
 import com.marleyboss.incursion.block.CoreBlock;
 import com.marleyboss.incursion.block.CoreBlockEntity;
+import com.marleyboss.incursion.block.WardBlock;
+import com.marleyboss.incursion.block.WardBlockEntity;
 import com.marleyboss.incursion.siege.MobRoles;
 import com.marleyboss.incursion.siege.SiegeAI;
 import com.marleyboss.incursion.siege.SiegeProgress;
@@ -21,7 +23,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * Invisible, immobile stand-in for the Incursion Core. Hostile mobs target this entity, so every mob
+ * Invisible, immobile stand-in for the Incursion Core (and, the same way, for every ward totem: the siege's fronts
+ * can have a totem as their target). Hostile mobs target this entity, so every mob
  * attacks the Core in its own way (melee, arrows, explosions ...). Damage it receives from hostile mobs
  * is forwarded to the Core's health; the entity itself never loses health.
  * <p>
@@ -44,10 +47,19 @@ public class CoreTargetEntity extends LivingEntity {
         // Deliberately no super.tick(): this entity has no physics, AI or status effects.
         if (!level().isClientSide && ++checkTimer >= 20) {
             checkTimer = 0;
-            if (findCore() == null) {
+            if (findCore() == null && findWard() == null) {
                 discard();
             }
         }
+    }
+
+    /** The switched-on ward totem this entity stands on (it stands in for totems too), or null. */
+    private WardBlockEntity findWard() {
+        BlockState state = level().getBlockState(blockPosition());
+        if (!(state.getBlock() instanceof WardBlock) || state.getValue(WardBlock.DISABLED)) {
+            return null;
+        }
+        return level().getBlockEntity(blockPosition()) instanceof WardBlockEntity ward ? ward : null;
     }
 
     private CoreBlockEntity findCore() {
@@ -71,14 +83,23 @@ public class CoreTargetEntity extends LivingEntity {
         if (!(attacker instanceof Enemy) || attacker instanceof Player || amount <= 0) {
             return false;
         }
+        if (!(level() instanceof ServerLevel serverLevel)) {
+            return false;
+        }
         CoreBlockEntity core = findCore();
-        if (core == null || !(level() instanceof ServerLevel serverLevel)) {
+        WardBlockEntity ward = core == null ? findWard() : null;
+        if (core == null && ward == null) {
             return false;
         }
         long now = serverLevel.getGameTime();
         SiegeProgress.progress(blockPosition(), now);
         SiegeAI.markUseful(attacker, now);
-        core.damageCore(serverLevel, amount * MobRoles.coreDamageMultiplier(attacker));
+        float damage = amount * MobRoles.coreDamageMultiplier(attacker);
+        if (core != null) {
+            core.damageCore(serverLevel, damage);
+        } else {
+            ward.damageWard(serverLevel, damage);
+        }
         return true;
     }
 

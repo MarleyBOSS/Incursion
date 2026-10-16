@@ -1,5 +1,6 @@
 {
   "variants": {
-    "": { "model": "incursion:block/ward" }
+    "disabled=false": { "model": "incursion:block/ward" },
+    "disabled=true": { "model": "incursion:block/ward_off" }
   }
 }

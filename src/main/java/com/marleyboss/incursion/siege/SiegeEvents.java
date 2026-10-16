@@ -162,7 +162,8 @@ public final class SiegeEvents {
             return;
         }
         LivingEntity newTarget = event.getNewAboutToBeSetTarget();
-        if (newTarget == siege.target) {
+        LivingEntity focus = SiegeFocus.target(mob, siege);
+        if (newTarget == focus) {
             return;
         }
         boolean redirect;
@@ -174,7 +175,7 @@ public final class SiegeEvents {
                     || !Targeting.fightsBack(mob, newTarget);
         }
         if (redirect) {
-            event.setNewAboutToBeSetTarget(siege.target);
+            event.setNewAboutToBeSetTarget(focus);
         }
     }
 
@@ -204,10 +205,11 @@ public final class SiegeEvents {
             event.getAffectedEntities().removeIf(entity -> entity instanceof CoreTargetEntity);
             float radius = creeper.isPowered() ? 6.0F : 3.0F;
             double diameter = radius * 2.0;
-            double distance = creeper.position().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(siege.corePos));
+            double distance = creeper.position().distanceTo(
+                    net.minecraft.world.phys.Vec3.atCenterOf(SiegeFocus.pos(creeper, siege)));
             double impact = Math.max(0.0, 1.0 - distance / diameter);
             float damage = (float) ((impact * impact + impact) / 2.0 * 7.0 * diameter + 1.0);
-            siege.target.hurt(creeper.damageSources().mobAttack(creeper), damage);
+            SiegeFocus.target(creeper, siege).hurt(creeper.damageSources().mobAttack(creeper), damage);
         }
         Level level = event.getLevel();
         event.getAffectedBlocks().removeIf(pos -> pos.equals(siege.corePos) || level.getBlockState(pos).is(Digging.SIEGE_PROOF));

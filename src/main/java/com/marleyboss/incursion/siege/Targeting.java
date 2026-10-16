@@ -133,12 +133,13 @@ public final class Targeting {
         if (current instanceof Player player && prefersPlayer(mob, player, siege, zone)) {
             return;
         }
-        if (current != null && current != siege.target && !(current instanceof Player) && current.isAlive()
+        LivingEntity focus = SiegeFocus.target(mob, siege);
+        if (current != null && current != focus && !(current instanceof Player) && current.isAlive()
                 && zone != ActiveSiege.ZONE_CORE && fightsBack(mob, current)) {
             return; // fighting an iron golem or similar
         }
         Player player = findPlayer(mob, siege, zone);
-        LivingEntity desired = player != null ? player : siege.target;
+        LivingEntity desired = player != null ? player : focus;
         if (current != desired) {
             mob.setTarget(desired);
         }

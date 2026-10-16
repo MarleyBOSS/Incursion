@@ -103,6 +103,12 @@ public final class SiegeManager {
         if (siege == null) {
             return;
         }
+        // Every switched-on ward totem has an invisible target the fronts' mobs attack.
+        for (BlockPos ward : wards) {
+            if (level.getBlockEntity(ward) instanceof WardBlockEntity wardEntity) {
+                wardEntity.ensureTarget(level);
+            }
+        }
 
         // 5. Point every hostile mob in the area at the Core or at a player (depending on its role).
         AABB area = new AABB(pos).inflate(siegeRadius, 64, siegeRadius).expandTowards(0, -elevation, 0);
@@ -140,8 +146,8 @@ public final class SiegeManager {
             }
             SiegeTeam.join(mob);
             Targeting.update(mob, siege, zone);
-            if (mob.getTarget() == target) {
-                ensureFollowRange(mob, target);
+            if (mob.getTarget() instanceof CoreTargetEntity focus) {
+                ensureFollowRange(mob, focus); // the Core, or the totem this mob's front attacks
             } else if (mob.getTarget() instanceof net.minecraft.world.entity.player.Player hunted
                     && MobRoles.isHunter(mob)) {
                 ensureFollowRange(mob, hunted); // hunters can see the player they chase from far away

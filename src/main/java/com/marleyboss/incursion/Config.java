@@ -600,6 +600,24 @@ public final class Config {
             .comment("Every ward totem in the siege area raises the maximum number of siege mobs by this much.")
             .defineInRange("wardExtraMobs", 2, 0, 100);
 
+    public static final ModConfigSpec.IntValue WARD_HEALTH = BUILDER
+            .comment("Health of a ward totem. Siege mobs attack it; at 0 it is switched off (the block stays, its safe zone is gone",
+                    "until it is repaired).")
+            .defineInRange("wardHealth", 100, 1, 30000);
+
+    public static final ModConfigSpec.BooleanValue WARD_FOCUS = BUILDER
+            .comment("Focus: a front attacks the outermost ward totem that no other front is attacking first.",
+                    "When that totem is switched off, the front goes straight for the Core. Off: fronts only attack the Core.")
+            .define("wardFocus", true);
+
+    public static final ModConfigSpec.ConfigValue<String> WARD_REPAIR_ITEM = BUILDER
+            .comment("Item that repairs a switched-off ward totem (right-click). Placeholder until Core shards exist.")
+            .define("wardRepairItem", "minecraft:diamond", Config::isValidItem);
+
+    public static final ModConfigSpec.IntValue WARD_REPAIR_COST = BUILDER
+            .comment("How many repair items one repair costs.")
+            .defineInRange("wardRepairCost", 3, 1, 64 * 36);
+
     static {
         BUILDER.pop();
     }
@@ -750,6 +768,10 @@ public final class Config {
 
     public static Item upgradeItem() {
         return resolveItem(UPGRADE_ITEM.get(), Items.DIAMOND);
+    }
+
+    public static Item wardRepairItem() {
+        return resolveItem(WARD_REPAIR_ITEM.get(), Items.DIAMOND);
     }
 
     /** Number of upgrade items needed to reach {@code targetLevel} (targetLevel >= 2). */

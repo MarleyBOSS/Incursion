@@ -291,7 +291,10 @@ public class CoreBlockEntity extends BlockEntity {
         BlockPos pos = getBlockPos();
         List<CoreTargetEntity> existing = level.getEntitiesOfClass(CoreTargetEntity.class, new AABB(pos).inflate(1.0));
         for (CoreTargetEntity entity : existing) {
-            if (target == null && entity.blockPosition().equals(pos)) {
+            if (!entity.blockPosition().equals(pos)) {
+                continue; // a ward totem next door
+            }
+            if (target == null) {
                 target = entity;
             } else {
                 entity.discard();
@@ -322,7 +325,9 @@ public class CoreBlockEntity extends BlockEntity {
         if (level != null) {
             for (CoreTargetEntity entity : level.getEntitiesOfClass(CoreTargetEntity.class,
                     new AABB(getBlockPos()).inflate(1.0))) {
-                entity.discard();
+                if (entity.blockPosition().equals(getBlockPos())) {
+                    entity.discard(); // not the stand-in of a ward totem next door
+                }
             }
         }
     }

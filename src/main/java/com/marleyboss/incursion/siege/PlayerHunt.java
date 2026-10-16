@@ -327,7 +327,7 @@ public final class PlayerHunt {
 
     private static void accept(ServerLevel level, ActiveSiege siege, Hunt hunt, BlockPos target,
                                RoutePlanner.Result result, long now) {
-        SiegeFront front = new SiegeFront(nextId++, result.route(), result.side(), List.of(), List.of(), now);
+        SiegeFront front = new SiegeFront(nextId++, result.route(), result.side(), List.of(), List.of(), now, null);
         int[] work = front.route.countWork(level);
         front.pendingBuild = work[0];
         front.pendingDig = work[1];

@@ -347,7 +347,8 @@ public final class SiegeAI {
         if (target instanceof Player player && mob.distanceToSqr(player) < 16 * 16) {
             state.lastUseful = now;
         }
-        double distance = mob.distanceTo(siege.target);
+        LivingEntity focus = SiegeFocus.target(mob, siege);
+        double distance = mob.distanceTo(focus);
         if (distance < state.bestDistance - 1.0) {
             state.bestDistance = distance;
             state.lastCloser = now;
@@ -363,7 +364,7 @@ public final class SiegeAI {
             return;
         }
 
-        if (target != siege.target) {
+        if (target != focus) {
             release(state);
             state.lastUseful = Math.max(state.lastUseful, now - 20); // fighting is not idling
             state.status(target instanceof Player ? "player" : "other_target");
@@ -451,10 +452,11 @@ public final class SiegeAI {
     private static boolean tryAttackCore(ServerLevel level, Mob mob, MobState state, ActiveSiege siege, long now) {
         Vec3 eyes = mob.getEyePosition();
         double reach = (mob instanceof Creeper ? CREEPER_REACH : MELEE_REACH) + mob.getBbWidth() * 0.5;
-        if (SiegeAim.distanceToCore(eyes, siege.corePos) > reach) {
+        BlockPos focusPos = SiegeFocus.pos(mob, siege); // the Core, or the totem this front attacks
+        if (SiegeAim.distanceToCore(eyes, focusPos) > reach) {
             return false;
         }
-        Vec3 point = SiegeAim.visibleCorePoint(level, eyes, siege.corePos, mob);
+        Vec3 point = SiegeAim.visibleCorePoint(level, eyes, focusPos, mob);
         if (point == null) {
             return false;
         }
@@ -477,7 +479,7 @@ public final class SiegeAI {
         }
         if (now >= state.nextAttack) {
             mob.swing(InteractionHand.MAIN_HAND);
-            mob.doHurtTarget(siege.target);
+            mob.doHurtTarget(SiegeFocus.target(mob, siege));
             state.nextAttack = now + 20;
         }
         return true;
@@ -1140,7 +1142,7 @@ public final class SiegeAI {
         Entity vehicle = mob.getVehicle();
         boolean carried = vehicle != null && vehicle.getTags().contains(SiegeAirDrop.CARRIER_TAG);
         state.status(carried ? "carried" : "riding");
-        if (carried || mob.getTarget() != siege.target) {
+        if (carried || mob.getTarget() != SiegeFocus.target(mob, siege)) {
             return;
         }
         if (Targeting.isRanged(mob)) {
@@ -1163,7 +1165,7 @@ public final class SiegeAI {
             state.lastUseful = now;
         }
         long stuck = now - state.lastCloser;
-        Vec3 core = Vec3.atCenterOf(siege.corePos);
+        Vec3 core = Vec3.atCenterOf(SiegeFocus.pos(mob, siege)); // the Core, or the totem this front attacks
         if (mob.isVehicle() && (mob.position().distanceTo(core) <= DISMOUNT_RANGE || stuck > CLIMBER_STUCK_TICKS * 2)) {
             mob.ejectPassengers();
         }
@@ -1195,7 +1197,7 @@ public final class SiegeAI {
             return false;
         }
         state.nextTeleport = now + 100;
-        BlockPos core = siege.corePos;
+        BlockPos core = SiegeFocus.pos(enderman, siege);
         java.util.List<BlockPos> spots = new java.util.ArrayList<>();
         for (int dx = -3; dx <= 3; dx++) {
             for (int dz = -3; dz <= 3; dz++) {
@@ -1215,7 +1217,7 @@ public final class SiegeAI {
                 level.playSound(null, spot, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1.0F, 1.0F);
                 state.lastCloser = now;
                 state.effective(now);
-                state.bestDistance = enderman.distanceTo(siege.target);
+                state.bestDistance = enderman.distanceTo(SiegeFocus.target(enderman, siege));
                 state.routeIndex = -1;
                 state.status("teleport");
                 return true;

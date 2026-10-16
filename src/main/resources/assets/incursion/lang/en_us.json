@@ -241,5 +241,15 @@
   "incursion.configuration.shieldWipeBuilderBlocks": "Pulse removes builder blocks",
   "incursion.configuration.shieldAbsorbsDamage": "Intact shield blocks Core damage",
   "incursion.configuration.shieldRepairMinLevel": "Repair: minimum Core level",
-  "incursion.configuration.shieldRepairLevelCost": "Repair: level cost"
+  "incursion.configuration.shieldRepairLevelCost": "Repair: level cost",
+  "message.incursion.ward.under_attack": "A Ward Totem is under attack! Health: %s/%s (at %s, %s, %s)",
+  "message.incursion.ward.disabled": "A Ward Totem was switched off! Its safe zone is gone (at %s, %s, %s)",
+  "message.incursion.ward.repaired": "The Ward Totem is switched on again.",
+  "message.incursion.ward.not_enough": "You need %s× %s to repair the Ward Totem.",
+  "message.incursion.ward.status_on": "Ward Totem – ACTIVE – Health %s/%s",
+  "message.incursion.ward.status_off": "Ward Totem – SWITCHED OFF. Right-click with %s× %s to repair it.",
+  "incursion.configuration.wardHealth": "Ward health",
+  "incursion.configuration.wardFocus": "Fronts attack totems first",
+  "incursion.configuration.wardRepairItem": "Ward repair item",
+  "incursion.configuration.wardRepairCost": "Ward repair cost"
 }

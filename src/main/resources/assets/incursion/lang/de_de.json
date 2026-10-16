@@ -241,5 +241,15 @@
   "incursion.configuration.shieldWipeBuilderBlocks": "Puls entfernt Baumeister-Blöcke",
   "incursion.configuration.shieldAbsorbsDamage": "Intakter Schild blockt Kernschaden",
   "incursion.configuration.shieldRepairMinLevel": "Reparatur: Mindest-Kernstufe",
-  "incursion.configuration.shieldRepairLevelCost": "Reparatur: Stufenkosten"
+  "incursion.configuration.shieldRepairLevelCost": "Reparatur: Stufenkosten",
+  "message.incursion.ward.under_attack": "Ein Schutztotem wird angegriffen! Leben: %s/%s (bei %s, %s, %s)",
+  "message.incursion.ward.disabled": "Ein Schutztotem wurde ausgeschaltet! Seine Safezone ist weg (bei %s, %s, %s)",
+  "message.incursion.ward.repaired": "Das Schutztotem ist wieder eingeschaltet.",
+  "message.incursion.ward.not_enough": "Du brauchst %s× %s, um das Schutztotem zu reparieren.",
+  "message.incursion.ward.status_on": "Schutztotem – AKTIV – Leben %s/%s",
+  "message.incursion.ward.status_off": "Schutztotem – AUSGESCHALTET. Rechtsklick mit %s× %s repariert es.",
+  "incursion.configuration.wardHealth": "Totem-Leben",
+  "incursion.configuration.wardFocus": "Fronten greifen zuerst Totems an",
+  "incursion.configuration.wardRepairItem": "Totem-Reparatur-Item",
+  "incursion.configuration.wardRepairCost": "Totem-Reparaturkosten"
 }

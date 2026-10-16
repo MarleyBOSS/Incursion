@@ -61,6 +61,15 @@ public final class SiegeCommander {
     private static long nextAttempt;
     private static boolean failed;
     private static int nextId = 1;
+    /** The ward totem the running planner job plans a way to (null = the Core). */
+    @Nullable
+    private static BlockPos jobWard;
+    /** How many fronts must go straight for the Core next (a totem fell: its front is replaced by a Core front). */
+    private static int coreFronts;
+    /** Totems no way could be planned to (position -> game time until which they are skipped). */
+    private static final java.util.Map<BlockPos, Long> UNREACHABLE = new java.util.HashMap<>();
+    /** Unreachable totems are tried again after this many ticks. */
+    private static final long UNREACHABLE_TICKS = 6000;
 
     private SiegeCommander() {
     }
@@ -68,6 +77,9 @@ public final class SiegeCommander {
     public static void clear() {
         FRONTS.clear();
         job = null;
+        jobWard = null;
+        coreFronts = 0;
+        UNREACHABLE.clear();
         corePos = null;
         nextAttempt = 0;
         failed = false;
@@ -127,6 +139,14 @@ public final class SiegeCommander {
                         + "): Weg ab " + foot.toShortString() + " wird neu geplant."));
                 continue;
             }
+            if (front.ward != null && !wards.contains(front.ward)) {
+                // The totem was switched off (or removed): this front is done, the next one goes for the Core.
+                iterator.remove();
+                coreFronts++;
+                announce(level, siege, Component.literal("Totem " + front.ward.toShortString()
+                        + " ausgefallen: Front " + front.id + " wird durch eine Kern-Front ersetzt."));
+                continue;
+            }
             if (front.route.isInvalid() || stale) {
                 iterator.remove();
                 announce(level, siege, Component.translatable("message.incursion.plan.replan"));
@@ -182,14 +202,29 @@ public final class SiegeCommander {
         boolean wanted = FRONTS.isEmpty()
                 || (FRONTS.size() < frontsWanted && now - newest > NEXT_FRONT_DELAY && !expanding);
         if (job == null && wanted && now >= nextAttempt) {
-            job = newPlanner(level, siege, wards, now);
+            jobWard = pickFocus(siege, wards, now);
+            job = newPlanner(level, siege, wards, now, jobWard);
         }
         if (job != null && job.step(NODES_PER_SECOND, now)) {
             RoutePlanner.Result result = job.result();
             job = null;
-            if (result != null) {
+            BlockPos planned = jobWard;
+            jobWard = null;
+            if (result == null && planned != null) {
+                // No way to this totem: it is skipped for a while, the next plan goes elsewhere (finally the Core).
+                UNREACHABLE.put(planned, now + UNREACHABLE_TICKS);
+                announce(level, siege, Component.literal("Kein Weg zum Totem " + planned.toShortString()
+                        + " gefunden: wird vorerst übersprungen."));
+            } else if (result != null) {
                 SiegeFront front = new SiegeFront(nextId++, result.route(), result.side(), result.platform(),
-                        result.landings(), now);
+                        result.landings(), now, planned);
+                if (planned == null && coreFronts > 0) {
+                    coreFronts--;
+                }
+                if (planned != null) {
+                    announce(level, siege, Component.literal("Front " + front.id + " greift das Totem "
+                            + planned.toShortString() + " an."));
+                }
                 int[] work = front.route.countWork(level);
                 front.pendingBuild = work[0];
                 front.pendingDig = work[1];
@@ -217,12 +252,64 @@ public final class SiegeCommander {
         }
     }
 
-    private static RoutePlanner newPlanner(ServerLevel level, ActiveSiege siege, List<BlockPos> wards, long now) {
+    /**
+     * The focus of the next front: the outermost switched-on ward totem that no front attacks yet (and a way
+     * could be planned to), or null for the Core. After a totem fell, the next front goes straight for the Core.
+     */
+    @Nullable
+    private static BlockPos pickFocus(ActiveSiege siege, List<BlockPos> wards, long now) {
+        if (!Config.WARD_FOCUS.get() || wards.isEmpty() || coreFronts > 0) {
+            return null;
+        }
+        UNREACHABLE.values().removeIf(until -> until <= now);
+        BlockPos best = null;
+        int bestDistance = -1;
+        for (BlockPos ward : wards) {
+            if (UNREACHABLE.containsKey(ward)) {
+                continue;
+            }
+            boolean taken = false;
+            for (SiegeFront front : FRONTS) {
+                if (ward.equals(front.ward)) {
+                    taken = true;
+                    break;
+                }
+            }
+            if (taken) {
+                continue;
+            }
+            int distance = Math.max(Math.abs(ward.getX() - siege.corePos.getX()),
+                    Math.abs(ward.getZ() - siege.corePos.getZ()));
+            if (distance > siege.siegeRadius - (Config.WARD_RADIUS.get() + 12)) {
+                continue; // too close to the edge of the siege area: the way to it could not start inside the area
+            }
+            if (distance > bestDistance) {
+                bestDistance = distance;
+                best = ward;
+            }
+        }
+        return best;
+    }
+
+    private static RoutePlanner newPlanner(ServerLevel level, ActiveSiege siege, List<BlockPos> wards, long now,
+                                           @Nullable BlockPos ward) {
         LongOpenHashSet avoidClear = new LongOpenHashSet();
         LongOpenHashSet avoidSupport = new LongOpenHashSet();
         LongOpenHashSet otherNodes = new LongOpenHashSet();
         Set<Direction> usedSides = EnumSet.noneOf(Direction.class);
         collectAvoid(avoidClear, avoidSupport, otherNodes, usedSides);
+        if (ward != null) {
+            // A way to a ward totem: the search starts at the totem. The way starts outside of its square (and
+            // outside of the Core's), inside the siege area. Sides do not matter (only fronts at the same totem would).
+            int half = Config.WARD_RADIUS.get();
+            double assembly = half + 3.0;
+            int away = Math.max(Math.abs(ward.getX() - siege.corePos.getX()),
+                    Math.abs(ward.getZ() - siege.corePos.getZ()));
+            int bound = Math.max((int) assembly + 6, siege.siegeRadius - 2 - away);
+            return new RoutePlanner(level, ward, siege.coreLevel, bound, assembly, 0,
+                    SiegeManager.isUnderground(level, ward), wards, half, avoidClear, avoidSupport, otherNodes,
+                    EnumSet.noneOf(Direction.class), now).withSafeSquare(siege.corePos, siege.safeHalf);
+        }
         double assemblyDistance = Config.coreZoneRadius(siege.coreLevel) + 6.0;
         int bound = Math.max(12, siege.siegeRadius - 2);
         assemblyDistance = Math.min(assemblyDistance, bound - 4.0);
@@ -251,7 +338,9 @@ public final class SiegeCommander {
     private static void collectAvoid(LongOpenHashSet avoidClear, LongOpenHashSet avoidSupport,
                                      LongOpenHashSet otherNodes, Set<Direction> usedSides) {
         for (SiegeFront front : FRONTS) {
-            usedSides.add(front.side);
+            if (front.ward == null) {
+                usedSides.add(front.side); // sides only count for the Core: totems are attacked from anywhere
+            }
             Route route = front.route;
             for (int i = 0; i < route.size(); i++) {
                 BlockPos node = route.node(i);
@@ -460,9 +549,15 @@ public final class SiegeCommander {
     /** The front a mob without one should join: the closest assembly point (crowded fronts count as farther). */
     @Nullable
     static SiegeFront assign(Mob mob) {
+        // A mob whose totem fell goes for the Core (its front) and not for the next totem.
+        SiegeFront old = SiegeAI.frontOf(mob);
+        boolean coreOnly = old != null && old.ward != null && !FRONTS.contains(old);
         SiegeFront best = null;
         double bestScore = Double.MAX_VALUE;
         for (SiegeFront front : FRONTS) {
+            if (coreOnly && front.ward != null) {
+                continue;
+            }
             double distance = Math.sqrt(front.assembly().distToCenterSqr(mob.position()));
             double score = distance + front.members * 2.0;
             if (score < bestScore) {
