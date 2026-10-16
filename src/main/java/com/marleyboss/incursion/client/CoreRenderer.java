@@ -294,9 +294,9 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
         if (anim.edges == null || anim.outlineKey != key) {
             anim.edges = outlineEdges(corePos, coreHalf, wards, wardHalf);
             anim.outlineKey = key;
-            anim.heightsTime = Long.MIN_VALUE;
+            anim.heights = null; // forces the heights to be read below
         }
-        if (gameTime - anim.heightsTime >= 40 || gameTime < anim.heightsTime) {
+        if (anim.heights == null || gameTime - anim.heightsTime >= 40 || gameTime < anim.heightsTime) {
             int count = anim.edges.length / 3;
             if (anim.heights == null || anim.heights.length != count) {
                 anim.heights = new int[count];
