@@ -46,6 +46,8 @@ public final class RoutePlanner {
      * where every flight lands on the one below.
      */
     static final float SHORT_FLIGHT_PENALTY = 25.0F;
+    /** Per side of a stair step where the extra column (width 3) cannot be built: wide stairs are worth a detour. */
+    static final float WING_LOSS_PENALTY = 14.0F;
     static final float DIG_OVERHEAD = 6.0F;
     static final float PLACE_OVERHEAD = 15.0F;
     /** Steps on another front's way cost this much extra (a second front builds its own way). */
@@ -89,6 +91,8 @@ public final class RoutePlanner {
         int side;
         /** How many moves in a row (from this node on, towards the Core) go in the direction {@link #dir}. */
         int run;
+        /** Is the move from this node to {@link #next} on the level (a walk, no step up or down)? */
+        boolean flat;
         boolean closed;
         /** Cells the move from this node to {@link #next} needs free. */
         long[] moveClears = NO_CELLS;
@@ -372,7 +376,14 @@ public final class RoutePlanner {
             }
             int dir = direction.get2DDataValue();
             float turn = 0.0F;
-            if (c.dir >= 0 && c.dir != dir) {
+            boolean turning = c.dir >= 0 && c.dir != dir;
+            // Turns on built stairs happen on a level landing (before and after the corner no step up or down), like
+            // the landing of a stairwell: the corner and the cells before and after it are one flat platform.
+            boolean landingOnly = turning && cell(c.x, c.y - 1, c.z).support() == SUPPORT_PLACEABLE;
+            if (landingOnly && !c.flat) {
+                continue;
+            }
+            if (turning) {
                 turn = TURN;
                 int flight = Config.STAIR_FLIGHT.get();
                 if (c.run < flight) {
@@ -384,25 +395,25 @@ public final class RoutePlanner {
             long[] flat = {key(c.x, c.y + 1, c.z), key(c.x, c.y, c.z)};
             float clearFlat = clearCost(flat);
             if (clearFlat < INF) {
-                tryPush(c, px, c.y, pz, WALK + turn + clearFlat, flat, dir);
+                tryPush(c, px, c.y, pz, WALK + turn + clearFlat, flat, dir, true);
             }
 
             // Step up (P one lower): the mob jumps from P onto c, whose floor is the block in front of P.
             long[] up = {key(px, c.y + 1, pz), key(c.x, c.y + 1, c.z), key(c.x, c.y, c.z)};
             float clearUp = clearCost(up);
-            if (clearUp < INF) {
-                tryPush(c, px, c.y - 1, pz, WALK + UP_EXTRA + turn + clearUp, up, dir);
+            if (clearUp < INF && !landingOnly) {
+                tryPush(c, px, c.y - 1, pz, WALK + UP_EXTRA + turn + clearUp, up, dir, false);
             }
 
             // Step down (P one higher).
             long[] down = {key(c.x, c.y + 2, c.z), key(c.x, c.y + 1, c.z), key(c.x, c.y, c.z)};
             float clearDown = clearCost(down);
-            if (clearDown < INF) {
-                tryPush(c, px, c.y + 1, pz, WALK + turn + clearDown, down, dir);
+            if (clearDown < INF && !landingOnly) {
+                tryPush(c, px, c.y + 1, pz, WALK + turn + clearDown, down, dir, false);
             }
 
             // Drop down 2-3 blocks onto natural ground (nothing to dig or build).
-            if (cell(c.x, c.y - 1, c.z).support() == SUPPORT_SOLID) {
+            if (!landingOnly && cell(c.x, c.y - 1, c.z).support() == SUPPORT_SOLID) {
                 for (int k = 2; k <= MAX_DROP; k++) {
                     long[] column = new long[k + 2];
                     for (int j = 0; j < k + 2; j++) {
@@ -411,7 +422,7 @@ public final class RoutePlanner {
                     if (clearCost(column) != 0.0F) {
                         break;
                     }
-                    tryPush(c, px, c.y + k, pz, WALK + k + turn, column, dir);
+                    tryPush(c, px, c.y + k, pz, WALK + k + turn, column, dir, false);
                 }
             }
         }
@@ -438,7 +449,7 @@ public final class RoutePlanner {
     }
 
     /** Adds P (the step before {@code c}) unless the move would block this route or another front. */
-    private void tryPush(Node c, int px, int py, int pz, float cost, long[] moveClears, int dir) {
+    private void tryPush(Node c, int px, int py, int pz, float cost, long[] moveClears, int dir, boolean flat) {
         if (py < minY || py > maxY) {
             return;
         }
@@ -452,6 +463,7 @@ public final class RoutePlanner {
         if (otherNodes.contains(nodeKey)) {
             total += OTHER_FRONT_PENALTY;
         }
+        total += lostWings(c, px, py, pz, dir, moveClears) * WING_LOSS_PENALTY;
         Node existing = nodes.get(nodeKey);
         if (existing != null && (existing.closed || total >= existing.g)) {
             return;
@@ -495,11 +507,89 @@ public final class RoutePlanner {
         node.next = c;
         node.dir = dir;
         node.run = c.dir == dir ? c.run + 1 : 1;
+        node.flat = flat;
         node.side = c.side;
         node.moveClears = moveClears;
         node.support = supportKey;
         open.add(new Entry(node, node.g + node.h * HEURISTIC_WEIGHT));
     }
+
+    /**
+     * For the stairs to be wide the builders place an extra column on each side of a built step (see {@link #wings}).
+     * How many of the two sides could not get one here: no free standing room beside the step, a cell the route
+     * itself needs later (the stairs turn above or beside it), or another front's way. The planner pays extra for
+     * that, so it prefers open, roomy places and well-spaced flights to cramped ones: the way should be as good for
+     * many mobs as possible, not only as cheap as possible.
+     */
+    private int lostWings(Node c, int px, int py, int pz, int dir, long[] moveClears) {
+        if (!canBuild || Config.STAIR_WIDTH.get() < 2) {
+            return 0;
+        }
+        int lost = 0;
+        Direction move = Direction.from2DDataValue(dir);
+        // 1. The extra columns of this step.
+        if (cell(px, py - 1, pz).support() == SUPPORT_PLACEABLE) {
+            for (Direction perp : new Direction[]{move.getClockWise(), move.getCounterClockWise()}) {
+                int wx = px + perp.getStepX();
+                int wz = pz + perp.getStepZ();
+                int wy = py - 1;
+                long floor = key(wx, wy, wz);
+                long stand = key(wx, wy + 1, wz);
+                long head = key(wx, wy + 2, wz);
+                boolean ok = cell(wx, wy, wz).support() != SUPPORT_NONE && !avoidClear.contains(floor)
+                        && cell(wx, wy + 1, wz).clear() == 0.0F && cell(wx, wy + 2, wz).clear() == 0.0F;
+                for (long cell : moveClears) {
+                    if (cell == floor) {
+                        ok = false;
+                    }
+                }
+                int depth = 0;
+                for (Node a = c; ok && a != null && depth < WING_CHECK_DEPTH; a = a.next, depth++) {
+                    if (a.support == stand || a.support == head
+                            || key(a.x, a.y, a.z) == floor || key(a.x, a.y + 1, a.z) == floor) {
+                        ok = false;
+                        break;
+                    }
+                    for (long cell : a.moveClears) {
+                        if (cell == floor) {
+                            ok = false;
+                            break;
+                        }
+                    }
+                }
+                if (!ok) {
+                    lost++;
+                }
+            }
+        }
+        // 2. The extra columns of the later steps that this step takes the room of (it stands or needs free space there).
+        long feet = key(px, py, pz);
+        long above = key(px, py + 1, pz);
+        int inDir = dir;
+        int depth = 0;
+        for (Node a = c; a != null && depth < WING_CHECK_DEPTH; a = a.next, depth++) {
+            if (cell(a.x, a.y - 1, a.z).support() == SUPPORT_PLACEABLE) {
+                Direction inMove = Direction.from2DDataValue(inDir);
+                for (Direction side : new Direction[]{inMove.getClockWise(), inMove.getCounterClockWise()}) {
+                    long wing = key(a.x + side.getStepX(), a.y - 1, a.z + side.getStepZ());
+                    boolean taken = wing == feet || wing == above;
+                    for (long cell : moveClears) {
+                        taken |= cell == wing;
+                    }
+                    if (taken) {
+                        lost++;
+                    }
+                }
+            }
+            if (a.dir < 0) {
+                break;
+            }
+            inDir = a.dir;
+        }
+        return lost;
+    }
+
+    private static final int WING_CHECK_DEPTH = 24;
 
     private boolean cellNeedsDigging(long key) {
         return cell(BlockPos.getX(key), BlockPos.getY(key), BlockPos.getZ(key)).clear() > 0.0F;

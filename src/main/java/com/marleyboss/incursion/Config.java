@@ -526,7 +526,7 @@ public final class Config {
     public static final ModConfigSpec.IntValue STAIR_FLIGHT = BUILDER
             .comment("Stairs are planned in straight flights of at least this many steps before they turn (a landing is built",
                     "at every turn), like a stairwell. 1 = turn as often as it is cheapest (tight corkscrew stairs).")
-            .defineInRange("stairFlight", 5, 1, 12);
+            .defineInRange("stairFlight", 4, 1, 12);
 
     public static final ModConfigSpec.IntValue STAIR_WIDTH = BUILDER
             .comment("Width of the stairs and ladder towers the builders make (in blocks, where there is room).",

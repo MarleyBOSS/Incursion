@@ -722,15 +722,22 @@ public final class SiegeAI {
             route.noteProgress(now);
             SiegeProgress.progress(action.pos(), now);
             if (!action.dig()) {
-                BlockPos[] wings = route.wingsOf(action.pos());
-                if (wings != null) {
-                    for (BlockPos wing : wings) {
-                        placeWing(level, wing, route);
+                // The extra columns of this step and of the steps right before it (a column that somebody was standing
+                // on when its step was built is made up for now, so the stairs do not stay narrow).
+                for (var entry : route.wingMap().entrySet()) {
+                    BlockPos support = entry.getKey();
+                    if (support.distManhattan(action.pos()) <= WING_RETRY_RANGE
+                            && level.getBlockState(support).is(ModBlocks.SIEGE_STONE.get())) {
+                        for (BlockPos wing : entry.getValue()) {
+                            placeWing(level, wing, route);
+                        }
                     }
                 }
             }
         }
     }
+
+    private static final int WING_RETRY_RANGE = 10;
 
     /** The extra columns of the stairs, placed together with the stair block (only into free space). */
     private static void placeWing(ServerLevel level, BlockPos pos, Route route) {

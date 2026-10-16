@@ -166,6 +166,11 @@ public final class Route {
         return wings.get(support);
     }
 
+    /** All extra columns by the stair block they belong to. */
+    Map<BlockPos, BlockPos[]> wingMap() {
+        return wings;
+    }
+
     @Nullable
     BlockPos support(int index) {
         return supports[index];
