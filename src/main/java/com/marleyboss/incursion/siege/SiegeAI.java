@@ -323,7 +323,7 @@ public final class SiegeAI {
             return;
         }
         if (siege.showDebug) {
-            SiegeDebug.showName(mob, state);
+            SiegeDebug.showName(mob, state, SiegeFocus.wardOf(mob, siege) != null);
         } else {
             SiegeDebug.clearName(mob);
         }

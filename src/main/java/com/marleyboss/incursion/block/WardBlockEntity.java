@@ -10,6 +10,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
@@ -40,6 +43,9 @@ public class WardBlockEntity extends BlockEntity {
     /** Negative = not set yet (full health once the config is available). */
     private float health = -1.0F;
     private long lastWarningTick = Long.MIN_VALUE / 2;
+    /** Health last sent to the clients (they draw the health bar above the totem). */
+    private float syncedHealth = -1.0F;
+    private long lastSyncTick = Long.MIN_VALUE / 2;
     @Nullable
     private CoreTargetEntity target;
 
@@ -54,6 +60,9 @@ public class WardBlockEntity extends BlockEntity {
             double regen = Config.CORE_REGEN_PER_MINUTE.get() / 60.0;
             if (regen > 0 && ward.getHealth() < ward.getMaxHealth()) {
                 ward.setHealth((float) (ward.getHealth() + regen));
+            }
+            if (Math.abs(ward.getHealth() - ward.syncedHealth) >= 1.0F) {
+                ward.syncHealth(level.getGameTime());
             }
         }
     }
@@ -71,6 +80,27 @@ public class WardBlockEntity extends BlockEntity {
             health = getMaxHealth();
         }
         return health;
+    }
+
+    /** Sends the health to the clients (the bar above the totem). */
+    private void syncHealth(long now) {
+        if (level != null && !level.isClientSide) {
+            syncedHealth = getHealth();
+            lastSyncTick = now;
+            BlockState state = level.getBlockState(worldPosition);
+            level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
+        }
+    }
+
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        return saveWithoutMetadata(registries);
+    }
+
+    @Nullable
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     public void setHealth(float value) {
@@ -105,6 +135,9 @@ public class WardBlockEntity extends BlockEntity {
         serverLevel.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_HIT, SoundSource.BLOCKS, 1.0F, 0.9F);
 
         long now = serverLevel.getGameTime();
+        if (now - lastSyncTick >= 5) {
+            syncHealth(now);
+        }
         if (health > 0.0F && now - lastWarningTick >= Config.WARNING_COOLDOWN_SECONDS.get() * 20L) {
             lastWarningTick = now;
             serverLevel.getServer().getPlayerList().broadcastSystemMessage(
@@ -131,6 +164,7 @@ public class WardBlockEntity extends BlockEntity {
                 Component.translatable("message.incursion.ward.disabled", pos.getX(), pos.getY(), pos.getZ())
                         .withStyle(ChatFormatting.DARK_RED), false);
         SiegeProgress.progress(pos, serverLevel.getGameTime());
+        CoreBlockEntity.resyncAll(); // the safe zone changed: the Core sends the borders again
     }
 
     /** Switches the totem on again with full health. */
@@ -144,6 +178,8 @@ public class WardBlockEntity extends BlockEntity {
         setChanged();
         serverLevel.setBlock(pos, state.setValue(WardBlock.DISABLED, false), Block.UPDATE_ALL);
         serverLevel.playSound(null, pos, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1.0F, 1.2F);
+        syncHealth(serverLevel.getGameTime());
+        CoreBlockEntity.resyncAll();
     }
 
     // ------------------------------------------------------------------

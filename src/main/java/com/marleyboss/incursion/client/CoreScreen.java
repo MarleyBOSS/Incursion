@@ -86,7 +86,11 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
         }
         boolean active = menu.isActive();
         defuseButton.visible = active;
-        bordersButton.visible = active;
+        // The borders can be shown before the Core is activated (to plan the base); then the button is full width.
+        bordersButton.visible = true;
+        int half = (imageWidth - 24) / 2;
+        bordersButton.setWidth(active ? half : imageWidth - 20);
+        bordersButton.setY(topPos + imageHeight - (active ? 72 : 48));
         aiButton.visible = active;
         int repairState = menu.get(CoreMenu.DATA_REPAIR_STATE);
         repairButton.visible = active && repairState != 0;

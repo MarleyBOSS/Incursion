@@ -60,6 +60,10 @@ public class CoreBlockEntity extends BlockEntity {
     /** Ward totem positions (packed) sent to clients for the border display. */
     private long[] syncedWards = new long[0];
     private int syncSignature = Integer.MIN_VALUE;
+    private int idleCounter = 0;
+    /** Loaded Cores, so a changed ward totem (switched off, repaired) can have the borders sent again at once. */
+    private static final java.util.Set<CoreBlockEntity> LOADED =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<>());
 
     // Runtime only (not saved)
     @Nullable
@@ -78,7 +82,16 @@ public class CoreBlockEntity extends BlockEntity {
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, CoreBlockEntity core) {
-        if (!(level instanceof ServerLevel serverLevel) || !state.getValue(CoreBlock.ACTIVE)) {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        LOADED.add(core);
+        if (!state.getValue(CoreBlock.ACTIVE)) {
+            // An inactive Core can show the borders too (switch in the GUI): the totems around it are synced.
+            if (core.showBorders && ++core.idleCounter % 20 == 0) {
+                core.syncToClient(WardBlockEntity.wardsNear(level, pos,
+                        Config.siegeRadiusBlocks(Math.max(1, core.coreLevel))));
+            }
             return;
         }
         core.tickCounter++;
@@ -167,6 +180,19 @@ public class CoreBlockEntity extends BlockEntity {
             syncedWards = packed;
             forceSync();
         }
+    }
+
+    /** Makes every loaded Core send its borders to the clients again within a second (a ward totem changed). */
+    public static void resyncAll() {
+        for (CoreBlockEntity core : LOADED) {
+            core.syncSignature = Integer.MIN_VALUE;
+        }
+    }
+
+    @Override
+    public void setRemoved() {
+        super.setRemoved();
+        LOADED.remove(this);
     }
 
     /** Sends the current state to all clients that track this block right away. */

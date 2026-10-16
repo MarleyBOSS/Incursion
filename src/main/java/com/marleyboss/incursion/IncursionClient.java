@@ -1,6 +1,7 @@
 package com.marleyboss.incursion;
 
 import com.marleyboss.incursion.client.CoreRenderer;
+import com.marleyboss.incursion.client.WardRenderer;
 import com.marleyboss.incursion.client.CoreScreen;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModEntities;
@@ -35,5 +36,7 @@ public class IncursionClient {
         event.registerEntityRenderer(ModEntities.CORE_TARGET.get(), NoopRenderer::new);
         // Shield domes and border beams.
         event.registerBlockEntityRenderer(ModBlockEntities.CORE.get(), CoreRenderer::new);
+        // Health bar above ward totems.
+        event.registerBlockEntityRenderer(ModBlockEntities.WARD.get(), WardRenderer::new);
     }
 }

@@ -26,10 +26,14 @@ public final class SiegeDebug {
     private static final DustParticleOptions ASSEMBLY = new DustParticleOptions(new Vector3f(1.0F, 0.85F, 0.1F), 2.5F);
     private static final DustParticleOptions PLATFORM = new DustParticleOptions(new Vector3f(0.75F, 0.3F, 1.0F), 1.5F);
 
+    /** Status texts that mention the target; they have a variant for a totem target. */
+    private static final java.util.Set<String> WARD_STATUS =
+            java.util.Set.of("approach", "attack", "shoot", "climb", "teleport", "attack_wait");
+
     private SiegeDebug() {
     }
 
-    static void showName(Mob mob, MobState state) {
+    static void showName(Mob mob, MobState state, boolean ward) {
         Role role = MobRoles.of(mob);
         MutableComponent name = role == Role.NONE
                 ? mob.getType().getDescription().copy()
@@ -41,7 +45,8 @@ public final class SiegeDebug {
             name.append(Component.translatable(team).withStyle(ChatFormatting.AQUA));
         }
         name.withStyle(ChatFormatting.GOLD).append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
-                .append(Component.translatable("debug.incursion.status." + state.status, state.statusArgs)
+                .append(Component.translatable("debug.incursion.status." + state.status
+                        + (ward && WARD_STATUS.contains(state.status) ? "_ward" : ""), state.statusArgs)
                         .withStyle(ChatFormatting.WHITE));
         mob.setCustomName(name);
         mob.setCustomNameVisible(true);
