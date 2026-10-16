@@ -36,6 +36,8 @@ final class SiegeFront {
      */
     @Nullable
     final BlockPos ward;
+    /** A Core front planned because a totem fell: it stays (a free totem does not take it over). */
+    boolean forcedCore;
 
     // Refreshed once per second by the commander.
     int pendingBuild;

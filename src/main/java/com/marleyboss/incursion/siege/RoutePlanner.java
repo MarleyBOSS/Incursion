@@ -117,6 +117,9 @@ public final class RoutePlanner {
     /** Square around the real Core in which nothing may assemble (the safe zone); also set for hunts. */
     private BlockPos safeCenter;
     private int safeHalf = -1;
+    /** Square (the siege area) in which the assembly point must lie; null = no limit. */
+    private BlockPos areaCenter;
+    private int areaHalf;
     private final boolean underground;
     private final boolean canBuild;
     private final float placeCost;
@@ -252,6 +255,13 @@ public final class RoutePlanner {
     // Search
     // ------------------------------------------------------------------
 
+    /** The assembly point must lie inside the square of the given half side around {@code center} (the siege area). */
+    public RoutePlanner withArea(BlockPos center, int half) {
+        this.areaCenter = center;
+        this.areaHalf = half;
+        return this;
+    }
+
     /** Nothing assembles (so nothing spawns) inside the square of the given half side around {@code center}. */
     public RoutePlanner withSafeSquare(BlockPos center, int half) {
         this.safeCenter = center;
@@ -270,6 +280,10 @@ public final class RoutePlanner {
         double distance = Math.max(Math.abs(dx), Math.abs(dz));
         if (distance < assemblyDistance || Math.abs(dx) > bound - 2 || Math.abs(dz) > bound - 2) {
             return false;
+        }
+        if (areaCenter != null
+                && Math.max(Math.abs(n.x - areaCenter.getX()), Math.abs(n.z - areaCenter.getZ())) > areaHalf) {
+            return false; // outside the siege area: mobs there would be sent away again
         }
         // One block of margin, because mobs may spawn one block next to the assembly point.
         if (safeCenter != null && Math.max(Math.abs(n.x - safeCenter.getX()), Math.abs(n.z - safeCenter.getZ())) <= safeHalf + 1) {

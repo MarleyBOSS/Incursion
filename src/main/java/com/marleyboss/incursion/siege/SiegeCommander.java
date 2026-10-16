@@ -69,7 +69,7 @@ public final class SiegeCommander {
     /** Totems no way could be planned to (position -> game time until which they are skipped). */
     private static final java.util.Map<BlockPos, Long> UNREACHABLE = new java.util.HashMap<>();
     /** Unreachable totems are tried again after this many ticks. */
-    private static final long UNREACHABLE_TICKS = 6000;
+    private static final long UNREACHABLE_TICKS = 12000;
 
     private SiegeCommander() {
     }
@@ -153,6 +153,15 @@ public final class SiegeCommander {
             }
         }
 
+        // A ward totem that no front attacks yet takes over a Core front that was not planned because a totem
+        // fell (the focus: fronts attack the outer totems first, e.g. a totem placed after the siege started).
+        if (coreFronts == 0 && Config.WARD_FOCUS.get() && UNREACHABLE.isEmpty() && pickFocus(siege, wards, now) != null) {
+            boolean dropped = FRONTS.removeIf(front -> front.ward == null && !front.forcedCore);
+            if (dropped) {
+                announce(level, siege, Component.literal("Totem im Gebiet: Kern-Fronten werden durch Totem-Fronten ersetzt."));
+            }
+        }
+
         // 2. Who is on which front?
         for (SiegeFront front : FRONTS) {
             java.util.Arrays.fill(front.roleCounts, 0);
@@ -219,6 +228,7 @@ public final class SiegeCommander {
                 SiegeFront front = new SiegeFront(nextId++, result.route(), result.side(), result.platform(),
                         result.landings(), now, planned);
                 if (planned == null && coreFronts > 0) {
+                    front.forcedCore = true;
                     coreFronts--;
                 }
                 if (planned != null) {
@@ -280,9 +290,6 @@ public final class SiegeCommander {
             }
             int distance = Math.max(Math.abs(ward.getX() - siege.corePos.getX()),
                     Math.abs(ward.getZ() - siege.corePos.getZ()));
-            if (distance > siege.siegeRadius - (Config.WARD_RADIUS.get() + 12)) {
-                continue; // too close to the edge of the siege area: the way to it could not start inside the area
-            }
             if (distance > bestDistance) {
                 bestDistance = distance;
                 best = ward;
@@ -303,12 +310,11 @@ public final class SiegeCommander {
             // outside of the Core's), inside the siege area. Sides do not matter (only fronts at the same totem would).
             int half = Config.WARD_RADIUS.get();
             double assembly = half + 3.0;
-            int away = Math.max(Math.abs(ward.getX() - siege.corePos.getX()),
-                    Math.abs(ward.getZ() - siege.corePos.getZ()));
-            int bound = Math.max((int) assembly + 6, siege.siegeRadius - 2 - away);
+            int bound = (int) assembly + 24;
             return new RoutePlanner(level, ward, siege.coreLevel, bound, assembly, 0,
                     SiegeManager.isUnderground(level, ward), wards, half, avoidClear, avoidSupport, otherNodes,
-                    EnumSet.noneOf(Direction.class), now).withSafeSquare(siege.corePos, siege.safeHalf);
+                    EnumSet.noneOf(Direction.class), now).withSafeSquare(siege.corePos, siege.safeHalf)
+                    .withArea(siege.corePos, siege.siegeRadius - 4); // the way must start inside the siege area
         }
         double assemblyDistance = Config.coreZoneRadius(siege.coreLevel) + 6.0;
         int bound = Math.max(12, siege.siegeRadius - 2);
