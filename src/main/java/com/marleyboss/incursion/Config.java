@@ -44,8 +44,9 @@ public final class Config {
             .defineInRange("upgradeCostPerLevel", 1, 0, 64 * 36);
 
     public static final ModConfigSpec.BooleanValue UPGRADE_TOOL_REQUIRED = BUILDER
-            .comment("If true, upgrading the Core needs an Upgrade Tool (anywhere in the inventory) in addition to the",
-                    "upgrade items. The tool is not used up. If false, only the upgrade items are needed (old behaviour).")
+            .comment("If true, the Core is upgraded by right-clicking it with an Upgrade Tool in the hand (the upgrade items",
+                    "are taken from the inventory, the tool is not used up, the GUI button does not upgrade).",
+                    "If false, the upgrade item in the hand or the GUI button upgrades, no tool needed (old behaviour).")
             .define("upgradeToolRequired", true);
 
     public static final ModConfigSpec.IntValue UPGRADE_TOOL_LEVELS = BUILDER

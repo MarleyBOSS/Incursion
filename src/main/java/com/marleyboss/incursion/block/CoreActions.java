@@ -59,7 +59,12 @@ public final class CoreActions {
                 .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD), false);
     }
 
-    public static void tryUpgrade(ServerLevel level, BlockPos pos, Player player) {
+    /**
+     * Upgrades the Core by one level. {@code heldTool} is the stack the player right-clicked with; when an Upgrade
+     * Tool is required it must be an Upgrade Tool of a high enough tier (the GUI button passes an empty stack, so
+     * it cannot upgrade in that case).
+     */
+    public static void tryUpgrade(ServerLevel level, BlockPos pos, Player player, ItemStack heldTool) {
         BlockState state = level.getBlockState(pos);
         if (!(state.getBlock() instanceof CoreBlock) || !state.getValue(CoreBlock.ACTIVE)
                 || !(level.getBlockEntity(pos) instanceof CoreBlockEntity core)) {
@@ -75,7 +80,7 @@ public final class CoreActions {
 
         int targetLevel = currentLevel + 1;
         int neededTier = Config.requiredToolTier(targetLevel);
-        if (neededTier > 0 && toolTier(player) < neededTier) {
+        if (neededTier > 0 && toolTier(heldTool) < neededTier) {
             player.displayClientMessage(Component.translatable("message.incursion.core.need_tool",
                     ModItems.upgradeTool(neededTier).get().getDescription(), targetLevel)
                     .withStyle(ChatFormatting.RED), true);
@@ -104,19 +109,9 @@ public final class CoreActions {
     // Inventory helpers (creative players pay nothing)
     // ------------------------------------------------------------------
 
-    /** Highest Upgrade Tool tier in the inventory (0 = none); creative players count as the highest. */
-    public static int toolTier(Player player) {
-        if (player.getAbilities().instabuild) {
-            return Config.UPGRADE_TOOL_MAX_TIER;
-        }
-        int best = 0;
-        Inventory inventory = player.getInventory();
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
-            if (inventory.getItem(i).getItem() instanceof UpgradeToolItem tool) {
-                best = Math.max(best, tool.getTier());
-            }
-        }
-        return best;
+    /** Tier of the Upgrade Tool in {@code stack} (0 = not an Upgrade Tool). */
+    public static int toolTier(ItemStack stack) {
+        return stack.getItem() instanceof UpgradeToolItem tool ? tool.getTier() : 0;
     }
 
     public static int countItem(Player player, Item item) {

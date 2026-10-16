@@ -40,8 +40,9 @@ import org.jetbrains.annotations.Nullable;
  * <ul>
  *     <li>Level 0 / inactive: peaceful, can be mined and moved.</li>
  *     <li>Right-click with the activation item: becomes active at level 1 (one active core per world).</li>
- *     <li>Right-click with the upgrade item or an Upgrade Tool while active: pays the cost and gains a level
- *     (an Upgrade Tool of a high enough tier must be in the inventory, see {@code upgradeToolRequired}).</li>
+ *     <li>Right-click with an Upgrade Tool in the hand while active: pays the cost (from the inventory) and gains a
+ *     level; the tool's tier must reach the target level. With {@code upgradeToolRequired} off, the upgrade item
+ *     in the hand works too.</li>
  *     <li>Right-click with anything else: opens the Core GUI (status, upgrade button).</li>
  *     <li>While active, the block entity runs the siege (see SiegeManager).</li>
  *     <li>Active cores cannot be mined in survival. If an active core is removed in any other way
@@ -104,7 +105,10 @@ public class CoreBlock extends BaseEntityBlock {
         }
         boolean active = state.getValue(ACTIVE);
         boolean isActivation = !active && stack.is(Config.activationItem());
-        boolean isUpgrade = active && (stack.is(Config.upgradeItem()) || stack.getItem() instanceof UpgradeToolItem);
+        // With the tool requirement on, only an Upgrade Tool in the hand upgrades (the items are paid from the
+        // inventory); with it off, the upgrade item itself works as before.
+        boolean isUpgrade = active && (stack.getItem() instanceof UpgradeToolItem
+                || (!Config.UPGRADE_TOOL_REQUIRED.get() && stack.is(Config.upgradeItem())));
         if (!isActivation && !isUpgrade) {
             // Falls through to useWithoutItem (opens the GUI).
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
@@ -115,7 +119,7 @@ public class CoreBlock extends BaseEntityBlock {
         if (isActivation) {
             CoreActions.tryActivate((ServerLevel) level, pos, player);
         } else {
-            CoreActions.tryUpgrade((ServerLevel) level, pos, player);
+            CoreActions.tryUpgrade((ServerLevel) level, pos, player, stack);
         }
         return ItemInteractionResult.CONSUME;
     }

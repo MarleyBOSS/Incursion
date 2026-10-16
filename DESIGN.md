@@ -170,7 +170,7 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 | v0.7.4 | Plattformbau parallel, Spielerjagd mit eigenen Baumeistern/Gräbern, dynamische Teams | gebaut, **Test ausstehend** |
 | v0.8 | Schilde (3 Kuppeln), Puls, Reparatur | gebaut, Test ausstehend |
 | v0.9 | Kernsplitter pro verteidigter Nacht (Guthaben im Kern, abhebbar), Statistik, Beute-Kiste | gebaut, Test ausstehend |
-| v0.9.2 | Upgrade-Werkzeug (4 Stufen à 5 Kernstufen, im Inventar nötig, Config `upgradeToolRequired`/`upgradeToolLevels`) | gebaut, Test ausstehend |
+| v0.9.2.1 | Upgrade-Werkzeug (4 Stufen à 5 Kernstufen, Rechtsklick mit dem Werkzeug in der Hand, Config `upgradeToolRequired`/`upgradeToolLevels`) | gebaut, Test ausstehend |
 | danach | Config-Feinschliff, Balancing, Brennstoff, Create-Anbindung, eigene Items | geplant |
 
 ## Offene Entscheidungen

@@ -9,7 +9,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 
 /**
- * The Upgrade Tool: needed (in the inventory) to upgrade the Core. One tier covers
+ * The Upgrade Tool: right-click the Core with it in the hand to upgrade it. One tier covers
  * {@link Config#UPGRADE_TOOL_LEVELS} Core levels (default 5: tier I up to level 5, II up to 10, III up to 15,
  * IV everything above). The tool is not used up; stronger tiers are crafted from the weaker one.
  */

@@ -146,16 +146,18 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
         int cost = menu.get(CoreMenu.DATA_NEXT_COST);
         boolean canPay = menu.get(CoreMenu.DATA_UPGRADE_ITEMS_OWNED) >= cost;
         int neededTier = menu.get(CoreMenu.DATA_NEXT_TOOL_TIER);
-        boolean hasTool = menu.get(CoreMenu.DATA_TOOL_TIER_OWNED) >= neededTier;
-        actionButton.setMessage(Component.translatable("gui.incursion.core.button.upgrade", level + 1));
-        actionButton.active = canPay && hasTool;
-        if (!hasTool) {
+        if (neededTier > 0) {
+            // The Core is upgraded by right-clicking it with the Upgrade Tool; the button only explains that.
+            actionButton.setMessage(Component.translatable("gui.incursion.core.button.upgrade_tool"));
+            actionButton.active = false;
             actionButton.setTooltip(Tooltip.create(Component.translatable("message.incursion.core.need_tool",
                     ModItems.upgradeTool(neededTier).get().getDescription(), level + 1)));
-        } else {
-            actionButton.setTooltip(canPay ? null : Tooltip.create(Component.translatable(
-                    "message.incursion.core.not_enough", cost, menu.getUpgradeItem().getDescription())));
+            return;
         }
+        actionButton.setMessage(Component.translatable("gui.incursion.core.button.upgrade", level + 1));
+        actionButton.active = canPay;
+        actionButton.setTooltip(canPay ? null : Tooltip.create(Component.translatable(
+                "message.incursion.core.not_enough", cost, menu.getUpgradeItem().getDescription())));
     }
 
     @Override
