@@ -52,6 +52,8 @@ public final class SiegeManager {
     private static final ResourceLocation DAMAGE_BONUS_ID = id("siege_damage_bonus");
     private static final double MAX_FOLLOW_RANGE = 128.0;
     private static boolean stallAnnounced = false;
+    /** Was the spawn window open at the last check? (To restart the stall timer when it opens.) */
+    private static boolean spawnWasOpen = false;
 
     private SiegeManager() {
     }
@@ -160,7 +162,14 @@ public final class SiegeManager {
         SiegeExplosives.tickTnt(level, fireArchers, now);
 
         // 7. The commander analyses the situation, plans the fronts and decides which roles are needed.
-        boolean stalled = SiegeProgress.isStalled(now);
+        // New attackers only come in the spawn window (by default at night). Waiting for dusk is not a stall, and the
+        // stall timer starts fresh when the window opens.
+        boolean spawnOpen = Config.isSpawnTime(level.getDayTime());
+        if (spawnOpen && !spawnWasOpen) {
+            SiegeProgress.progress(null, now);
+        }
+        spawnWasOpen = spawnOpen;
+        boolean stalled = spawnOpen && SiegeProgress.isStalled(now);
         int max = Config.maxSiegeMobs(coreLevel) + wards.size() * Config.WARD_EXTRA_MOBS.get();
         if (stalled) {
             max += max * Config.STALL_EXTRA_MOBS_PERCENT.get() / 100;
@@ -184,7 +193,12 @@ public final class SiegeManager {
         } else if (!stalled) {
             stallAnnounced = false;
         }
-        if ((tickCounter / 20) % interval == 0 && level.getDifficulty() != Difficulty.PEACEFUL) {
+        if (!spawnOpen && (tickCounter / 20) % interval == 0) {
+            spawnDebug(level, "day", "Keine neuen Angreifer: Tageszeit " + Math.floorMod(level.getDayTime(), 24000L)
+                    + " liegt außerhalb des Spawn-Fensters " + Config.NIGHT_SPAWN_START.get() + "–"
+                    + Config.NIGHT_SPAWN_END.get());
+        }
+        if (spawnOpen && (tickCounter / 20) % interval == 0 && level.getDifficulty() != Difficulty.PEACEFUL) {
             int free = max - siegeMobs;
             boolean urgent = SiegeCommander.urgentWorkerNeeded(max);
             if (free <= 0 && urgent && siegeMobs < max + EXTRA_WORKERS) {

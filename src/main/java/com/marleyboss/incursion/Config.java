@@ -109,6 +109,20 @@ public final class Config {
             .comment("Siege mobs spawn at most this many blocks away from the Core (and always outside the core zone).")
             .defineInRange("spawnMaxDistance", 40, 8, 256);
 
+    public static final ModConfigSpec.BooleanValue NIGHT_ONLY_SPAWNS = BUILDER
+            .comment("New siege attackers only spawn at night (see nightSpawnStart / nightSpawnEnd). By day the Core waits",
+                    "for dusk; attackers that are already there keep going. Turn off for a siege around the clock.")
+            .define("nightOnlySpawns", true);
+
+    public static final ModConfigSpec.IntValue NIGHT_SPAWN_START = BUILDER
+            .comment("Time of day (ticks, 0-23999) at which attackers start to spawn. 13000 = dusk.")
+            .defineInRange("nightSpawnStart", 13000, 0, 23999);
+
+    public static final ModConfigSpec.IntValue NIGHT_SPAWN_END = BUILDER
+            .comment("Time of day (ticks, 0-23999) at which attackers stop to spawn. 23000 = shortly before sunrise.",
+                    "A value below nightSpawnStart means the window wraps around midnight of the clock; equal = always.")
+            .defineInRange("nightSpawnEnd", 23000, 0, 23999);
+
     public static final ModConfigSpec.DoubleValue MOB_HEALTH_BONUS_PER_LEVEL = BUILDER
             .comment("Siege mobs get +X max health per core level (0.05 = +5% per level).")
             .defineInRange("mobHealthBonusPerLevel", 0.05, 0.0, 10.0);
@@ -733,6 +747,23 @@ public final class Config {
     }
 
     public static final ModConfigSpec SPEC = BUILDER.build();
+
+    /**
+     * May the siege spawn new attackers at this world time? Always true if night-only spawns are off.
+     * Dimensions without a day of their own (Nether, End) use the Overworld clock, like the shard nights.
+     */
+    public static boolean isSpawnTime(long dayTime) {
+        if (!NIGHT_ONLY_SPAWNS.get()) {
+            return true;
+        }
+        long time = Math.floorMod(dayTime, 24000L);
+        int start = NIGHT_SPAWN_START.get();
+        int end = NIGHT_SPAWN_END.get();
+        if (start == end) {
+            return true;
+        }
+        return start < end ? time >= start && time < end : time >= start || time < end;
+    }
 
     /** Core shards earned for one defended night at this Core level. */
     public static int shardsPerNight(int level) {
