@@ -482,10 +482,11 @@ public final class Config {
                     "All others gather at the foot of the route and storm up together once the way is open.")
             .defineInRange("frontWaiters", 2, 0, 32);
 
-    public static final ModConfigSpec.BooleanValue NO_MOB_COLLISION = BUILDER
-            .comment("If true, siege mobs do not push anything and are not pushed (collision rule \"never\" of the scoreboard team \"incursion_siege\"),",
-                    "so they cannot block each other (builders get through) on narrow stairs, bridges and ladders.")
-            .define("noMobCollision", true);
+    public static final ModConfigSpec.BooleanValue BUILDER_NO_PUSH = BUILDER
+            .comment("If true, builder zombies cannot be pushed and do not push others (they are on the scoreboard team",
+                    "\"incursion_builders\" with collision rule \"never\"), so they always get through the crowd on narrow stairs",
+                    "and bridges. All other siege mobs push each other like normal mobs.")
+            .define("builderNoPush", true);
 
     public static final ModConfigSpec.BooleanValue BLOCK_CAVE_SPAWNS = BUILDER
             .comment("If true, no monsters spawn naturally in caves inside the siege area, unless the cave is at about the",

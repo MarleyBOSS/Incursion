@@ -196,7 +196,7 @@
   "incursion.configuration.lostSeconds": "Remove lost mobs after (seconds)",
   "incursion.configuration.routeCapacity": "Max mobs per route",
   "incursion.configuration.frontWaiters": "Waiters right behind the workers",
-  "incursion.configuration.noMobCollision": "Siege mobs do not push each other",
+  "incursion.configuration.builderNoPush": "Builders cannot be pushed",
   "incursion.configuration.blockCaveSpawns": "No cave spawns in the siege area",
   "incursion.configuration.safeZoneBlocksNaturalSpawns": "No natural monster spawns in the safe zone",
   "debug.incursion.status.gather": "gathering",

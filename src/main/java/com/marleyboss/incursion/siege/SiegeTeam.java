@@ -10,44 +10,69 @@ import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Attackers are put on a scoreboard team whose members do not push each other. Vanilla mobs constantly shove
- * each other around, which on a one block wide staircase or ladder pushes the builder off or blocks the way.
- * Players (not on the team) still push and are pushed as usual.
+ * Builders are essential: if one is pushed off the stairs or cannot pass the crowd waiting in front of it, the whole
+ * siege stands still. They are therefore put on a scoreboard team whose collision rule is "never": a builder is not
+ * pushed by anybody and pushes nobody, so it simply walks through the others. All other siege mobs have no team and
+ * push each other like normal mobs (a crowd of zombies should not be able to squeeze through everything).
  */
 public final class SiegeTeam {
-    public static final String NAME = "incursion_siege";
+    /** The team builders are on (collision rule "never"). */
+    public static final String BUILDERS = "incursion_builders";
+    /** Old team of v0.7.8 to v0.9.0.1 (all siege mobs were on it). Members are taken off it, its rule is made normal. */
+    public static final String LEGACY = "incursion_siege";
 
     private SiegeTeam() {
     }
 
     @Nullable
-    private static PlayerTeam team(Scoreboard scoreboard, boolean create) {
-        PlayerTeam team = scoreboard.getPlayerTeam(NAME);
+    private static PlayerTeam team(Scoreboard scoreboard, String name, Team.CollisionRule rule, boolean create) {
+        PlayerTeam team = scoreboard.getPlayerTeam(name);
         if (team == null && create) {
-            team = scoreboard.addPlayerTeam(NAME);
+            team = scoreboard.addPlayerTeam(name);
         }
-        if (team != null && team.getCollisionRule() != Team.CollisionRule.NEVER) {
-            team.setCollisionRule(Team.CollisionRule.NEVER);
+        if (team != null && team.getCollisionRule() != rule) {
+            team.setCollisionRule(rule);
         }
         return team;
     }
 
-    /** Puts an attacker on the team (unless it already belongs to another team, e.g. from another mod). */
+    private static boolean isOurs(@Nullable Team team) {
+        return team != null && (BUILDERS.equals(team.getName()) || LEGACY.equals(team.getName()));
+    }
+
+    /**
+     * Keeps an attacker on the right team (called every second): builders on the "never" team, everybody else on no
+     * team. A mob that belongs to a team of another mod is left alone.
+     */
     public static void join(Mob mob) {
-        if (!Config.NO_MOB_COLLISION.get() || mob.getTeam() != null) {
+        Team current = mob.getTeam();
+        if (current != null && !isOurs(current)) {
             return;
         }
         Scoreboard scoreboard = mob.level().getScoreboard();
-        PlayerTeam team = team(scoreboard, true);
-        if (team != null) {
-            scoreboard.addPlayerToTeam(mob.getScoreboardName(), team);
+        boolean builder = Config.BUILDER_NO_PUSH.get() && MobRoles.of(mob) == MobRoles.Role.BUILDER;
+        if (builder) {
+            if (current != null && BUILDERS.equals(current.getName())) {
+                return;
+            }
+            PlayerTeam team = team(scoreboard, BUILDERS, Team.CollisionRule.NEVER, true);
+            if (team != null) {
+                scoreboard.addPlayerToTeam(mob.getScoreboardName(), team); // moves it off the legacy team
+            }
+        } else if (current != null) {
+            leave(mob);
+        }
+        // The legacy team no longer stops pushing (its old members are taken off it one by one).
+        PlayerTeam legacy = scoreboard.getPlayerTeam(LEGACY);
+        if (legacy != null && legacy.getCollisionRule() != Team.CollisionRule.ALWAYS) {
+            legacy.setCollisionRule(Team.CollisionRule.ALWAYS);
         }
     }
 
-    /** Takes the mob off the team again (it left the siege). */
+    /** Takes the mob off our teams again (it left the siege or is no builder). */
     public static void leave(Entity entity) {
         PlayerTeam current = entity.getTeam();
-        if (current != null && NAME.equals(current.getName())) {
+        if (isOurs(current)) {
             entity.level().getScoreboard().removePlayerFromTeam(entity.getScoreboardName(), current);
         }
     }
