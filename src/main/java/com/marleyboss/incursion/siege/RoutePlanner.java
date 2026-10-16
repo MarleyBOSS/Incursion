@@ -756,6 +756,40 @@ public final class RoutePlanner {
                 }
             }
         }
+        return withoutBlockedWings(route, wings);
+    }
+
+    /**
+     * Drops extra columns that would stand in the way: a mob on the column needs the two cells above it free, so a
+     * column under a stair block of the route (the stairs turn above it) or under another extra column is no walkable
+     * floor but a wall, and one that sits in another column's headroom would block that one. Such stacked "bars"
+     * only get in each other's way, so they are not built.
+     */
+    private static BlockPos[][] withoutBlockedWings(Route route, BlockPos[][] wings) {
+        LongOpenHashSet solid = new LongOpenHashSet();
+        for (int i = 0; i < route.size(); i++) {
+            BlockPos support = route.support(i);
+            if (support != null) {
+                solid.add(support.asLong());
+            }
+        }
+        LongOpenHashSet placed = new LongOpenHashSet();
+        for (int i = 0; i < wings.length; i++) {
+            if (wings[i] == null) {
+                continue;
+            }
+            List<BlockPos> kept = new ArrayList<>(2);
+            for (BlockPos wing : wings[i]) {
+                if (solid.contains(wing.above().asLong()) || solid.contains(wing.above(2).asLong())
+                        || placed.contains(wing.below().asLong()) || placed.contains(wing.below(2).asLong())) {
+                    continue;
+                }
+                kept.add(wing);
+                solid.add(wing.asLong());
+                placed.add(wing.asLong());
+            }
+            wings[i] = kept.isEmpty() ? null : kept.toArray(new BlockPos[0]);
+        }
         return wings;
     }
 
