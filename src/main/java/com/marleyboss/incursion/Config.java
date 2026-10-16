@@ -483,10 +483,17 @@ public final class Config {
             .defineInRange("frontWaiters", 2, 0, 32);
 
     public static final ModConfigSpec.BooleanValue NO_MOB_COLLISION = BUILDER
-            .comment("If true, siege mobs do not push each other (they are on the scoreboard team \"incursion_siege\" with",
-                    "collision rule \"never\"), so a crowd cannot block narrow stairs, bridges and towers.",
-                    "Players and other mobs are not affected by this (only the siege mobs among themselves and towards players).")
+            .comment("If true, siege mobs do not push each other while they are on their way (they are put on the scoreboard",
+                    "team \"incursion_siege\" with collision rule \"never\"), so a crowd cannot jam stairs, bridges and towers.",
+                    "Near players they push each other like normal mobs (see collisionRadius), so a crowd cannot stand inside each other.",
+                    "Builders are never pushed, whatever this is set to.")
             .define("noMobCollision", true);
+
+    public static final ModConfigSpec.IntValue COLLISION_RADIUS = BUILDER
+            .comment("Siege mobs closer than this many blocks to a player push each other like normal mobs (so they cannot",
+                    "stand inside each other and be hit as one). Farther away they walk through each other.",
+                    "0 = they never push each other.")
+            .defineInRange("collisionRadius", 8, 0, 64);
 
     public static final ModConfigSpec.BooleanValue BLOCK_CAVE_SPAWNS = BUILDER
             .comment("If true, no monsters spawn naturally in caves inside the siege area, unless the cave is at about the",

@@ -10,15 +10,19 @@ import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Siege mobs must not block each other: a crowd at the foot of a tower or on a bridge would otherwise jam the climb
- * and the builders. All siege mobs are therefore put on a scoreboard team whose collision rule is "never": nobody is
- * pushed by them and they push nobody, so they simply walk through each other.
+ * Siege mobs must not block each other on the way (a crowd at the foot of a tower or on a bridge would jam the climb
+ * and the builders), but they must not stand inside each other when they fight either (the player would hit only one
+ * of them). So they are put on a scoreboard team with collision rule "never" while no player is near, and taken off it
+ * (normal pushing) as soon as a player is within {@link Config#COLLISION_RADIUS} blocks. Builders are essential and
+ * are always on the "never" team.
  */
 public final class SiegeTeam {
-    /** The team all siege mobs are on (collision rule "never"). */
+    /** The team of mobs that walk through each other (collision rule "never"). */
     public static final String NAME = "incursion_siege";
     /** Team of v0.9.0.3 (builders only). Members are moved to {@link #NAME}; the team itself stays empty. */
     private static final String OLD_BUILDERS = "incursion_builders";
+    /** Extra distance a mob must be away from the players before it turns into a "walk-through" mob again (no flicker). */
+    private static final int HYSTERESIS = 3;
 
     private SiegeTeam() {
     }
@@ -27,17 +31,27 @@ public final class SiegeTeam {
         return team != null && (NAME.equals(team.getName()) || OLD_BUILDERS.equals(team.getName()));
     }
 
-    /** Puts the attacker on the "never" team (called every second). A mob that belongs to a team of another mod is left alone. */
+    /**
+     * Puts the attacker on or off the "never" team (called every second): builders always on it, all others only
+     * while no player is near. A mob that belongs to a team of another mod is left alone.
+     */
     public static void join(Mob mob) {
-        if (!Config.NO_MOB_COLLISION.get()) {
-            leave(mob);
-            return;
-        }
         Team current = mob.getTeam();
         if (current != null && !isOurs(current)) {
             return;
         }
-        if (current != null && NAME.equals(current.getName())) {
+        boolean onTeam = current != null && NAME.equals(current.getName());
+        boolean ghost = MobRoles.of(mob) == MobRoles.Role.BUILDER;
+        if (!ghost && Config.NO_MOB_COLLISION.get()) {
+            int radius = Config.COLLISION_RADIUS.get();
+            // Players inside the radius make the mob solid; a mob that is already solid needs a bit more distance first.
+            ghost = radius <= 0 || mob.level().getNearestPlayer(mob, onTeam ? radius : radius + HYSTERESIS) == null;
+        }
+        if (!ghost) {
+            leave(mob);
+            return;
+        }
+        if (onTeam) {
             return;
         }
         Scoreboard scoreboard = mob.level().getScoreboard();
