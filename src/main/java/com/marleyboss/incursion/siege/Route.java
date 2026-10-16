@@ -42,7 +42,7 @@ public final class Route {
     /** Per step: cells next to the way that are filled with siege stone if they hold fluid (a dam). */
     private final BlockPos[][] seals;
     /** Stair block -> the block placed next to it (two-wide stairs). */
-    private final Map<BlockPos, BlockPos> wings = new HashMap<>();
+    private final Map<BlockPos, BlockPos[]> wings = new HashMap<>();
     private boolean invalid;
     private long lastProgress;
     /** Per step: what the last fluid search found (cached for a moment, the search is not free). */
@@ -151,23 +151,19 @@ public final class Route {
         return nodes[Math.max(0, Math.min(index, nodes.length - 1))];
     }
 
-    void setWings(BlockPos[] wingsByIndex) {
+    void setWings(BlockPos[][] wingsByIndex) {
         wings.clear();
         for (int i = 0; i < wingsByIndex.length && i < supports.length; i++) {
-            if (wingsByIndex[i] != null && supports[i] != null) {
+            if (wingsByIndex[i] != null && wingsByIndex[i].length > 0 && supports[i] != null) {
                 wings.put(supports[i], wingsByIndex[i]);
             }
         }
     }
 
-    /** The block to place next to this stair block (or null). */
+    /** The blocks to place next to this stair block (one or two, or null). */
     @Nullable
-    BlockPos wingOf(BlockPos support) {
+    BlockPos[] wingsOf(BlockPos support) {
         return wings.get(support);
-    }
-
-    java.util.Collection<BlockPos> wings() {
-        return wings.values();
     }
 
     @Nullable

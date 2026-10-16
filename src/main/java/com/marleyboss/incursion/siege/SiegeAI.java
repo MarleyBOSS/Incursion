@@ -722,15 +722,17 @@ public final class SiegeAI {
             route.noteProgress(now);
             SiegeProgress.progress(action.pos(), now);
             if (!action.dig()) {
-                BlockPos wing = route.wingOf(action.pos());
-                if (wing != null) {
-                    placeWing(level, wing, route);
+                BlockPos[] wings = route.wingsOf(action.pos());
+                if (wings != null) {
+                    for (BlockPos wing : wings) {
+                        placeWing(level, wing, route);
+                    }
                 }
             }
         }
     }
 
-    /** The second column of the stairs, placed together with the stair block (only into free space). */
+    /** The extra columns of the stairs, placed together with the stair block (only into free space). */
     private static void placeWing(ServerLevel level, BlockPos pos, Route route) {
         BlockState current = level.getBlockState(pos);
         if (!current.canBeReplaced() || current.getFluidState().is(net.minecraft.tags.FluidTags.LAVA)

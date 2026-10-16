@@ -482,18 +482,11 @@ public final class Config {
                     "All others gather at the foot of the route and storm up together once the way is open.")
             .defineInRange("frontWaiters", 2, 0, 32);
 
-    public static final ModConfigSpec.BooleanValue NO_MOB_COLLISION = BUILDER
-            .comment("If true, siege mobs do not push each other while they are on their way (they are put on the scoreboard",
-                    "team \"incursion_siege\" with collision rule \"never\"), so a crowd cannot jam stairs, bridges and towers.",
-                    "Near players they push each other like normal mobs (see collisionRadius), so a crowd cannot stand inside each other.",
-                    "Builders are never pushed, whatever this is set to.")
-            .define("noMobCollision", true);
-
-    public static final ModConfigSpec.IntValue COLLISION_RADIUS = BUILDER
-            .comment("Siege mobs closer than this many blocks to a player push each other like normal mobs (so they cannot",
-                    "stand inside each other and be hit as one). Farther away they walk through each other.",
-                    "0 = they never push each other.")
-            .defineInRange("collisionRadius", 8, 0, 64);
+    public static final ModConfigSpec.BooleanValue BUILDER_NO_PUSH = BUILDER
+            .comment("If true, builder zombies cannot be pushed and do not push others (they are on the scoreboard team",
+                    "\"incursion_builders\" with collision rule \"never\"), so they always get through the crowd on narrow stairs",
+                    "and bridges. All other siege mobs push each other like normal mobs.")
+            .define("builderNoPush", true);
 
     public static final ModConfigSpec.BooleanValue BLOCK_CAVE_SPAWNS = BUILDER
             .comment("If true, no monsters spawn naturally in caves inside the siege area, unless the cave is at about the",
@@ -529,6 +522,12 @@ public final class Config {
             .comment("If true, builders also build landings (wide platforms) along the stairs. Archers use them as firing",
                     "positions and posts, and mobs have room on the way up.")
             .define("landingsEnabled", true);
+
+    public static final ModConfigSpec.IntValue STAIR_WIDTH = BUILDER
+            .comment("Width of the stairs and ladder towers the builders make (in blocks, where there is room).",
+                    "3 = one extra column on each side of the way, 2 = one extra column, 1 = only the way itself.",
+                    "Wider ways jam less, because mobs can pass each other.")
+            .defineInRange("stairWidth", 3, 1, 3);
 
     public static final ModConfigSpec.BooleanValue WIDEN_ACCESS = BUILDER
             .comment("If true, waiting miners and fighters dig extra access cells into the wall right next to the attack",

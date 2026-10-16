@@ -675,11 +675,12 @@ public final class RoutePlanner {
     }
 
     /**
-     * A second column next to every stair block the siege has to build, so the stairs are two blocks wide
-     * (more room, mobs fall off less). The builder places it together with the stair block. Cells this route,
-     * its platform or another front need free are left out, and the second column stays on one side where possible.
+     * Extra columns next to every stair block the siege has to build, so the stairs are two or three blocks wide
+     * ({@code stairWidth}; more room, mobs fall off less and can pass each other). The builder places them together
+     * with the stair block. Cells this route, its platform or another front need free are left out. With width 2
+     * the extra column stays on one side where possible; with width 3 both sides get one.
      */
-    private BlockPos[] wings(Route route, List<BlockPos> platform, List<SiegeFront.Landing> landings) {
+    private BlockPos[][] wings(Route route, List<BlockPos> platform, List<SiegeFront.Landing> landings) {
         LongOpenHashSet keepFree = new LongOpenHashSet();
         keepFree.add(core.asLong());
         for (int i = 0; i < route.size(); i++) {
@@ -699,7 +700,11 @@ public final class RoutePlanner {
                 keepFree.add(spot.above().asLong());
             }
         }
-        BlockPos[] wings = new BlockPos[route.size()];
+        BlockPos[][] wings = new BlockPos[route.size()][];
+        int width = Config.STAIR_WIDTH.get();
+        if (width <= 1) {
+            return wings;
+        }
         Direction preferred = null;
         for (int i = 1; i < route.size(); i++) {
             BlockPos support = route.support(i);
@@ -712,6 +717,23 @@ public final class RoutePlanner {
             }
             Direction first = move.getClockWise();
             Direction second = move.getCounterClockWise();
+            if (width >= 3) {
+                java.util.List<BlockPos> both = new java.util.ArrayList<>(2);
+                for (Direction perp : new Direction[]{first, second}) {
+                    BlockPos wing = support.relative(perp);
+                    long key = wing.asLong();
+                    if (keepFree.contains(key) || avoidClear.contains(key)) {
+                        continue;
+                    }
+                    if (cell(wing.getX(), wing.getY(), wing.getZ()).support() == SUPPORT_PLACEABLE) {
+                        both.add(wing.immutable());
+                    }
+                }
+                if (!both.isEmpty()) {
+                    wings[i] = both.toArray(new BlockPos[0]);
+                }
+                continue;
+            }
             if (preferred == second) {
                 first = second;
                 second = move.getClockWise();
@@ -728,7 +750,7 @@ public final class RoutePlanner {
                     break;
                 }
                 if (wingSupport == SUPPORT_PLACEABLE) {
-                    wings[i] = wing.immutable();
+                    wings[i] = new BlockPos[]{wing.immutable()};
                     preferred = perp;
                     break;
                 }
