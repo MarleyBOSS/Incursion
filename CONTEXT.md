@@ -242,11 +242,15 @@ Ressourcen: Blockstates/Modelle (`core`, `core_active`, `siege_stone`, `siege_la
 | v0.18 | Energie (FE, bis ca. 20.000 FE/t per Skilltree) + Kern-Relais (kabellos + Redstone-Warnsignal); **1 Upgrade pro Relais**: Alarm (Glocke bei einstellbarem Ereignis, Dorfbewohner verstecken sich), Solarmodul, Ideen: Reichweite, Speicher, Laden, Späher; **Übertakten** (Atomreaktor-Prinzip): mehr FE pro Stufe, aber größerer Krater, stärkere Explosion, größere Verseuchung bei Kernschmelze; **nicht herunterdrehbar** (nur durch Entschärfen), damit man es nicht tagsüber hoch- und nachts runterstellt | Idee |
 | v0.19 | Feindlager: Strukturen vom Nutzer (.nbt), Weltgenerierung, Kriegskompass. **Nutzer skeptisch (fehleranfällig im Gelände)**; Vorschlag: klein wie Plünderer-Außenposten, nur flache Biome; Entscheidung später | Idee, unsicher |
 | v0.20 | Prestige: Boss in der ersten Nacht auf Stufe 20 → zurück auf Stufe 1; Skilltree wird zurückgesetzt, **1 Knoten nach Wahl bleibt für immer aktiv**; behalten: Splitter, Bauten, Totems, Ausrüstung; Vorschlag pro Stern (max. 5): Resonanz-Untergrenze, +25 % Splitter, Prestige-Kern-Tisch-Stufen, Mobs +10 %, Gegner-Arten 2 Stufen früher, Elite-Mobs; **echter Custom-Boss** (eigenes Modell, Animationen, Waffe, Angriffe; Modell in Blockbench); Sonderschild Stufe 20 | Idee |
+| Story-Update 1 (Idee, 17.10.) | **Villager-Handel**: Bibliothekar verkauft die Anfangstafel (mythische Core-Rune), Geistlicher (Cleric) den mythischen Splash-Trank, Werkzeugschmied tauscht Upgrade-Werkzeug + Upgrade-Item (Diamant, Obsidian, Netherit) gegen die nächste Werkzeugstufe | Idee (Lore wird noch abgestimmt) |
+| Story-Update 2 (Idee, 17.10.) | **Kern erschaffen**: eigener **Sarkophag**-Block (Rezept offen); Rechtsklick mit der Rune legt sie hinein, dann 24 Lohenstaub + 24 Schießpulver einlegen und den mythischen Trank darauf werfen, dann entsteht der Kern (ersetzt die bisherige Aktivierung; Zusammenhang Sarkophag und Hülle offen) | Idee |
+| Story-Update 3 (Idee, 17.10.) | **Lore-Tab und Tafeln**: Lore-Tab im Kern-GUI (Lore lesen, Tafeln sehen, Upgrade starten); Tafeln als Items mit Lore-Text, Drops: Elder Guardian (Werkzeug 1, Level 1 bis 5), Warden (Werkzeug 2, bis 10), Enderdrache (Werkzeug 3, bis 15), Wither (Werkzeug 4, bis 19); Tafel nur per Upgrade-Werkzeug einfügen (Werkzeug rechte Hand, Tafel linke Hand, Rechtsklick auf den Kern); Werkzeugstufen Eisen, Diamant, Obsidian, Netherit; **Level 20 braucht ein besonderes Upgrade** (offen). Details im Lore-Entwurf | Idee |
+| Story-Update 4 (Idee, 17.10.) | **Generäle als Bosse** bei Stufe 5, 10, 15 und Varkhul bei 20 (Verbindung zum Prestige in v0.20 prüfen); Lore-Fragmente und Texte im Spiel | Idee |
 | danach | XP-Lager, Balancing (Zahlen), Config-Feinschliff, Brennstoff, Create-Integration; offen: Max-Stufe 20 oder 30/40/50 | |
 
 ## Offene Entscheidungen
 
-- Aktivierungs- und Upgrade-Kosten (vorerst Lohenrute bzw. Diamanten)
+- Aktivierungs- und Upgrade-Kosten (vorerst Lohenrute bzw. Diamanten; mit dem Story-Update ändert sich der Ablauf: Rune + Sarkophag + Tafeln, siehe Roadmap)
 - Entschärf-Mechanik (v0.3-Platzhalter: GUI-Button, Countdown 10 s + 2 s/Stufe, Spieler muss ≤ 8 Blöcke bleiben). Entschieden: Kosten künftig 80 % der Stufe statt Reset auf 0 (v0.15)
 - Brennstoff ja/nein
 - Schutztotem-Rezept und Preis (vorerst günstig, +2 Mobs pro Totem)
