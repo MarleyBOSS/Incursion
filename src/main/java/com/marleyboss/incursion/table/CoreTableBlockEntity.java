@@ -1,6 +1,7 @@
 package com.marleyboss.incursion.table;
 
 import com.marleyboss.incursion.registry.ModBlockEntities;
+import com.marleyboss.incursion.registry.ModSounds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
@@ -13,7 +14,6 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.world.Container;
@@ -42,6 +42,8 @@ public class CoreTableBlockEntity extends BlockEntity {
     private int jobLevel;
     private int jobTotal;
     private int jobLeft;
+    /** Server only: ticks until the next run of the working loop sound. */
+    private int loopCooldown;
 
     public CoreTableBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.CORE_TABLE.get(), pos, state);
@@ -74,6 +76,14 @@ public class CoreTableBlockEntity extends BlockEntity {
 
     public int getJobLeft() {
         return jobLeft;
+    }
+
+    /** 0 to 1: how far the running job is (client: counted down locally between the sync packets). */
+    public float getProgress() {
+        if (jobState == CoreTableLogic.JOB_DONE) {
+            return 1.0F;
+        }
+        return jobTotal <= 0 ? 0.0F : 1.0F - jobLeft / (float) jobTotal;
     }
 
     private void onContainerChanged(Container changed) {
@@ -114,9 +124,9 @@ public class CoreTableBlockEntity extends BlockEntity {
         setBlockJob(1);
         setChanged();
         syncToClients();
+        this.loopCooldown = 0;
         if (this.level != null) {
-            this.level.playSound(null, worldPosition, SoundEvents.ENCHANTMENT_TABLE_USE, SoundSource.BLOCKS, 1.0F, 0.9F);
-            this.level.playSound(null, worldPosition, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 0.5F, 1.6F);
+            this.level.playSound(null, worldPosition, ModSounds.TABLE_START.get(), SoundSource.BLOCKS, 1.2F, 1.0F);
         }
     }
 
@@ -131,13 +141,30 @@ public class CoreTableBlockEntity extends BlockEntity {
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, CoreTableBlockEntity table) {
-        if (table.jobState != CoreTableLogic.JOB_WORKING || !(level instanceof ServerLevel serverLevel)) {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        if (table.jobState == CoreTableLogic.JOB_IDLE) {
+            // A quiet, rare glassy chime so that the table feels alive even without a job.
+            if (level.getGameTime() % 400 == Math.floorMod(pos.asLong(), 400L) && level.random.nextInt(3) == 0) {
+                level.playSound(null, pos, ModSounds.TABLE_AMBIENT.get(), SoundSource.BLOCKS, 0.3F,
+                        0.9F + level.random.nextFloat() * 0.3F);
+            }
+            return;
+        }
+        if (table.jobState != CoreTableLogic.JOB_WORKING) {
             return;
         }
         table.jobLeft--;
-        if (table.jobLeft % 80 == 0) {
-            level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.BLOCKS, 0.7F,
-                    1.0F + level.random.nextFloat() * 0.5F);
+        float progress = table.getProgress();
+        if (--table.loopCooldown <= 0) {
+            float pitch = 0.9F + 0.35F * progress;
+            level.playSound(null, pos, ModSounds.TABLE_LOOP.get(), SoundSource.BLOCKS, 0.8F, pitch);
+            table.loopCooldown = Math.max(20, Math.round(60.0F / pitch) - 2);
+        }
+        if (level.random.nextInt(40) == 0) {
+            level.playSound(null, pos, ModSounds.TABLE_ZAP.get(), SoundSource.BLOCKS, 0.6F,
+                    0.8F + level.random.nextFloat() * 0.6F);
         }
         if (table.jobLeft % 100 == 0) {
             table.setChanged();
@@ -146,6 +173,15 @@ public class CoreTableBlockEntity extends BlockEntity {
         if (table.jobLeft <= 0) {
             table.finishJob(serverLevel);
         }
+    }
+
+    /** Client: counts the time down between sync packets and throws the particles (see {@link CoreTableEffects}). */
+    public static void clientTick(Level level, BlockPos pos, BlockState state, CoreTableBlockEntity table) {
+        if (table.jobState == CoreTableLogic.JOB_WORKING && table.jobLeft > 0) {
+            table.jobLeft--;
+        }
+        CoreTableEffects.spawn(level, pos, state.hasProperty(CoreTableBlock.JOB) ? state.getValue(CoreTableBlock.JOB) : 0,
+                table.getProgress(), table.jobLeft);
     }
 
     private void finishJob(ServerLevel serverLevel) {
@@ -168,10 +204,15 @@ public class CoreTableBlockEntity extends BlockEntity {
         double x = worldPosition.getX() + 0.5;
         double y = worldPosition.getY() + 1.2;
         double z = worldPosition.getZ() + 0.5;
-        serverLevel.playSound(null, worldPosition, SoundEvents.PLAYER_LEVELUP, SoundSource.BLOCKS, 0.9F, 1.1F);
-        serverLevel.playSound(null, worldPosition, SoundEvents.ENCHANTMENT_TABLE_USE, SoundSource.BLOCKS, 1.0F, 1.4F);
-        serverLevel.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, x, y, z, 40, 0.4, 0.4, 0.4, 0.3);
-        serverLevel.sendParticles(ParticleTypes.END_ROD, x, y, z, 24, 0.3, 0.5, 0.3, 0.06);
+        serverLevel.playSound(null, worldPosition, ModSounds.TABLE_FINISH.get(), SoundSource.BLOCKS, 1.3F, 1.0F);
+        serverLevel.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, x, y, z, 60, 0.4, 0.4, 0.4, 0.35);
+        serverLevel.sendParticles(ParticleTypes.END_ROD, x, y, z, 40, 0.3, 0.5, 0.3, 0.08);
+        serverLevel.sendParticles(ParticleTypes.FLASH, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
+        for (int i = 0; i < 48; i++) { // a ring of light rushing outwards
+            double angle = i * Math.PI * 2.0 / 48.0;
+            serverLevel.sendParticles(ParticleTypes.END_ROD, x, worldPosition.getY() + 1.05, z, 0,
+                    Math.cos(angle), 0.02, Math.sin(angle), 0.25);
+        }
         Component message = Component.translatable("message.incursion.table.finished", name,
                 CoreTableLogic.roman(jobLevel)).withStyle(ChatFormatting.LIGHT_PURPLE);
         for (Player player : serverLevel.players()) {

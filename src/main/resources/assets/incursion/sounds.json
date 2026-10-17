@@ -1,0 +1,7 @@
+{
+  "table_loop": { "subtitle": "subtitles.incursion.table_loop", "sounds": [ { "name": "incursion:block/table/loop", "stream": false } ] },
+  "table_start": { "subtitle": "subtitles.incursion.table_start", "sounds": [ "incursion:block/table/start" ] },
+  "table_finish": { "subtitle": "subtitles.incursion.table_finish", "sounds": [ "incursion:block/table/finish" ] },
+  "table_zap": { "subtitle": "subtitles.incursion.table_zap", "sounds": [ "incursion:block/table/zap" ] },
+  "table_ambient": { "subtitle": "subtitles.incursion.table_ambient", "sounds": [ "incursion:block/table/ambient" ] }
+}

@@ -60,8 +60,9 @@ public class CoreTableMenu extends AbstractContainerMenu {
     public static final int DATA_COUNT = 19;
 
     public static final int ITEM_SLOT_X = 8;
-    public static final int ITEM_SLOT_Y = 46;
-    public static final int INVENTORY_Y = 184;
+    public static final int ITEM_SLOT_Y = 42;
+    public static final int INVENTORY_X = 67;
+    public static final int INVENTORY_Y = 230;
 
     private final Container container;
     @Nullable
@@ -100,11 +101,11 @@ public class CoreTableMenu extends AbstractContainerMenu {
         });
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(inventory, col + row * 9 + 9, 8 + col * 18, INVENTORY_Y + row * 18));
+                addSlot(new Slot(inventory, col + row * 9 + 9, INVENTORY_X + col * 18, INVENTORY_Y + row * 18));
             }
         }
         for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(inventory, col, 8 + col * 18, INVENTORY_Y + 58));
+            addSlot(new Slot(inventory, col, INVENTORY_X + col * 18, INVENTORY_Y + 58));
         }
         addDataSlots(data);
         refresh();

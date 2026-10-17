@@ -39,23 +39,39 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
     private static final int COLOR_RED = 0xFFA83232;
     private static final int COLOR_RED_OFF = 0xFF332424;
 
+    private static final int COLOR_WARN = 0xFFFFA030;
+    private static final int COLOR_WARN_TEXT = 0xFFE8B878;
+    private static final int COLOR_WARN_FILL = 0xFF3A2812;
+    private static final int COLOR_LOCKED_FILL = 0xFF17111E;
+
+    private static final int WIDTH = 296;
+    private static final int HEIGHT = 312;
     private static final int LIST_X = 8;
-    private static final int LIST_Y = 68;
-    private static final int LIST_WIDTH = 160;
-    private static final int ROW_HEIGHT = 12;
-    private static final int ROWS = 5;
-    private static final int BUTTON_Y = 156;
-    private static final int BUTTON_WIDTH = 78;
-    private static final int BUTTON_HEIGHT = 20;
+    private static final int LIST_Y = 66;
+    private static final int COLUMNS = 2;
+    private static final int CELL_WIDTH = 138;
+    private static final int CELL_GAP = 4;
+    private static final int ROW_HEIGHT = 13;
+    private static final int ROWS = 7;
+    private static final int LEGEND_Y = 160;
+    private static final int INFO_Y = 172;
+    private static final int BUTTON_Y = 204;
+    private static final int BUTTON_WIDTH = 140;
+    private static final int BUTTON_HEIGHT = 18;
     private static final int CONFIRM_X = 8;
-    private static final int RESET_X = 90;
+    private static final int RESET_X = 148;
+
+    /** 0 = can be raised, 1 = possible but blocked by the Core or the time, 2 = not possible for this item (yet). */
+    private static final int CAT_READY = 0;
+    private static final int CAT_CORE = 1;
+    private static final int CAT_LOCKED = 2;
 
     private int scroll;
 
     public CoreTableScreen(CoreTableMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        this.imageWidth = 176;
-        this.imageHeight = 266;
+        this.imageWidth = WIDTH;
+        this.imageHeight = HEIGHT;
     }
 
     private void click(int id) {
@@ -91,6 +107,14 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
         return readyBit(index) ? CoreTableLogic.OK : CoreTableLogic.AT_CAP;
     }
 
+    private static int categoryOf(int state) {
+        return switch (state) {
+            case CoreTableLogic.OK -> CAT_READY;
+            case CoreTableLogic.NO_CORE, CoreTableLogic.AT_CAP, CoreTableLogic.NOT_EVENING, CoreTableLogic.BUSY -> CAT_CORE;
+            default -> CAT_LOCKED;
+        };
+    }
+
     private Component reason(Entry entry, @Nullable Entry over, int state) {
         return switch (state) {
             case CoreTableLogic.NOT_ON_ITEM -> Component.translatable("gui.incursion.table.reason.not_on_item");
@@ -111,11 +135,23 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
         return mouseX >= leftPos + x && mouseX < leftPos + x + width && mouseY >= topPos + y && mouseY < topPos + y + height;
     }
 
-    private int rowAt(double mouseX, double mouseY) {
-        if (!isOver(mouseX, mouseY, LIST_X, LIST_Y, LIST_WIDTH, ROWS * ROW_HEIGHT)) {
+    /** The entry index under the mouse, or -1. */
+    private int cellAt(double mouseX, double mouseY) {
+        int gridWidth = COLUMNS * CELL_WIDTH + (COLUMNS - 1) * CELL_GAP;
+        if (!isOver(mouseX, mouseY, LIST_X, LIST_Y, gridWidth, ROWS * ROW_HEIGHT)) {
             return -1;
         }
-        return scroll + (int) ((mouseY - topPos - LIST_Y) / ROW_HEIGHT);
+        int localX = (int) (mouseX - leftPos - LIST_X);
+        int column = localX / (CELL_WIDTH + CELL_GAP);
+        if (column >= COLUMNS || localX - column * (CELL_WIDTH + CELL_GAP) >= CELL_WIDTH) {
+            return -1;
+        }
+        int row = scroll + (int) ((mouseY - topPos - LIST_Y) / ROW_HEIGHT);
+        return row * COLUMNS + column;
+    }
+
+    private int totalRows() {
+        return (menu.entries().size() + COLUMNS - 1) / COLUMNS;
     }
 
     private boolean canConfirm() {
@@ -123,6 +159,10 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
         if (selected <= 0 || menu.get(CoreTableMenu.DATA_JOB_STATE) != CoreTableLogic.JOB_IDLE) {
             return false;
         }
+        return affordable();
+    }
+
+    private boolean affordable() {
         if (menu.get(CoreTableMenu.DATA_CREATIVE) != 0) {
             return true;
         }
@@ -136,9 +176,8 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (isOver(mouseX, mouseY, LIST_X, LIST_Y, LIST_WIDTH, ROWS * ROW_HEIGHT)) {
-            int max = Math.max(0, menu.entries().size() - ROWS);
-            scroll = Math.max(0, Math.min(max, scroll - (int) Math.signum(scrollY)));
+        if (totalRows() > ROWS && isOver(mouseX, mouseY, LIST_X, LIST_Y, WIDTH - 16, ROWS * ROW_HEIGHT)) {
+            scroll = Math.max(0, Math.min(totalRows() - ROWS, scroll - (int) Math.signum(scrollY)));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
@@ -147,11 +186,11 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
-            int row = rowAt(mouseX, mouseY);
-            if (row >= 0) {
+            int cell = cellAt(mouseX, mouseY);
+            if (cell >= 0) {
                 List<Entry> list = menu.entries();
-                if (row < list.size() && stateOf(list.get(row), CoreTableLogic.overEntry(list), row) == CoreTableLogic.OK) {
-                    click(row);
+                if (cell < list.size() && stateOf(list.get(cell), CoreTableLogic.overEntry(list), cell) == CoreTableLogic.OK) {
+                    click(cell);
                 }
                 return true;
             }
@@ -196,32 +235,34 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
         Entry over = CoreTableLogic.overEntry(list);
         int jobState = menu.get(CoreTableMenu.DATA_JOB_STATE);
         drawItemStatus(graphics, x, y, list, jobState);
-        Entry hovered = drawList(graphics, x, y, list, over, mouseX, mouseY);
-        drawInfo(graphics, x, y, list, over, hovered, mouseX, mouseY);
+        int hovered = drawList(graphics, x, y, list, over, mouseX, mouseY);
+        drawLegend(graphics, x, y);
+        drawInfo(graphics, x, y, list, over, hovered);
         drawButtons(graphics, x, y, mouseX, mouseY);
     }
 
     private void drawHeader(GuiGraphics graphics, int x, int y) {
-        if (menu.get(CoreTableMenu.DATA_HAS_CORE) != 0) {
+        boolean hasCore = menu.get(CoreTableMenu.DATA_HAS_CORE) != 0;
+        if (hasCore) {
             graphics.drawString(font, Component.translatable("gui.incursion.table.core",
                     menu.get(CoreTableMenu.DATA_CORE_LEVEL)), x + 8, y + 21, COLOR_TEXT, false);
             graphics.drawString(font, Component.translatable("gui.incursion.table.shards",
-                    menu.get(CoreTableMenu.DATA_SHARDS)), x + 96, y + 21, COLOR_SHARD, false);
+                    menu.get(CoreTableMenu.DATA_SHARDS)), x + 110, y + 21, COLOR_SHARD, false);
             graphics.drawString(font, Component.translatable("gui.incursion.table.extra",
-                    menu.get(CoreTableMenu.DATA_EXTRA)), x + 8, y + 32, COLOR_EXTRA, false);
+                    menu.get(CoreTableMenu.DATA_EXTRA)), x + 200, y + 21, COLOR_EXTRA, false);
         } else {
             graphics.drawString(font, Component.translatable("gui.incursion.table.no_core"), x + 8, y + 21, COLOR_BAD, false);
         }
         boolean timeOk = menu.get(CoreTableMenu.DATA_TIME_OK) != 0;
         graphics.drawString(font, Component.translatable(timeOk ? "gui.incursion.table.evening_ok" : "gui.incursion.table.evening_no"),
-                x + (menu.get(CoreTableMenu.DATA_HAS_CORE) != 0 ? 96 : 8), y + (menu.get(CoreTableMenu.DATA_HAS_CORE) != 0 ? 32 : 32),
-                timeOk ? COLOR_GOOD : COLOR_BAD, false);
+                x + 8, y + 31, timeOk ? COLOR_GOOD : COLOR_BAD, false);
     }
 
     private void drawItemStatus(GuiGraphics graphics, int x, int y, List<Entry> list, int jobState) {
         int textX = x + CoreTableMenu.ITEM_SLOT_X + 24;
-        int textY = y + CoreTableMenu.ITEM_SLOT_Y - 2;
+        int textY = y + CoreTableMenu.ITEM_SLOT_Y;
         boolean slotEmpty = menu.getSlot(0).getItem().isEmpty();
+        int width = WIDTH - CoreTableMenu.ITEM_SLOT_X - 24 - 8;
         if (jobState == CoreTableLogic.JOB_WORKING) {
             int index = menu.get(CoreTableMenu.DATA_JOB_INDEX) - 1;
             Component name = index >= 0 && index < list.size() ? list.get(index).holder().value().description() : Component.empty();
@@ -230,89 +271,136 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
             int left = menu.get(CoreTableMenu.DATA_JOB_SECONDS_LEFT);
             int total = Math.max(1, menu.get(CoreTableMenu.DATA_JOB_SECONDS_TOTAL));
             graphics.drawString(font, Component.translatable("gui.incursion.table.time_left",
-                    String.format(Locale.ROOT, "%d:%02d", left / 60, left % 60)), textX, textY + 11, COLOR_TEXT, false);
-            graphics.fill(textX, textY + 22, textX + 138, textY + 26, COLOR_SLOT);
-            graphics.fill(textX, textY + 22, textX + Math.round(138 * (1.0F - left / (float) total)), textY + 26, COLOR_EXTRA);
+                    String.format(Locale.ROOT, "%d:%02d", left / 60, left % 60)), textX, textY + 10, COLOR_TEXT, false);
+            graphics.fill(textX, textY + 18, textX + width, textY + 21, COLOR_SLOT);
+            graphics.fill(textX, textY + 18, textX + Math.round(width * (1.0F - left / (float) total)), textY + 21, COLOR_EXTRA);
         } else if (jobState == CoreTableLogic.JOB_DONE) {
             graphics.drawString(font, Component.translatable("gui.incursion.table.done"), textX, textY, COLOR_GOOD, false);
-            graphics.drawString(font, Component.translatable("gui.incursion.table.done_hint"), textX, textY + 11, COLOR_INFO, false);
+            graphics.drawString(font, Component.translatable("gui.incursion.table.done_hint"), textX, textY + 10, COLOR_INFO, false);
         } else if (slotEmpty) {
-            drawWrapped(graphics, Component.translatable("gui.incursion.table.hint_empty"), textX, textY, 138, COLOR_INFO);
+            drawWrapped(graphics, Component.translatable("gui.incursion.table.hint_empty"), textX, textY, width, COLOR_INFO, 2);
         } else if (list.isEmpty()) {
-            drawWrapped(graphics, Component.translatable("gui.incursion.table.hint_none"), textX, textY, 138, COLOR_BAD);
+            drawWrapped(graphics, Component.translatable("gui.incursion.table.hint_none"), textX, textY, width, COLOR_BAD, 2);
         } else {
-            drawWrapped(graphics, Component.translatable("gui.incursion.table.hint_pick"), textX, textY, 138, COLOR_INFO);
+            drawWrapped(graphics, Component.translatable("gui.incursion.table.hint_pick"), textX, textY, width, COLOR_INFO, 2);
         }
     }
 
-    private void drawWrapped(GuiGraphics graphics, Component text, int x, int y, int width, int color) {
+    private int drawWrapped(GuiGraphics graphics, Component text, int x, int y, int width, int color, int maxLines) {
         int line = 0;
         for (FormattedCharSequence sequence : font.split(text, width)) {
+            if (line >= maxLines) {
+                break;
+            }
             graphics.drawString(font, sequence, x, y + line * 10, color, false);
             line++;
-            if (line >= 3) {
-                break;
-            }
         }
+        return line;
     }
 
-    /** Draws the enchantment buttons; returns the entry under the mouse (or null). */
-    @Nullable
-    private Entry drawList(GuiGraphics graphics, int x, int y, List<Entry> list, @Nullable Entry over, int mouseX, int mouseY) {
-        graphics.fill(x + LIST_X - 1, y + LIST_Y - 1, x + LIST_X + LIST_WIDTH + 1, y + LIST_Y + ROWS * ROW_HEIGHT + 1, COLOR_BORDER);
-        graphics.fill(x + LIST_X, y + LIST_Y, x + LIST_X + LIST_WIDTH, y + LIST_Y + ROWS * ROW_HEIGHT, COLOR_LIST);
-        scroll = Math.max(0, Math.min(scroll, Math.max(0, list.size() - ROWS)));
+    /** Draws the enchantment buttons in two columns; returns the entry index under the mouse (or -1). */
+    private int drawList(GuiGraphics graphics, int x, int y, List<Entry> list, @Nullable Entry over, int mouseX, int mouseY) {
+        int gridWidth = COLUMNS * CELL_WIDTH + (COLUMNS - 1) * CELL_GAP;
+        graphics.fill(x + LIST_X - 2, y + LIST_Y - 2, x + LIST_X + gridWidth + 2, y + LIST_Y + ROWS * ROW_HEIGHT + 1, COLOR_BORDER);
+        graphics.fill(x + LIST_X - 1, y + LIST_Y - 1, x + LIST_X + gridWidth + 1, y + LIST_Y + ROWS * ROW_HEIGHT, COLOR_LIST);
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, totalRows() - ROWS)));
         int selected = menu.get(CoreTableMenu.DATA_SELECTED) - 1;
-        int hoveredRow = rowAt(mouseX, mouseY);
-        Entry hovered = null;
+        int hoveredIndex = cellAt(mouseX, mouseY);
+        int result = -1;
         for (int row = 0; row < ROWS; row++) {
-            int index = scroll + row;
-            if (index >= list.size()) {
-                break;
-            }
-            Entry entry = list.get(index);
-            int state = stateOf(entry, over, index);
-            boolean ready = state == CoreTableLogic.OK;
-            int rowY = y + LIST_Y + row * ROW_HEIGHT;
-            int left = x + LIST_X + 1;
-            int right = x + LIST_X + LIST_WIDTH - 1;
-            int fill = !ready ? COLOR_BUTTON_OFF : index == hoveredRow ? COLOR_BUTTON_HOVER : COLOR_BUTTON;
-            graphics.fill(left, rowY + 1, right, rowY + ROW_HEIGHT - 1, fill);
-            if (index == selected) {
-                graphics.fill(left, rowY + 1, right, rowY + 2, COLOR_SELECTED);
-                graphics.fill(left, rowY + ROW_HEIGHT - 2, right, rowY + ROW_HEIGHT - 1, COLOR_SELECTED);
-                graphics.fill(left, rowY + 1, left + 1, rowY + ROW_HEIGHT - 1, COLOR_SELECTED);
-                graphics.fill(right - 1, rowY + 1, right, rowY + ROW_HEIGHT - 1, COLOR_SELECTED);
-            }
-            Component name = entry.holder().value().description();
-            int nameColor = ready ? COLOR_TEXT : COLOR_MUTED;
-            graphics.drawString(font, name, left + 3, rowY + 2, nameColor, false);
-            String level = entry.level() <= 0 ? "-"
-                    : ready ? CoreTableLogic.roman(entry.level()) + " > " + CoreTableLogic.roman(entry.level() + 1)
-                    : CoreTableLogic.roman(entry.level());
-            int levelColor = entry.level() > entry.vanillaMax() ? COLOR_EXTRA : ready ? COLOR_GOOD : COLOR_MUTED;
-            graphics.drawString(font, level, right - 3 - font.width(level), rowY + 2, levelColor, false);
-            if (index == hoveredRow) {
-                hovered = entry;
+            for (int column = 0; column < COLUMNS; column++) {
+                int index = (scroll + row) * COLUMNS + column;
+                if (index >= list.size()) {
+                    break;
+                }
+                Entry entry = list.get(index);
+                int state = stateOf(entry, over, index);
+                int category = categoryOf(state);
+                int left = x + LIST_X + column * (CELL_WIDTH + CELL_GAP);
+                int right = left + CELL_WIDTH;
+                int top = y + LIST_Y + row * ROW_HEIGHT;
+                boolean hover = index == hoveredIndex;
+                int fill = switch (category) {
+                    case CAT_READY -> hover ? COLOR_BUTTON_HOVER : COLOR_BUTTON;
+                    case CAT_CORE -> COLOR_WARN_FILL;
+                    default -> COLOR_LOCKED_FILL;
+                };
+                int stripe = switch (category) {
+                    case CAT_READY -> COLOR_SELECTED;
+                    case CAT_CORE -> COLOR_WARN;
+                    default -> COLOR_MUTED;
+                };
+                graphics.fill(left, top + 1, right, top + ROW_HEIGHT - 1, fill);
+                graphics.fill(left, top + 1, left + 2, top + ROW_HEIGHT - 1, stripe);
+                if (index == selected) {
+                    graphics.fill(left, top + 1, right, top + 2, COLOR_SELECTED);
+                    graphics.fill(left, top + ROW_HEIGHT - 2, right, top + ROW_HEIGHT - 1, COLOR_SELECTED);
+                    graphics.fill(right - 1, top + 1, right, top + ROW_HEIGHT - 1, COLOR_SELECTED);
+                }
+                String level;
+                int levelColor;
+                if (category == CAT_READY) {
+                    level = CoreTableLogic.roman(entry.level()) + " > " + CoreTableLogic.roman(entry.level() + 1);
+                    levelColor = COLOR_GOOD;
+                } else if (category == CAT_CORE) {
+                    level = CoreTableLogic.roman(entry.level()) + " !";
+                    levelColor = COLOR_WARN;
+                } else if (state == CoreTableLogic.NOT_ON_ITEM) {
+                    level = "-";
+                    levelColor = COLOR_MUTED;
+                } else if (state == CoreTableLogic.BELOW_MAX) {
+                    level = CoreTableLogic.roman(entry.level()) + "/" + CoreTableLogic.roman(entry.vanillaMax());
+                    levelColor = COLOR_MUTED;
+                } else {
+                    level = CoreTableLogic.roman(entry.level());
+                    levelColor = COLOR_EXTRA;
+                }
+                int levelWidth = font.width(level);
+                String name = font.plainSubstrByWidth(entry.holder().value().description().getString(),
+                        CELL_WIDTH - levelWidth - 12);
+                int nameColor = switch (category) {
+                    case CAT_READY -> COLOR_TEXT;
+                    case CAT_CORE -> COLOR_WARN_TEXT;
+                    default -> COLOR_MUTED;
+                };
+                graphics.drawString(font, name, left + 5, top + 2, nameColor, false);
+                graphics.drawString(font, level, right - 3 - levelWidth, top + 2, levelColor, false);
+                if (hover) {
+                    result = index;
+                }
             }
         }
-        if (list.size() > ROWS) {
-            int barHeight = Math.max(6, ROWS * ROW_HEIGHT * ROWS / list.size());
-            int barY = y + LIST_Y + (ROWS * ROW_HEIGHT - barHeight) * scroll / (list.size() - ROWS);
-            graphics.fill(x + LIST_X + LIST_WIDTH - 2, barY, x + LIST_X + LIST_WIDTH, barY + barHeight, COLOR_BORDER);
+        if (totalRows() > ROWS) {
+            int barHeight = Math.max(6, ROWS * ROW_HEIGHT * ROWS / totalRows());
+            int barY = y + LIST_Y + (ROWS * ROW_HEIGHT - barHeight) * scroll / (totalRows() - ROWS);
+            graphics.fill(x + LIST_X + gridWidth, barY, x + LIST_X + gridWidth + 2, barY + barHeight, COLOR_SELECTED);
         }
-        return hovered;
+        return result;
     }
 
-    private void drawInfo(GuiGraphics graphics, int x, int y, List<Entry> list, @Nullable Entry over,
-                          @Nullable Entry hovered, int mouseX, int mouseY) {
+    private void drawLegend(GuiGraphics graphics, int x, int y) {
+        int[] colors = {COLOR_SELECTED, COLOR_WARN, COLOR_MUTED};
+        String[] keys = {"gui.incursion.table.legend.ready", "gui.incursion.table.legend.core", "gui.incursion.table.legend.locked"};
+        int cursor = x + LIST_X;
+        for (int i = 0; i < 3; i++) {
+            graphics.fill(cursor, y + LEGEND_Y + 1, cursor + 6, y + LEGEND_Y + 7, colors[i]);
+            Component label = Component.translatable(keys[i]);
+            graphics.drawString(font, label, cursor + 9, y + LEGEND_Y, COLOR_INFO, false);
+            cursor += 9 + font.width(label) + 14;
+        }
+    }
+
+    private void drawInfo(GuiGraphics graphics, int x, int y, List<Entry> list, @Nullable Entry over, int hovered) {
         int infoX = x + 8;
-        int infoY = y + 132;
+        int infoY = y + INFO_Y;
         int selected = menu.get(CoreTableMenu.DATA_SELECTED) - 1;
-        if (hovered != null) {
-            int state = stateOf(hovered, over, list.indexOf(hovered));
-            int color = state == CoreTableLogic.OK ? COLOR_GOOD : COLOR_BAD;
-            drawWrapped(graphics, reason(hovered, over, state), infoX, infoY, 160, color);
+        if (hovered >= 0 && hovered < list.size()) {
+            Entry entry = list.get(hovered);
+            int state = stateOf(entry, over, hovered);
+            int category = categoryOf(state);
+            int color = category == CAT_READY ? COLOR_GOOD : category == CAT_CORE ? COLOR_WARN : COLOR_INFO;
+            graphics.drawString(font, entry.holder().value().description(), infoX, infoY, COLOR_TEXT, false);
+            drawWrapped(graphics, reason(entry, over, state), infoX, infoY + 10, WIDTH - 16, color, 2);
             return;
         }
         if (selected >= 0 && selected < list.size()) {
@@ -321,15 +409,19 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
                     entry.holder().value().description(), CoreTableLogic.roman(menu.get(CoreTableMenu.DATA_SEL_TARGET))),
                     infoX, infoY, COLOR_TEXT, false);
             int seconds = menu.get(CoreTableMenu.DATA_SEL_SECONDS);
-            Component cost = menu.get(CoreTableMenu.DATA_CREATIVE) != 0
+            boolean creative = menu.get(CoreTableMenu.DATA_CREATIVE) != 0;
+            Component cost = creative
                     ? Component.translatable("gui.incursion.table.cost_free")
                     : Component.translatable("gui.incursion.table.cost", menu.get(CoreTableMenu.DATA_SEL_SHARD_COST),
                     menu.get(CoreTableMenu.DATA_SEL_XP_COST), String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60));
-            graphics.drawString(font, cost, infoX, infoY + 11, COLOR_SHARD, false);
+            graphics.drawString(font, cost, infoX, infoY + 10, affordable() ? COLOR_SHARD : COLOR_BAD, false);
+            if (!affordable()) {
+                graphics.drawString(font, Component.translatable("gui.incursion.table.need_more"), infoX, infoY + 20, COLOR_BAD, false);
+            }
             return;
         }
         if (!list.isEmpty() && menu.get(CoreTableMenu.DATA_JOB_STATE) == CoreTableLogic.JOB_IDLE) {
-            drawWrapped(graphics, Component.translatable("gui.incursion.table.rules"), infoX, infoY, 160, COLOR_INFO);
+            drawWrapped(graphics, Component.translatable("gui.incursion.table.rules"), infoX, infoY, WIDTH - 16, COLOR_INFO, 3);
         }
     }
 
@@ -348,21 +440,21 @@ public class CoreTableScreen extends AbstractContainerScreen<CoreTableMenu> {
 
         int iconColor = confirm ? 0xFFFFFFFF : 0xFF5A6A5E;
         int checkX = confirmX + 6;
-        int checkY = top + 5;
+        int checkY = top + 4;
         int[][] check = {{0, 4}, {1, 5}, {2, 6}, {3, 7}, {4, 6}, {5, 5}, {6, 4}, {7, 3}, {8, 2}, {9, 1}};
         for (int[] p : check) {
             graphics.fill(checkX + p[0], checkY + p[1], checkX + p[0] + 2, checkY + p[1] + 2, iconColor);
         }
         int crossColor = reset ? 0xFFFFFFFF : 0xFF6A5A5A;
         int crossX = resetX + 6;
-        int crossY = top + 6;
+        int crossY = top + 5;
         for (int i = 0; i <= 8; i++) {
             graphics.fill(crossX + i, crossY + i, crossX + i + 2, crossY + i + 2, crossColor);
             graphics.fill(crossX + 8 - i, crossY + i, crossX + 10 - i, crossY + i + 2, crossColor);
         }
         Component confirmText = Component.translatable("gui.incursion.table.button.confirm");
         Component resetText = Component.translatable("gui.incursion.table.button.reset");
-        graphics.drawString(font, confirmText, confirmX + 22, top + 6, confirm ? 0xFFFFFFFF : 0xFF7A8A7E, false);
-        graphics.drawString(font, resetText, resetX + 22, top + 6, reset ? 0xFFFFFFFF : 0xFF8A7A7A, false);
+        graphics.drawString(font, confirmText, confirmX + 22, top + 5, confirm ? 0xFFFFFFFF : 0xFF7A8A7E, false);
+        graphics.drawString(font, resetText, resetX + 22, top + 5, reset ? 0xFFFFFFFF : 0xFF8A7A7A, false);
     }
 }

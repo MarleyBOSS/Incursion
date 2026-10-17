@@ -6,9 +6,7 @@ import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleMenuProvider;
@@ -31,7 +29,7 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The Core Table (forge of the Core): enchant equipment beyond the vanilla maximum. It looks like an enchanting table;
- * while it works (job 1) and when it is done (job 2) it glows and throws particles, and the item floats above it.
+ * the block entity throws the particles (CoreTableEffects) and the renderer draws the item and the rune circles.
  */
 public class CoreTableBlock extends BaseEntityBlock {
     public static final MapCodec<CoreTableBlock> CODEC = simpleCodec(CoreTableBlock::new);
@@ -74,7 +72,7 @@ public class CoreTableBlock extends BaseEntityBlock {
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
         if (level.isClientSide) {
-            return null;
+            return createTickerHelper(type, ModBlockEntities.CORE_TABLE.get(), CoreTableBlockEntity::clientTick);
         }
         return createTickerHelper(type, ModBlockEntities.CORE_TABLE.get(), CoreTableBlockEntity::serverTick);
     }
@@ -104,37 +102,5 @@ public class CoreTableBlock extends BaseEntityBlock {
             Containers.dropContents(level, pos, table.getContainer());
         }
         super.onRemove(state, level, pos, newState, movedByPiston);
-    }
-
-    /** Client: particles flow towards the floating item while the table works, sparkles when it is done. */
-    @Override
-    public void animateTick(BlockState state, Level level, BlockPos pos, RandomSource random) {
-        int job = state.getValue(JOB);
-        if (job == 0) {
-            return;
-        }
-        double cx = pos.getX() + 0.5;
-        double cy = pos.getY() + 1.25;
-        double cz = pos.getZ() + 0.5;
-        if (job == 1) {
-            for (int i = 0; i < 3; i++) {
-                // The enchant particle starts at the given offset and flows to the given position.
-                double angle = random.nextDouble() * Math.PI * 2.0;
-                double radius = 1.2 + random.nextDouble() * 0.8;
-                level.addParticle(ParticleTypes.ENCHANT, cx, cy, cz,
-                        Math.cos(angle) * radius, random.nextDouble() * 1.4 - 0.2, Math.sin(angle) * radius);
-            }
-            if (random.nextInt(3) == 0) {
-                level.addParticle(ParticleTypes.END_ROD, cx + (random.nextDouble() - 0.5) * 0.6, pos.getY() + 0.8,
-                        cz + (random.nextDouble() - 0.5) * 0.6, 0.0, 0.04, 0.0);
-            }
-            if (random.nextInt(6) == 0) {
-                level.addParticle(ParticleTypes.WITCH, cx + (random.nextDouble() - 0.5), cy - 0.2 + random.nextDouble(),
-                        cz + (random.nextDouble() - 0.5), 0.0, 0.0, 0.0);
-            }
-        } else if (random.nextInt(2) == 0) {
-            level.addParticle(ParticleTypes.HAPPY_VILLAGER, cx + (random.nextDouble() - 0.5) * 0.9,
-                    cy - 0.2 + random.nextDouble() * 0.6, cz + (random.nextDouble() - 0.5) * 0.9, 0.0, 0.0, 0.0);
-        }
     }
 }

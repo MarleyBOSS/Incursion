@@ -6,6 +6,7 @@ import com.marleyboss.incursion.registry.ModBlocks;
 import com.marleyboss.incursion.registry.ModEntities;
 import com.marleyboss.incursion.registry.ModItems;
 import com.marleyboss.incursion.registry.ModMenus;
+import com.marleyboss.incursion.registry.ModSounds;
 import com.marleyboss.incursion.siege.ChunkLoading;
 import com.marleyboss.incursion.siege.Rewards;
 import com.marleyboss.incursion.siege.SiegeEvents;
@@ -29,6 +30,7 @@ public class Incursion {
         ModBlockEntities.BLOCK_ENTITY_TYPES.register(modEventBus);
         ModEntities.ENTITY_TYPES.register(modEventBus);
         ModMenus.MENUS.register(modEventBus);
+        ModSounds.SOUNDS.register(modEventBus);
 
         modEventBus.addListener(this::addCreative);
         modEventBus.addListener(ModEntities::registerAttributes);
