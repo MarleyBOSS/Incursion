@@ -179,9 +179,16 @@ def ss_canvas(size=128, ss=4):
 def finish_mask(img, size):
     out = img.resize((size, size), Image.LANCZOS)
     arr = np.asarray(out, dtype=float) / 255.0
-    rgba = np.zeros((size, size, 4), dtype=np.uint8)
-    rgba[..., 0:3] = 255
-    rgba[..., 3] = (np.clip(arr, 0, 1) * 255).astype(np.uint8)
+    return glow_image(arr)
+
+
+def glow_image(shape):
+    """Additive textures: the shape goes into the brightness (black = nothing); the additive render type adds RGB
+    and ignores alpha."""
+    v = (np.clip(shape, 0, 1) * 255).astype(np.uint8)
+    rgba = np.zeros(shape.shape + (4,), dtype=np.uint8)
+    rgba[..., 0:3] = v[..., None]
+    rgba[..., 3] = 255
     return Image.fromarray(rgba, "RGBA")
 
 
@@ -235,10 +242,7 @@ def halo():
     y, x = np.mgrid[0:size, 0:size]
     r = np.hypot(x - size / 2 + 0.5, y - size / 2 + 0.5) / (size / 2)
     a = np.clip(1.0 - r, 0, 1) ** 2.2
-    rgba = np.zeros((size, size, 4), dtype=np.uint8)
-    rgba[..., 0:3] = 255
-    rgba[..., 3] = (a * 255).astype(np.uint8)
-    return Image.fromarray(rgba, "RGBA")
+    return glow_image(a)
 
 
 def beam():
@@ -247,10 +251,7 @@ def beam():
     across = np.exp(-(((x - w / 2 + 0.5) / (w * 0.22)) ** 2))
     along = np.clip(y / (h - 1), 0, 1)  # bright at the bottom (y grows downwards in the texture)
     a = across * (along ** 1.6)
-    rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    rgba[..., 0:3] = 255
-    rgba[..., 3] = (np.clip(a, 0, 1) * 255).astype(np.uint8)
-    return Image.fromarray(rgba, "RGBA")
+    return glow_image(a)
 
 
 def save(name, img):

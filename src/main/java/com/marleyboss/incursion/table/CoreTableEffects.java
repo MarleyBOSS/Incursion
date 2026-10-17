@@ -32,10 +32,10 @@ public final class CoreTableEffects {
 
     private static void idle(Level level, RandomSource random, long time, double cx, double top, double cz) {
         // Two sparks circle the table at the height of the rune circle and leave a short fading trail.
-        if (time % 2 == 0) {
+        if (time % 3 == 0) {
             for (int k = 0; k < 2; k++) {
                 double angle = time * 0.10 + k * Math.PI;
-                level.addParticle(ParticleTypes.END_ROD, cx + Math.cos(angle) * 0.85, top + 0.32 + Math.sin(time * 0.05 + k) * 0.04,
+                level.addParticle(ParticleTypes.PORTAL, cx + Math.cos(angle) * 0.85, top + 0.32 + Math.sin(time * 0.05 + k) * 0.04,
                         cz + Math.sin(angle) * 0.85, 0.0, 0.0, 0.0);
             }
         }
@@ -69,9 +69,9 @@ public final class CoreTableEffects {
             double rise = ((time * 0.045 + k / 3.0) % 1.0);
             double y = top + 0.15 + rise * 0.95;
             double r = radius * (1.0 - 0.45 * rise);
-            level.addParticle(ParticleTypes.END_ROD, cx + Math.cos(angle) * r, y, cz + Math.sin(angle) * r, 0.0, 0.0, 0.0);
-            if (k == 0) {
-                level.addParticle(ParticleTypes.WITCH, cx + Math.cos(angle) * r, y, cz + Math.sin(angle) * r, 0.0, 0.0, 0.0);
+            level.addParticle(ParticleTypes.PORTAL, cx + Math.cos(angle) * r, y, cz + Math.sin(angle) * r, 0.0, 0.0, 0.0);
+            if (k == 0 && time % 3 == 0) {
+                level.addParticle(ParticleTypes.END_ROD, cx + Math.cos(angle) * r, y, cz + Math.sin(angle) * r, 0.0, 0.0, 0.0);
             }
         }
         // Glyphs rush in from far away and end at the item.
@@ -98,9 +98,10 @@ public final class CoreTableEffects {
         // Crescendo: in the last three seconds rings of light burst out and the item sheds sparks.
         if (ticksLeft < 60) {
             if (time % 6 == 0) {
-                for (int i = 0; i < 10; i++) {
-                    double angle = i * Math.PI * 2.0 / 10.0 + time * 0.2;
-                    level.addParticle(ParticleTypes.END_ROD, cx, top + 0.35, cz, Math.cos(angle) * 0.12, 0.01, Math.sin(angle) * 0.12);
+                for (int i = 0; i < 8; i++) {
+                    double angle = i * Math.PI * 2.0 / 8.0 + time * 0.2;
+                    level.addParticle(ParticleTypes.PORTAL, cx + Math.cos(angle) * 0.2, top + 0.35, cz + Math.sin(angle) * 0.2,
+                            Math.cos(angle) * 0.9, 0.1, Math.sin(angle) * 0.9);
                 }
             }
             level.addParticle(ParticleTypes.FIREWORK, cx + (random.nextDouble() - 0.5) * 0.5, itemY + (random.nextDouble() - 0.5) * 0.5,
@@ -110,7 +111,7 @@ public final class CoreTableEffects {
 
     private static void done(Level level, RandomSource random, long time, double cx, double top, double cz) {
         double angle = time * 0.15;
-        if (time % 2 == 0) {
+        if (time % 4 == 0) {
             level.addParticle(ParticleTypes.END_ROD, cx + Math.cos(angle) * 0.6, top + 0.2 + (time % 40) / 40.0 * 0.9,
                     cz + Math.sin(angle) * 0.6, 0.0, 0.0, 0.0);
             level.addParticle(ParticleTypes.END_ROD, cx - Math.cos(angle) * 0.6, top + 0.2 + (time % 40) / 40.0 * 0.9,

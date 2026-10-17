@@ -205,11 +205,10 @@ public class CoreTableBlockEntity extends BlockEntity {
         double y = worldPosition.getY() + 1.2;
         double z = worldPosition.getZ() + 0.5;
         serverLevel.playSound(null, worldPosition, ModSounds.TABLE_FINISH.get(), SoundSource.BLOCKS, 1.3F, 1.0F);
-        serverLevel.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, x, y, z, 60, 0.4, 0.4, 0.4, 0.35);
-        serverLevel.sendParticles(ParticleTypes.END_ROD, x, y, z, 40, 0.3, 0.5, 0.3, 0.08);
-        serverLevel.sendParticles(ParticleTypes.FLASH, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
-        for (int i = 0; i < 48; i++) { // a ring of light rushing outwards
-            double angle = i * Math.PI * 2.0 / 48.0;
+        serverLevel.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, x, y, z, 40, 0.4, 0.4, 0.4, 0.35);
+        serverLevel.sendParticles(ParticleTypes.END_ROD, x, y, z, 16, 0.3, 0.5, 0.3, 0.06);
+        for (int i = 0; i < 32; i++) { // a ring of light rushing outwards
+            double angle = i * Math.PI * 2.0 / 32.0;
             serverLevel.sendParticles(ParticleTypes.END_ROD, x, worldPosition.getY() + 1.05, z, 0,
                     Math.cos(angle), 0.02, Math.sin(angle), 0.25);
         }

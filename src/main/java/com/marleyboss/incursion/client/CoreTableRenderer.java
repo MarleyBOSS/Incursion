@@ -69,7 +69,7 @@ public class CoreTableRenderer implements BlockEntityRenderer<CoreTableBlockEnti
             b = 1.0F;
         }
         float pulse = 0.5F + 0.5F * (float) Math.sin(time * (working ? 0.35 : 0.08));
-        float alpha = working ? 0.75F + 0.25F * pulse : done ? 0.75F : 0.45F + 0.2F * pulse;
+        float alpha = working ? 0.65F + 0.2F * pulse : done ? 0.6F : 0.4F + 0.15F * pulse;
 
         float outerSpin = time * (working ? 2.6F + 3.0F * progress : done ? 1.2F : 0.8F);
         float innerSpin = -time * (working ? 4.2F + 4.0F * progress : done ? 1.8F : 1.3F);
@@ -77,17 +77,17 @@ public class CoreTableRenderer implements BlockEntityRenderer<CoreTableBlockEnti
         float innerSize = working ? 0.72F + 0.05F * pulse : 0.62F + 0.02F * pulse;
 
         // Soft halo on the cloth, outer ring, inner figure (each slightly higher to avoid flicker).
-        glowQuad(buffer, poseStack, HALO, 0.5F, CLOTH + 0.015F, 0.5F, 0.0F, 0.95F + 0.1F * pulse, r, g, b, alpha * 0.7F);
+        glowQuad(buffer, poseStack, HALO, 0.5F, CLOTH + 0.015F, 0.5F, 0.0F, 0.95F + 0.1F * pulse, r, g, b, alpha * 0.45F);
         glowQuad(buffer, poseStack, RUNE_CIRCLE, 0.5F, CLOTH + 0.03F, 0.5F, outerSpin, outerSize, r, g, b, alpha);
         glowQuad(buffer, poseStack, RUNE_INNER, 0.5F, CLOTH + 0.05F, 0.5F, innerSpin, innerSize, r, g, b, alpha);
         if (working || done) {
-            float beamAlpha = done ? 0.4F : 0.35F + 0.4F * progress;
+            float beamAlpha = done ? 0.30F : 0.30F + 0.30F * progress;
             pillar(buffer, poseStack, 0.5F, CLOTH + 0.05F, 0.5F, time * 3.0F, done ? 0.30F : 0.26F + 0.12F * progress,
                     done ? 1.7F : 1.6F + 0.9F * progress, r, g, b, beamAlpha);
             // A second, rising ring makes the energy look like it climbs towards the item.
             float rise = (time * 0.025F) % 1.0F;
             glowQuad(buffer, poseStack, RUNE_CIRCLE, 0.5F, CLOTH + 0.1F + rise * 0.85F, 0.5F, -outerSpin * 1.4F,
-                    0.9F - 0.5F * rise, r, g, b, alpha * (1.0F - rise) * 0.8F);
+                    0.9F - 0.5F * rise, r, g, b, alpha * (1.0F - rise) * 0.6F);
         }
 
         ItemStack stack = table.getDisplayStack();
@@ -157,8 +157,9 @@ public class CoreTableRenderer implements BlockEntityRenderer<CoreTableBlockEnti
         poseStack.popPose();
     }
 
+    /** The additive render type adds the RGB values and ignores alpha, so the intensity goes into the colour. */
     private static int[] color(float r, float g, float b, float a) {
-        return new int[]{clamp(r), clamp(g), clamp(b), clamp(a)};
+        return new int[]{clamp(r * a), clamp(g * a), clamp(b * a), 255};
     }
 
     private static int clamp(float v) {
