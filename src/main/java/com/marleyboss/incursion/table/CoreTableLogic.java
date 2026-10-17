@@ -69,7 +69,7 @@ public final class CoreTableLogic {
         }
         ItemEnchantments onItem = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
         Registry<Enchantment> registry = access.registryOrThrow(Registries.ENCHANTMENT);
-        registry.listElements().forEach(holder -> {
+        registry.holders().forEach(holder -> {
             Enchantment enchantment = holder.value();
             int vanillaMax = enchantment.getMaxLevel();
             if (vanillaMax < 2 || holder.is(BLOCKED)) {
