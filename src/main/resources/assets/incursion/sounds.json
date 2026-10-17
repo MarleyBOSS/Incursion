@@ -3,5 +3,7 @@
   "table_start": { "subtitle": "subtitles.incursion.table_start", "sounds": [ "incursion:block/table/start" ] },
   "table_finish": { "subtitle": "subtitles.incursion.table_finish", "sounds": [ "incursion:block/table/finish" ] },
   "table_zap": { "subtitle": "subtitles.incursion.table_zap", "sounds": [ "incursion:block/table/zap" ] },
+  "core_open": { "subtitle": "subtitles.incursion.core_open", "sounds": [ "incursion:block/core/open" ] },
+  "core_hum": { "subtitle": "subtitles.incursion.core_hum", "sounds": [ "incursion:block/core/hum" ] },
   "table_ambient": { "subtitle": "subtitles.incursion.table_ambient", "sounds": [ "incursion:block/table/ambient" ] }
 }

@@ -16,6 +16,8 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> TABLE_FINISH = register("table_finish");
     public static final DeferredHolder<SoundEvent, SoundEvent> TABLE_ZAP = register("table_zap");
     public static final DeferredHolder<SoundEvent, SoundEvent> TABLE_AMBIENT = register("table_ambient");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CORE_OPEN = register("core_open");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CORE_HUM = register("core_hum");
 
     private ModSounds() {
     }

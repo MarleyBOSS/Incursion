@@ -73,8 +73,8 @@ public class CoreTableRenderer implements BlockEntityRenderer<CoreTableBlockEnti
 
         float outerSpin = time * (working ? 2.6F + 3.0F * progress : done ? 1.2F : 0.8F);
         float innerSpin = -time * (working ? 4.2F + 4.0F * progress : done ? 1.8F : 1.3F);
-        float outerSize = (working ? 1.15F + 0.06F * pulse : 1.05F + 0.03F * pulse);
-        float innerSize = working ? 0.72F + 0.05F * pulse : 0.62F + 0.02F * pulse;
+        float outerSize = (working ? 1.0F + 0.05F * pulse : 0.9F + 0.03F * pulse);
+        float innerSize = working ? 0.64F + 0.05F * pulse : 0.55F + 0.02F * pulse;
 
         // Soft halo on the cloth, outer ring, inner figure (each slightly higher to avoid flicker).
         glowQuad(buffer, poseStack, HALO, 0.5F, CLOTH + 0.015F, 0.5F, 0.0F, 0.95F + 0.1F * pulse, r, g, b, alpha * 0.45F);

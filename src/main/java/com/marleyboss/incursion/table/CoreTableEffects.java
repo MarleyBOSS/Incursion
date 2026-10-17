@@ -111,7 +111,7 @@ public final class CoreTableEffects {
 
     private static void done(Level level, RandomSource random, long time, double cx, double top, double cz) {
         double angle = time * 0.15;
-        if (time % 4 == 0) {
+        if (time % 8 == 0) {
             level.addParticle(ParticleTypes.END_ROD, cx + Math.cos(angle) * 0.6, top + 0.2 + (time % 40) / 40.0 * 0.9,
                     cz + Math.sin(angle) * 0.6, 0.0, 0.0, 0.0);
             level.addParticle(ParticleTypes.END_ROD, cx - Math.cos(angle) * 0.6, top + 0.2 + (time % 40) / 40.0 * 0.9,

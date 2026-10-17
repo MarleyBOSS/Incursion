@@ -3,7 +3,8 @@
 
   python3 tools/gen_table_sounds.py
 
-Writes src/main/resources/assets/incursion/sounds/block/table/{loop,start,finish,zap,ambient}.ogg.
+Writes src/main/resources/assets/incursion/sounds/block/table/{loop,start,finish,zap,ambient}.ogg and
+sounds/block/core/{open,hum}.ogg.
 Deterministic (fixed seed). The loop is built from whole-number frequencies so it repeats without a click.
 """
 import os
@@ -138,8 +139,9 @@ def ambient_sound():
     return fade(normalize(out, 0.6), 0.003, 0.3)
 
 
-def write_ogg(name, samples):
-    os.makedirs(OUT, exist_ok=True)
+def write_ogg(name, samples, out=None):
+    out = out or OUT
+    os.makedirs(out, exist_ok=True)
     pcm = (np.clip(samples, -1, 1) * 32767).astype("<i2")
     with tempfile.TemporaryDirectory() as tmp:
         wav_path = os.path.join(tmp, name + ".wav")
@@ -149,7 +151,49 @@ def write_ogg(name, samples):
             w.setframerate(SR)
             w.writeframes(pcm.tobytes())
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", wav_path, "-c:a", "libvorbis", "-q:a", "4",
-                        os.path.join(OUT, name + ".ogg")], check=True)
+                        os.path.join(out, name + ".ogg")], check=True)
+
+
+def core_open_sound():
+    """Heavy plates unfolding: hydraulic hiss, metallic clanks, a rumble and a rising hum that ends in a bright chord."""
+    seconds = 3.0
+    t = t_axis(seconds)
+    out = np.zeros_like(t)
+    rumble = lowpass(RNG.standard_normal(len(t)), 140) * 4.0
+    out += rumble * np.sin(np.pi * np.clip(t / 2.2, 0, 1)) * 0.9
+    out += 0.35 * np.sin(2 * np.pi * 48 * t) * np.minimum(t / 0.3, 1) * np.minimum((seconds - t) / 0.8, 1)
+    hiss = RNG.standard_normal(len(t))
+    hiss = hiss - lowpass(hiss, 3000)
+    for start, length in ((0.05, 0.5), (0.5, 0.45), (0.95, 0.4)):
+        env = np.zeros_like(t)
+        i0, i1 = int(start * SR), int((start + length) * SR)
+        env[i0:i1] = np.sin(np.linspace(0, np.pi, i1 - i0)) ** 2
+        out += hiss * env * 0.22
+    for start, freq in ((0.18, 310), (0.62, 262), (1.05, 392), (1.35, 220)):
+        clank = bell(freq, 0.7, 0.10, 0.5)
+        add_at(out, clank, start)
+        burst = lowpass(RNG.standard_normal(int(0.08 * SR)), 4000) * np.linspace(1, 0, int(0.08 * SR)) * 1.2
+        add_at(out, burst, start)
+    sweep_f = 70 * (360 / 70) ** (np.clip((t - 0.7) / 1.8, 0, 1))
+    phase = 2 * np.pi * np.cumsum(sweep_f) / SR
+    out += 0.28 * np.sin(phase) * np.clip((t - 0.7) / 0.6, 0, 1) * np.clip((seconds - t) / 0.7, 0, 1)
+    for i, freq in enumerate((523.25, 659.25, 783.99, 1046.5)):
+        add_at(out, bell(freq, 1.4, 0.45, 0.28), 1.9 + i * 0.07)
+    return fade(normalize(out, 0.85), 0.003, 0.4)
+
+
+def core_hum_sound():
+    """A deep, calm drone with a slow pulse; whole-Hz tones so that 4 s loops without a click."""
+    seconds = 4.0
+    t = t_axis(seconds)
+    out = np.zeros_like(t)
+    for freq, level, trem in ((55, 0.7, 0.25), (110, 0.5, 0.5), (165, 0.25, 0.25), (220, 0.18, 0.75)):
+        out += level * np.sin(2 * np.pi * freq * t + RNG.random() * 6) * (0.7 + 0.3 * np.sin(2 * np.pi * trem * t + RNG.random() * 6))
+    for freq in (660, 663):
+        out += 0.04 * np.sin(2 * np.pi * freq * t) * (0.5 + 0.5 * np.sin(2 * np.pi * 0.25 * t))
+    add_at(out, bell(1318.5, 2.0, 0.5, 0.12), 0.5, wrap=True)
+    add_at(out, bell(987.8, 2.0, 0.5, 0.10), 2.3, wrap=True)
+    return normalize(out, 0.55)
 
 
 if __name__ == "__main__":
@@ -158,4 +202,7 @@ if __name__ == "__main__":
     write_ogg("finish", finish_sound())
     write_ogg("zap", zap_sound())
     write_ogg("ambient", ambient_sound())
+    core_dir = os.path.join(OUT, "..", "core")
+    write_ogg("open", core_open_sound(), core_dir)
+    write_ogg("hum", core_hum_sound(), core_dir)
     print("written to", os.path.abspath(OUT))

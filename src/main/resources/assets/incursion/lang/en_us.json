@@ -346,5 +346,7 @@
   "subtitles.incursion.table_start": "Core Table awakens",
   "subtitles.incursion.table_finish": "Core Table completes enchantment",
   "subtitles.incursion.table_zap": "Core Table crackles",
-  "subtitles.incursion.table_ambient": "Core Table chimes"
+  "subtitles.incursion.table_ambient": "Core Table chimes",
+  "subtitles.incursion.core_open": "Core Seal unfolds",
+  "subtitles.incursion.core_hum": "Core hums"
 }

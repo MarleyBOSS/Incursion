@@ -23,6 +23,7 @@ public final class ModBlocks {
                     .requiresCorrectToolForDrops()
                     .sound(SoundType.NETHERITE_BLOCK)
                     .lightLevel(state -> state.getValue(CoreBlock.ACTIVE) ? 12 : 3)
+                    .noOcclusion() // the active Core is open above its bottom half, neighbours must still draw their faces
                     .pushReaction(PushReaction.BLOCK)));
 
     public static final DeferredBlock<WardBlock> WARD = BLOCKS.register("ward", () -> new WardBlock(

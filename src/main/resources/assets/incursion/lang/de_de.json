@@ -346,5 +346,7 @@
   "subtitles.incursion.table_start": "Kern-Tisch erwacht",
   "subtitles.incursion.table_finish": "Kern-Tisch schließt die Verzauberung ab",
   "subtitles.incursion.table_zap": "Kern-Tisch knistert",
-  "subtitles.incursion.table_ambient": "Kern-Tisch klingt"
+  "subtitles.incursion.table_ambient": "Kern-Tisch klingt",
+  "subtitles.incursion.core_open": "Kern-Siegel klappt auf",
+  "subtitles.incursion.core_hum": "Kern summt"
 }

@@ -137,6 +137,7 @@ public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
         if (level == null) {
             return;
         }
+        CoreShellRenderer.render(core, partialTick, pose, buffer, level);
         Anim anim = anims.computeIfAbsent(core, key -> new Anim());
         float time = level.getGameTime() + partialTick;
         if (core.isActive()) {

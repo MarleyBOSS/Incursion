@@ -83,7 +83,7 @@ public class CoreBlock extends BaseEntityBlock {
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
         if (level.isClientSide) {
-            return null;
+            return createTickerHelper(type, ModBlockEntities.CORE.get(), CoreBlockEntity::clientTick);
         }
         return createTickerHelper(type, ModBlockEntities.CORE.get(), CoreBlockEntity::serverTick);
     }

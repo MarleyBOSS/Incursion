@@ -126,6 +126,13 @@ public class CoreBlockEntity extends BlockEntity {
     // Getters / setters
     // ------------------------------------------------------------------
 
+    /** Client: the particles of an active Core (see CoreEffects). */
+    public static void clientTick(Level level, BlockPos pos, BlockState state, CoreBlockEntity core) {
+        if (state.getValue(CoreBlock.ACTIVE)) {
+            CoreEffects.spawn(level, pos);
+        }
+    }
+
     public boolean isActive() {
         BlockState state = getBlockState();
         return state.getBlock() instanceof CoreBlock && state.getValue(CoreBlock.ACTIVE);

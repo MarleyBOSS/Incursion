@@ -152,6 +152,20 @@ Mit jeder Stufe stärker:
 - **Geplant (v0.10.2):** Resonanz (gespeicherte Stufen nur bei aktivem Kern, gedeckelt durch die aktuelle Kernstufe) und Ladung (Zusatzstufen verbrauchen sich pro Benutzung stufenweise bis Vanilla, Aufladen am Tisch, sichtbarer Balken, Sound/Partikel). Kern-Haste (v0.11) wird gedeckelt.
 - Technik: `table/CoreTableLogic`, `table/CoreTableBlock` (+ Zustand `job`), `table/CoreTableBlockEntity`, `menu/CoreTableMenu` (Data-Slots, Bitmasken für freigegebene Buttons), `client/CoreTableScreen`, `client/CoreTableRenderer`. Config-Gruppe `table`.
 
+## Lore und Design des Kerns (v0.10.1.3)
+
+**Was der Kern ist.** Vor langer Zeit fiel der **Ankerstein** aus dem Nichts zwischen den Welten: das violette Kristallherz (ein Oktaeder) einer untergegangenen Welt. Ein Ankerstein hält eine Welt an ihrem Platz. Wo er einschlug, riss die Wirklichkeit, und aus dem Riss strömen seither die **Eindringlinge** (Incursion) in unsere Welt.
+
+**Warum die Mobs ihn wollen.** Sie wollen nicht zerstören, sie wollen **heimkehren**: Der Ankerstein ist der Schlüssel zu ihrer Welt. Solange er schläft, ist das Tor zu. Wird er geweckt, leuchtet er wie ein Leuchtfeuer durch den Riss, und die Eindringlinge spüren ihn jede Nacht („Nacht der Heimsuchung“). Gelingt es ihnen, ihn zu zerbrechen, reißt das Tor endgültig auf (die Explosion, wenn ein aktiver Kern zerstört oder gewaltsam entfernt wird).
+
+**Das Siegel.** Der **Orden der Siegelwächter** (Obsidian, violettes Tuch, Gold, Türkis; dieselbe Handschrift wie der Kern-Tisch, ihre Schmiede) barg den Stein und sperrte ihn in ein **Siegel**: eine Hülle aus zwei Hälften, vier Platten und einem Deckel. Vier goldene **Kolben** pressen das Siegel zu, vier **Pylone** (türkise Emitter) halten den Kristall mit Lasern schwebend. Geschlossen ist der Stein für die Eindringlinge unsichtbar.
+
+**Aktivieren = Entsiegeln.** Mit dem Aktivierungsgegenstand klappt das Siegel wie ein Transformer auf: der Deckel fährt auf den Kolben hoch, die vier Platten klappen nach außen, der Kristall erscheint, dreht sich und schwebt zwischen den Hälften, die Laser verbinden ihn mit den Pylonen, ein Siegelkreis leuchtet am Boden und der Kern summt. Der Block ist dadurch optisch fast zwei Blöcke hoch.
+
+**Splitter und Handwerk.** Übersteht der Kern eine Nacht, bricht er **Kernsplitter** ab (kondensierte Resonanz). Die Wächter schmieden daraus: Kern-Tisch (Verzauberungen über die Natur hinaus), Upgrade-Werkzeuge (stimmen den Kern höher), Schilde (Plasma-Gitter des Siegels), Schutztotems (Wächtersäulen) und die Beute-Kiste (Ankerkiste, sammelt, was die Eindringlinge mitbringen).
+
+**Umsetzung im Design.** Geschlossen: ein voller Block (Unterschale, vier Platten mit Scharnier und Tuch-Einlage, Deckel mit dem Siegel-„Auge“, animierte Runen, Nahtlinie in Türkis). Aktiv: nur die Unterschale steht als Blockmodell, den Rest zeichnet `client/CoreShellRenderer` (Deckel, Kolben, Platten, Kristall, Laser, Siegelkreis); die Aufklapp-Zeit ist `OPEN_TICKS` (50). Sounds `core_open` (Entsiegeln) und `core_hum` (Summen, alle ~4 s), Partikel `block/CoreEffects`. Texturen: `tools/gen_core_textures.py`. Für die übrigen Blöcke und Items (Totem, Beute-Kiste, Upgrade-Werkzeuge, Splitter) gilt dieselbe Handschrift: Obsidian + violett + Gold + Türkis, animierte Runen, Siegel-Bezug.
+
 ## Laufen auf der Route (v0.8.3.2)
 
 - Die Wege sind aus rechtwinkligen Schritten gebaut, aber Mobs laufen sie **nicht Schritt für Schritt** ab: Die normale Mob-Wegfindung (`getNavigation().moveTo`) führt sie zu einem Schritt ihres Weges bis zu 12 Schritte voraus (nie über das hinaus, was begehbar bereit ist, `walkLimit`). Sie bewegen sich dadurch wie jeder Mob, der etwas jagt. Findet die Wegfindung keinen Weg (oder im tiefen Wasser, als Passagier), läuft der Mob die Schritte wie vorher. Arbeiten (bauen, graben) und Plattformen laufen unverändert.
