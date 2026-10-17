@@ -140,6 +140,16 @@ Mit jeder Stufe stärker:
 - Config-Gruppe `rewards`: `shardsEnabled`, `shardsPerNightBase`, `shardsPerNightPerLevel`, `lootChestEnabled`, `lootChestRange`.
 - Verwendung der Splitter (Schilde/Totems reparieren, Kern-Tisch, Skilltree, Händler) folgt in späteren Versionen; bis dahin sind sie nur sammelbar.
 
+## Kern-Tisch (v0.10.0)
+
+- Eigener Block `core_table` (Rechtsklick öffnet das GUI). Er braucht den **aktiven Kern der Welt** (egal wo er steht, keine Reichweite); die Splitter kommen aus dessen Guthaben, die Kernstufe bestimmt die Obergrenze.
+- Im Slot liegt ein **verzaubertes Item**. Gelistet werden die Verzauberungen **auf dem Item** mit Vanilla-Maximum ≥ II, die nicht im Enchantment-Tag `incursion:table_blocked` stehen (Datapack-Liste; Verzauberungen anderer Mods funktionieren automatisch).
+- Der Tisch macht dort weiter, wo der normale Verzauberungstisch aufhört: nur Verzauberungen **auf Vanilla-Maximum oder höher** lassen sich verstärken.
+- **Freischalten** einmal pro Welt und Verzauberung (`tableUnlockCost`, Standard 8 Splitter; gespeichert in SavedData `incursion_table`, bleibt auch ohne Kern). Danach kostet **jede Stufe über dem Maximum** Splitter (`tableShardBase` 2 + `tableShardPerLevel` 2 je weiterer Stufe) und XP-Stufen (`tableXpBase` 5 + `tableXpPerLevel` 3 je weiterer Stufe).
+- **Obergrenze** = Vanilla-Maximum + Kernstufe / `tableLevelsPerExtra` (4), höchstens `tableMaxExtra` (10): Kernstufe 4 = +1, Kernstufe 20 = +5 (Schärfe X). Creative zahlt nichts.
+- Noch **nicht** gebaut: Resonanz (Wirkung nur bei aktivem Kern), Kern-Fähigkeiten, Verbesserung des Upgrade-Werkzeugs, Bücher. Die Stufen bleiben bis dahin auf dem Item, auch wenn der Kern weg ist.
+- Technik: `table/CoreTableLogic` (Regeln, Kosten), `table/CoreTableData`, `table/CoreTableBlock`, `menu/CoreTableMenu` (Server-Regeln, Zahlen per Data-Slots, Liste aus dem Item beidseitig abgeleitet, Auswahl per Menü-Button 0–99, Aktionen 100/101), `client/CoreTableScreen`. Config-Gruppe `table`.
+
 ## Laufen auf der Route (v0.8.3.2)
 
 - Die Wege sind aus rechtwinkligen Schritten gebaut, aber Mobs laufen sie **nicht Schritt für Schritt** ab: Die normale Mob-Wegfindung (`getNavigation().moveTo`) führt sie zu einem Schritt ihres Weges bis zu 12 Schritte voraus (nie über das hinaus, was begehbar bereit ist, `walkLimit`). Sie bewegen sich dadurch wie jeder Mob, der etwas jagt. Findet die Wegfindung keinen Weg (oder im tiefen Wasser, als Passagier), läuft der Mob die Schritte wie vorher. Arbeiten (bauen, graben) und Plattformen laufen unverändert.

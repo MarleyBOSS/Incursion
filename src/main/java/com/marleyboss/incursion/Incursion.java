@@ -49,6 +49,7 @@ public class Incursion {
         if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS) {
             event.accept(ModItems.CORE);
             event.accept(ModItems.WARD);
+            event.accept(ModItems.CORE_TABLE);
             event.accept(ModItems.LOOT_CHEST);
         }
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {

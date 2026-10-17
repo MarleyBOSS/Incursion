@@ -4,6 +4,7 @@ import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlock;
 import com.marleyboss.incursion.block.LootChestBlock;
 import com.marleyboss.incursion.block.WardBlock;
+import com.marleyboss.incursion.table.CoreTableBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
@@ -39,6 +40,15 @@ public final class ModBlocks {
                     .mapColor(MapColor.COLOR_PURPLE)
                     .strength(3.0F, 1200.0F)
                     .sound(SoundType.WOOD)));
+
+    /** The Core Table: enchantments above the vanilla maximum (needs the active Core, pays with its shards). */
+    public static final DeferredBlock<CoreTableBlock> CORE_TABLE = BLOCKS.register("core_table", () -> new CoreTableBlock(
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_PURPLE)
+                    .strength(5.0F, 1200.0F)
+                    .requiresCorrectToolForDrops()
+                    .sound(SoundType.STONE)
+                    .lightLevel(state -> 7)));
 
     /**
      * Placed by builder zombies (stairs and bridges). Explosions cannot break it, so creepers and blast arrows

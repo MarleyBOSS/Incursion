@@ -5,6 +5,7 @@ import com.marleyboss.incursion.client.LootChestItemRenderer;
 import com.marleyboss.incursion.client.LootChestRenderer;
 import com.marleyboss.incursion.client.WardRenderer;
 import com.marleyboss.incursion.client.CoreScreen;
+import com.marleyboss.incursion.client.CoreTableScreen;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModEntities;
 import com.marleyboss.incursion.registry.ModItems;
@@ -51,6 +52,7 @@ public class IncursionClient {
 
     private static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.CORE.get(), CoreScreen::new);
+        event.register(ModMenus.CORE_TABLE.get(), CoreTableScreen::new);
     }
 
     private static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {

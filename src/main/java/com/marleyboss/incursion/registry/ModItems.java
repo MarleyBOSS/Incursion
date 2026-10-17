@@ -17,6 +17,9 @@ public final class ModItems {
     public static final DeferredItem<BlockItem> WARD = ITEMS.registerSimpleBlockItem(
             "ward", ModBlocks.WARD, new Item.Properties().rarity(Rarity.UNCOMMON));
 
+    public static final DeferredItem<BlockItem> CORE_TABLE = ITEMS.registerSimpleBlockItem(
+            "core_table", ModBlocks.CORE_TABLE, new Item.Properties().rarity(Rarity.RARE));
+
     public static final DeferredItem<BlockItem> LOOT_CHEST = ITEMS.registerSimpleBlockItem(
             "loot_chest", ModBlocks.LOOT_CHEST, new Item.Properties());
 

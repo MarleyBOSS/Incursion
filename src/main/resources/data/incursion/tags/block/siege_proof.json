@@ -1,4 +1,1 @@
-{
-  "replace": false,
-  "values": [ "incursion:ward", "incursion:loot_chest" ]
-}
+{"replace": false, "values": ["incursion:ward", "incursion:loot_chest", "incursion:core_table"]}

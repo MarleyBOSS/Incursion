@@ -2,6 +2,7 @@ package com.marleyboss.incursion.registry;
 
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.menu.CoreMenu;
+import com.marleyboss.incursion.menu.CoreTableMenu;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.inventory.MenuType;
 import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
@@ -13,6 +14,9 @@ public final class ModMenus {
 
     public static final DeferredHolder<MenuType<?>, MenuType<CoreMenu>> CORE = MENUS.register("core",
             () -> IMenuTypeExtension.create((containerId, inventory, buf) -> new CoreMenu(containerId, inventory, buf)));
+
+    public static final DeferredHolder<MenuType<?>, MenuType<CoreTableMenu>> CORE_TABLE = MENUS.register("core_table",
+            () -> IMenuTypeExtension.create((containerId, inventory, buf) -> new CoreTableMenu(containerId, inventory)));
 
     private ModMenus() {
     }

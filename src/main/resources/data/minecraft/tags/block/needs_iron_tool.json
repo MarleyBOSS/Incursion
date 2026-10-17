@@ -1,1 +1,1 @@
-{ "replace": false, "values": [ "incursion:core" ] }
+{"replace": false, "values": ["incursion:core", "incursion:core_table"]}

@@ -757,6 +757,52 @@ public final class Config {
         BUILDER.pop();
     }
 
+    // ------------------------------------------------------------------
+    // Core Table (enchanting beyond the vanilla maximum)
+    // ------------------------------------------------------------------
+
+    static {
+        BUILDER.comment("Core Table: enchantments above the vanilla maximum (unlock once with shards, then pay shards + XP).")
+                .push("table");
+    }
+
+    public static final ModConfigSpec.BooleanValue TABLE_ENABLED = BUILDER
+            .comment("If false, the Core Table cannot be used.")
+            .define("tableEnabled", true);
+
+    public static final ModConfigSpec.IntValue TABLE_LEVELS_PER_EXTRA = BUILDER
+            .comment("Every this many Core levels allow one more enchantment level above the vanilla maximum",
+                    "(default 4: Core level 4 = +1, level 20 = +5). 0 = always the full tableMaxExtra.")
+            .defineInRange("tableLevelsPerExtra", 4, 0, 100);
+
+    public static final ModConfigSpec.IntValue TABLE_MAX_EXTRA = BUILDER
+            .comment("Upper limit for the extra enchantment levels above the vanilla maximum.")
+            .defineInRange("tableMaxExtra", 10, 0, 200);
+
+    public static final ModConfigSpec.IntValue TABLE_UNLOCK_COST = BUILDER
+            .comment("Core shards to unlock one enchantment for the Core Table (once per world).")
+            .defineInRange("tableUnlockCost", 8, 0, 100000);
+
+    public static final ModConfigSpec.IntValue TABLE_SHARD_BASE = BUILDER
+            .comment("Core shards for the first level above the vanilla maximum.")
+            .defineInRange("tableShardBase", 2, 0, 100000);
+
+    public static final ModConfigSpec.IntValue TABLE_SHARD_PER_LEVEL = BUILDER
+            .comment("Extra Core shards for every further level above the vanilla maximum.")
+            .defineInRange("tableShardPerLevel", 2, 0, 100000);
+
+    public static final ModConfigSpec.IntValue TABLE_XP_BASE = BUILDER
+            .comment("Experience levels for the first level above the vanilla maximum.")
+            .defineInRange("tableXpBase", 5, 0, 1000);
+
+    public static final ModConfigSpec.IntValue TABLE_XP_PER_LEVEL = BUILDER
+            .comment("Extra experience levels for every further level above the vanilla maximum.")
+            .defineInRange("tableXpPerLevel", 3, 0, 1000);
+
+    static {
+        BUILDER.pop();
+    }
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     /**
@@ -780,6 +826,24 @@ public final class Config {
     public static int shardsPerNight(int level) {
         return (int) Math.floor(SHARDS_PER_NIGHT_BASE.get()
                 + SHARDS_PER_NIGHT_PER_LEVEL.get() * Math.max(0, level - 1));
+    }
+
+    /** Enchantment levels above the vanilla maximum that a Core of this level allows at the Core Table. */
+    public static int tableExtraLevels(int coreLevel) {
+        int max = TABLE_MAX_EXTRA.get();
+        int per = TABLE_LEVELS_PER_EXTRA.get();
+        int extra = per <= 0 ? max : Math.max(0, coreLevel) / per;
+        return Math.max(0, Math.min(extra, max));
+    }
+
+    /** Shards for the level that is {@code over} levels above the vanilla maximum (1 = the first one). */
+    public static int tableShardCost(int over) {
+        return TABLE_SHARD_BASE.get() + TABLE_SHARD_PER_LEVEL.get() * Math.max(0, over - 1);
+    }
+
+    /** Experience levels for the level that is {@code over} levels above the vanilla maximum. */
+    public static int tableXpCost(int over) {
+        return TABLE_XP_BASE.get() + TABLE_XP_PER_LEVEL.get() * Math.max(0, over - 1);
     }
 
     /** Number of shields (index 0 = outermost). */
