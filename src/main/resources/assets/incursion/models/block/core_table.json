@@ -1,5 +1,5 @@
 {
-  "parent": "minecraft:block/cube_bottom_top",
+  "parent": "incursion:block/core_table_base",
   "textures": {
     "top": "incursion:block/core_table_top",
     "bottom": "incursion:block/core_table_bottom",

@@ -140,15 +140,16 @@ Mit jeder Stufe stärker:
 - Config-Gruppe `rewards`: `shardsEnabled`, `shardsPerNightBase`, `shardsPerNightPerLevel`, `lootChestEnabled`, `lootChestRange`.
 - Verwendung der Splitter (Schilde/Totems reparieren, Kern-Tisch, Skilltree, Händler) folgt in späteren Versionen; bis dahin sind sie nur sammelbar.
 
-## Kern-Tisch (v0.10.0)
+## Kern-Tisch (v0.10.1)
 
-- Eigener Block `core_table` (Rechtsklick öffnet das GUI). Er braucht den **aktiven Kern der Welt** (egal wo er steht, keine Reichweite); die Splitter kommen aus dessen Guthaben, die Kernstufe bestimmt die Obergrenze.
-- Im Slot liegt ein **verzaubertes Item**. Gelistet werden die Verzauberungen **auf dem Item** mit Vanilla-Maximum ≥ II, die nicht im Enchantment-Tag `incursion:table_blocked` stehen (Datapack-Liste; Verzauberungen anderer Mods funktionieren automatisch).
-- Der Tisch macht dort weiter, wo der normale Verzauberungstisch aufhört: nur Verzauberungen **auf Vanilla-Maximum oder höher** lassen sich verstärken.
-- **Freischalten** einmal pro Welt und Verzauberung (`tableUnlockCost`, Standard 8 Splitter; gespeichert in SavedData `incursion_table`, bleibt auch ohne Kern). Danach kostet **jede Stufe über dem Maximum** Splitter (`tableShardBase` 2 + `tableShardPerLevel` 2 je weiterer Stufe) und XP-Stufen (`tableXpBase` 5 + `tableXpPerLevel` 3 je weiterer Stufe).
-- **Obergrenze** = Vanilla-Maximum + Kernstufe / `tableLevelsPerExtra` (4), höchstens `tableMaxExtra` (10): Kernstufe 4 = +1, Kernstufe 20 = +5 (Schärfe X). Creative zahlt nichts.
-- Noch **nicht** gebaut: Resonanz (Wirkung nur bei aktivem Kern), Kern-Fähigkeiten, Verbesserung des Upgrade-Werkzeugs, Bücher. Die Stufen bleiben bis dahin auf dem Item, auch wenn der Kern weg ist.
-- Technik: `table/CoreTableLogic` (Regeln, Kosten), `table/CoreTableData`, `table/CoreTableBlock`, `menu/CoreTableMenu` (Server-Regeln, Zahlen per Data-Slots, Liste aus dem Item beidseitig abgeleitet, Auswahl per Menü-Button 0–99, Aktionen 100/101), `client/CoreTableScreen`. Config-Gruppe `table`.
+- Eigener Block `core_table` (Rechtsklick öffnet das GUI), 12/16 hoch wie der Vanilla-Verzauberungstisch. Er braucht den **aktiven Kern der Welt** (egal wo); Splitter kommen aus dessen Guthaben, die Kernstufe bestimmt die Obergrenze.
+- **Slot:** nimmt jederzeit ein verzaubertes oder verzauberbares Item. Darunter **alle** Verzauberungen, die das Item haben kann (Vanilla-Max ≥ II, nicht im Tag `incursion:table_blocked`), als Buttons. Auswählbar ist nur, was das Item auf Vanilla-Maximum (oder höher) hat (= „+1 über Vanilla“); der Rest ist ausgegraut, mit Begründung beim Überfahren.
+- **Auswahl:** Button anklicken → grüner Haken bestätigt (reiner Schutz vor Fehlklicks), rotes Kreuz setzt die Auswahl zurück. Kein Freischalten mehr.
+- **Pro Item nur eine** Verzauberung über Vanilla. Obergrenze = Vanilla + min(Kernstufe / `tableLevelsPerExtra` (4), `tableMaxExtra` (10), Eigenlimit aus `tableLimits`, Standard Effizienz +2).
+- **Abends und mit Timer:** Start nur im Abendfenster (`tableStart`/`tableEnd`, Standard 11000–14000, abschaltbar). Dauer 60 s + 60 s je weiterer Stufe über Vanilla. Das Item bleibt beim Verlassen im Tisch (Block-Entity), schwebt, dreht sich und funkelt; bei Fertigstellung Sound, Partikel, Meldung; das Item wird entnommen.
+- **Kosten** (beim Start): Splitter (`tableShardBase` 2 + `tableShardPerLevel` 2 je weiterer Stufe) und XP-Stufen (`tableXpBase` 5 + `tableXpPerLevel` 3). Creative zahlt nichts, ignoriert das Abendfenster, 10 s.
+- **Geplant (v0.10.2):** Resonanz (gespeicherte Stufen nur bei aktivem Kern, gedeckelt durch die aktuelle Kernstufe) und Ladung (Zusatzstufen verbrauchen sich pro Benutzung stufenweise bis Vanilla, Aufladen am Tisch, sichtbarer Balken, Sound/Partikel). Kern-Haste (v0.11) wird gedeckelt.
+- Technik: `table/CoreTableLogic`, `table/CoreTableBlock` (+ Zustand `job`), `table/CoreTableBlockEntity`, `menu/CoreTableMenu` (Data-Slots, Bitmasken für freigegebene Buttons), `client/CoreTableScreen`, `client/CoreTableRenderer`. Config-Gruppe `table`.
 
 ## Laufen auf der Route (v0.8.3.2)
 

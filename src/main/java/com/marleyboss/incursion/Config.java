@@ -762,7 +762,8 @@ public final class Config {
     // ------------------------------------------------------------------
 
     static {
-        BUILDER.comment("Core Table: enchantments above the vanilla maximum (unlock once with shards, then pay shards + XP).")
+        BUILDER.comment("Core Table: one enchantment per item can go above the vanilla maximum. It is started in the evening,",
+                        "costs shards and XP levels, takes time (the item stays in the table) and is limited by the Core level.")
                 .push("table");
     }
 
@@ -779,9 +780,12 @@ public final class Config {
             .comment("Upper limit for the extra enchantment levels above the vanilla maximum.")
             .defineInRange("tableMaxExtra", 10, 0, 200);
 
-    public static final ModConfigSpec.IntValue TABLE_UNLOCK_COST = BUILDER
-            .comment("Core shards to unlock one enchantment for the Core Table (once per world).")
-            .defineInRange("tableUnlockCost", 8, 0, 100000);
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> TABLE_LIMITS = BUILDER
+            .comment("Own limits for single enchantments: \"enchantment id=extra levels\". The enchantment can never go",
+                    "further above its vanilla maximum than this, whatever the Core level (default: Efficiency up to VII).",
+                    "Enchantments in the tag incursion:table_blocked cannot be raised at all.")
+            .defineListAllowEmpty("tableLimits", List.of("minecraft:efficiency=2"),
+                    () -> "minecraft:efficiency=2", Config::isValidTableLimit);
 
     public static final ModConfigSpec.IntValue TABLE_SHARD_BASE = BUILDER
             .comment("Core shards for the first level above the vanilla maximum.")
@@ -798,6 +802,27 @@ public final class Config {
     public static final ModConfigSpec.IntValue TABLE_XP_PER_LEVEL = BUILDER
             .comment("Extra experience levels for every further level above the vanilla maximum.")
             .defineInRange("tableXpPerLevel", 3, 0, 1000);
+
+    public static final ModConfigSpec.IntValue TABLE_SECONDS_BASE = BUILDER
+            .comment("Seconds the table needs for the first level above the vanilla maximum.")
+            .defineInRange("tableSecondsBase", 60, 0, 100000);
+
+    public static final ModConfigSpec.IntValue TABLE_SECONDS_PER_LEVEL = BUILDER
+            .comment("Extra seconds for every further level above the vanilla maximum.")
+            .defineInRange("tableSecondsPerLevel", 60, 0, 100000);
+
+    public static final ModConfigSpec.BooleanValue TABLE_EVENING_ONLY = BUILDER
+            .comment("If true, enchanting can only be started in the evening (time window below).")
+            .define("tableEveningOnly", true);
+
+    public static final ModConfigSpec.IntValue TABLE_START = BUILDER
+            .comment("Time of day (0-23999) when the evening starts: enchanting can be started from here.",
+                    "11000 = late afternoon, 13000 = nightfall.")
+            .defineInRange("tableStart", 11000, 0, 23999);
+
+    public static final ModConfigSpec.IntValue TABLE_END = BUILDER
+            .comment("Time of day (0-23999) when the evening ends: no new enchanting after this.")
+            .defineInRange("tableEnd", 14000, 0, 23999);
 
     static {
         BUILDER.pop();
@@ -836,6 +861,36 @@ public final class Config {
         return Math.max(0, Math.min(extra, max));
     }
 
+    /** Own limit for an enchantment (extra levels above its vanilla maximum), or Integer.MAX_VALUE if there is none. */
+    public static int tableLimitFor(String enchantmentId) {
+        for (String entry : TABLE_LIMITS.get()) {
+            int eq = entry.lastIndexOf('=');
+            if (eq > 0 && entry.substring(0, eq).trim().equals(enchantmentId)) {
+                try {
+                    return Math.max(0, Integer.parseInt(entry.substring(eq + 1).trim()));
+                } catch (NumberFormatException e) {
+                    return Integer.MAX_VALUE;
+                }
+            }
+        }
+        return Integer.MAX_VALUE;
+    }
+
+    static boolean isValidTableLimit(Object value) {
+        if (!(value instanceof String text)) {
+            return false;
+        }
+        int eq = text.lastIndexOf('=');
+        if (eq <= 0) {
+            return false;
+        }
+        try {
+            return Integer.parseInt(text.substring(eq + 1).trim()) >= 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
     /** Shards for the level that is {@code over} levels above the vanilla maximum (1 = the first one). */
     public static int tableShardCost(int over) {
         return TABLE_SHARD_BASE.get() + TABLE_SHARD_PER_LEVEL.get() * Math.max(0, over - 1);
@@ -844,6 +899,25 @@ public final class Config {
     /** Experience levels for the level that is {@code over} levels above the vanilla maximum. */
     public static int tableXpCost(int over) {
         return TABLE_XP_BASE.get() + TABLE_XP_PER_LEVEL.get() * Math.max(0, over - 1);
+    }
+
+    /** Ticks the table needs for the level that is {@code over} levels above the vanilla maximum. */
+    public static int tableDurationTicks(int over) {
+        return 20 * (TABLE_SECONDS_BASE.get() + TABLE_SECONDS_PER_LEVEL.get() * Math.max(0, over - 1));
+    }
+
+    /** May enchanting be started at this world time? Always true if the evening rule is off. */
+    public static boolean isTableTime(long dayTime) {
+        if (!TABLE_EVENING_ONLY.get()) {
+            return true;
+        }
+        long time = Math.floorMod(dayTime, 24000L);
+        int start = TABLE_START.get();
+        int end = TABLE_END.get();
+        if (start == end) {
+            return true;
+        }
+        return start < end ? time >= start && time < end : time >= start || time < end;
     }
 
     /** Number of shields (index 0 = outermost). */

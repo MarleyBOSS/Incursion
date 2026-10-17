@@ -1,0 +1,8 @@
+{
+  "parent": "incursion:block/core_table_base",
+  "textures": {
+    "top": "incursion:block/core_table_top_working",
+    "bottom": "incursion:block/core_table_bottom",
+    "side": "incursion:block/core_table_side"
+  }
+}

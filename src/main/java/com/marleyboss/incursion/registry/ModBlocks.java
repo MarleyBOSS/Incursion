@@ -48,7 +48,8 @@ public final class ModBlocks {
                     .strength(5.0F, 1200.0F)
                     .requiresCorrectToolForDrops()
                     .sound(SoundType.STONE)
-                    .lightLevel(state -> 7)));
+                    .noOcclusion()
+                    .lightLevel(state -> state.getValue(CoreTableBlock.JOB) == 1 ? 13 : 7)));
 
     /**
      * Placed by builder zombies (stairs and bridges). Explosions cannot break it, so creepers and blast arrows

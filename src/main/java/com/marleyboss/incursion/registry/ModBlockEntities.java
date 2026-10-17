@@ -4,6 +4,7 @@ import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlockEntity;
 import com.marleyboss.incursion.block.LootChestBlockEntity;
 import com.marleyboss.incursion.block.WardBlockEntity;
+import com.marleyboss.incursion.table.CoreTableBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -29,6 +30,12 @@ public final class ModBlockEntities {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<LootChestBlockEntity>> LOOT_CHEST =
             BLOCK_ENTITY_TYPES.register("loot_chest", () -> BlockEntityType.Builder
                     .of(LootChestBlockEntity::new, ModBlocks.LOOT_CHEST.get())
+                    .build(null));
+
+    @SuppressWarnings("DataFlowIssue")
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<CoreTableBlockEntity>> CORE_TABLE =
+            BLOCK_ENTITY_TYPES.register("core_table", () -> BlockEntityType.Builder
+                    .of(CoreTableBlockEntity::new, ModBlocks.CORE_TABLE.get())
                     .build(null));
 
     private ModBlockEntities() {

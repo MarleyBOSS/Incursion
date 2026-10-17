@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the Core Table block textures (dark obsidian-violet stone with glowing violet runes).
+"""Generates the Core Table block textures (obsidian frame, violet cloth with a glowing rune and gem corners, like the vanilla enchanting table).
 
   python3 tools/gen_core_table_texture.py
 
@@ -15,10 +15,13 @@ from PIL import Image
 OUT = os.path.join(os.path.dirname(__file__), "..", "src", "main", "resources", "assets", "incursion", "textures", "block")
 RNG = np.random.default_rng(20261017)
 
-RAMP = np.array([(22, 16, 33), (32, 23, 49), (44, 31, 66), (58, 42, 86), (74, 54, 108), (90, 68, 128)], dtype=float)
-EDGE_LIGHT = np.array((70, 52, 98), dtype=float)
-EDGE_DARK = np.array((14, 10, 22), dtype=float)
-GLOW = [np.array(c, dtype=float) for c in ((92, 44, 132), (140, 66, 190), (186, 110, 236), (230, 190, 255))]
+OBS = np.array([(10, 7, 18), (16, 11, 28), (24, 17, 40), (34, 24, 56), (46, 33, 74)], dtype=float)
+CLOTH = np.array([(52, 22, 92), (70, 32, 122), (92, 44, 150), (112, 58, 178)], dtype=float)
+GEM = [np.array(c, dtype=float) for c in ((40, 150, 170), (90, 230, 235), (200, 255, 255))]
+GLOW = {"idle": [(120, 60, 176), (170, 100, 224), (214, 160, 255), (245, 225, 255)],
+        "work": [(150, 80, 210), (200, 130, 255), (232, 190, 255), (255, 245, 255)],
+        "done": [(60, 160, 90), (110, 220, 130), (170, 255, 190), (240, 255, 245)]}
+GOLD = np.array((200, 150, 60), dtype=float)
 
 
 def noise(w, h, scale):
@@ -28,68 +31,83 @@ def noise(w, h, scale):
     return np.asarray(img, dtype=float)[:h, :w] / 255.0
 
 
-def ramp(v):
-    pos = np.clip(v, 0.0, 1.0) * (len(RAMP) - 1)
+def lerp_ramp(table, v):
+    pos = np.clip(v, 0.0, 1.0) * (len(table) - 1)
     lo = np.floor(pos).astype(int)
-    hi = np.minimum(lo + 1, len(RAMP) - 1)
+    hi = np.minimum(lo + 1, len(table) - 1)
     t = (pos - lo)[..., None]
-    return RAMP[lo] * (1 - t) + RAMP[hi] * t
+    return table[lo] * (1 - t) + table[hi] * t
 
 
-def stone(size=16, light=0.0):
-    v = 0.34 + 0.36 * noise(size, size, 4) + 0.20 * noise(size, size, 2) + 0.10 * RNG.random((size, size))
-    v += light + 0.12 - 0.24 * (np.arange(size)[:, None] / (size - 1))
-    return ramp(v)
+def obsidian(light=0.0):
+    v = 0.30 + 0.35 * noise(16, 16, 4) + 0.20 * noise(16, 16, 2) + 0.15 * RNG.random((16, 16)) + light
+    return lerp_ramp(OBS, v)
 
 
-def bevel(img):
-    out = img.copy()
-    out[0, :] = EDGE_LIGHT
-    out[:, 0] = EDGE_LIGHT
-    out[-1, :] = EDGE_DARK
-    out[:, -1] = EDGE_DARK
-    return out
+def cloth(light=0.0):
+    v = 0.45 + 0.25 * noise(16, 16, 2) + 0.15 * RNG.random((16, 16)) + light
+    img = lerp_ramp(CLOTH, v)
+    img[::2, :] *= 0.94  # faint weave
+    return img
 
 
-def glow_pixel(img, x, y, strength):
-    idx = int(np.clip(strength, 0, len(GLOW) - 1))
-    img[y, x] = GLOW[idx]
-
-
-def top():
-    img = bevel(stone(light=0.05))
-    # A rune ring with a bright centre.
-    for x in range(4, 12):
-        for y in (4, 11):
-            glow_pixel(img, x, y, 1)
-    for y in range(4, 12):
-        for x in (4, 11):
-            glow_pixel(img, x, y, 1)
-    for x in range(6, 10):
-        for y in range(6, 10):
-            glow_pixel(img, x, y, 2)
-    glow_pixel(img, 7, 7, 3)
-    glow_pixel(img, 8, 7, 3)
-    glow_pixel(img, 7, 8, 3)
-    glow_pixel(img, 8, 8, 3)
+def top(mode):
+    glow = [np.array(c, dtype=float) for c in GLOW[mode]]
+    img = obsidian()
+    # Cloth field inside a 2px obsidian frame, like the red carpet of the vanilla table.
+    img[2:14, 2:14] = cloth(0.08 if mode != "idle" else 0.0)[2:14, 2:14]
+    # Gold-ish stitched border on the cloth.
+    for i in range(3, 13):
+        for (x, y) in ((i, 3), (i, 12), (3, i), (12, i)):
+            img[y, x] = GOLD * (0.55 if (i % 2) else 0.8)
+    # Glowing rune: ring with a bright core and four tips.
+    for (x, y) in ((6, 5), (7, 5), (8, 5), (9, 5), (6, 10), (7, 10), (8, 10), (9, 10),
+                   (5, 6), (5, 7), (5, 8), (5, 9), (10, 6), (10, 7), (10, 8), (10, 9)):
+        img[y, x] = glow[1]
+    for (x, y) in ((7, 7), (8, 7), (7, 8), (8, 8)):
+        img[y, x] = glow[3]
+    for (x, y) in ((7, 6), (8, 6), (6, 7), (9, 7), (6, 8), (9, 8), (7, 9), (8, 9)):
+        img[y, x] = glow[2]
+    for (x, y) in ((7, 4), (8, 4), (7, 11), (8, 11), (4, 7), (4, 8), (11, 7), (11, 8)):
+        img[y, x] = glow[0]
+    # Diamond-like gems in the four corners of the frame, as on the vanilla table.
+    for (cx, cy) in ((0, 0), (14, 0), (0, 14), (14, 14)):
+        for dx in range(2):
+            for dy in range(2):
+                img[cy + dy, cx + dx] = GEM[1]
+        img[cy, cx] = GEM[2]
+        img[cy + 1, cx + 1] = GEM[0]
+    # Bevel on the frame.
+    img[0, 2:14] = OBS[4]
+    img[15, 2:14] = OBS[0]
     return img
 
 
 def side():
-    img = bevel(stone())
-    # A glowing band near the top and two small rune marks.
-    for x in range(1, 15):
-        glow_pixel(img, x, 3, 1)
-        glow_pixel(img, x, 4, 0)
-    for x in (4, 7, 10):
-        glow_pixel(img, x, 8, 2)
-        glow_pixel(img, x, 9, 1)
-        glow_pixel(img, x, 10, 2)
+    img = obsidian()
+    # Rows 0-3 are hidden by the model (it uses uv 0,4 -> 16,16); the visible part starts with a cloth hem.
+    img[4:6, :] = cloth(0.05)[4:6, :]
+    img[6, :] = GOLD * 0.6
+    img[7, :] = OBS[0]
+    # Glowing rune marks and gem studs in the obsidian below.
+    for x in (3, 7, 11):
+        img[10, x] = np.array(GLOW["idle"][1])
+        img[11, x] = np.array(GLOW["idle"][2])
+        img[12, x] = np.array(GLOW["idle"][1])
+    img[9, 1] = GEM[1]
+    img[9, 14] = GEM[1]
+    img[0, :] = OBS[4]
+    img[15, :] = OBS[0]
+    img[:, 0] = OBS[3]
+    img[:, 15] = OBS[0]
     return img
 
 
 def bottom():
-    return bevel(stone(light=-0.06))
+    img = obsidian(-0.04)
+    img[0, :] = OBS[3]
+    img[:, 0] = OBS[3]
+    return img
 
 
 def save(name, img):
@@ -98,7 +116,9 @@ def save(name, img):
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
-    save("core_table_top.png", top())
+    save("core_table_top.png", top("idle"))
+    save("core_table_top_working.png", top("work"))
+    save("core_table_top_done.png", top("done"))
     save("core_table_side.png", side())
     save("core_table_bottom.png", bottom())
     print("written to", os.path.abspath(OUT))

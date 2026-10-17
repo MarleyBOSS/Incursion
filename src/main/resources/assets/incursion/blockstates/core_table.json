@@ -1,5 +1,7 @@
 {
   "variants": {
-    "": { "model": "incursion:block/core_table" }
+    "job=0": { "model": "incursion:block/core_table" },
+    "job=1": { "model": "incursion:block/core_table_working" },
+    "job=2": { "model": "incursion:block/core_table_done" }
   }
 }

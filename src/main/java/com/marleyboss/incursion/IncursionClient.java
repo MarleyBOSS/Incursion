@@ -5,6 +5,7 @@ import com.marleyboss.incursion.client.LootChestItemRenderer;
 import com.marleyboss.incursion.client.LootChestRenderer;
 import com.marleyboss.incursion.client.WardRenderer;
 import com.marleyboss.incursion.client.CoreScreen;
+import com.marleyboss.incursion.client.CoreTableRenderer;
 import com.marleyboss.incursion.client.CoreTableScreen;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModEntities;
@@ -62,6 +63,8 @@ public class IncursionClient {
         event.registerBlockEntityRenderer(ModBlockEntities.CORE.get(), CoreRenderer::new);
         // Health bar above ward totems.
         event.registerBlockEntityRenderer(ModBlockEntities.WARD.get(), WardRenderer::new);
+        // The item floating above the Core Table.
+        event.registerBlockEntityRenderer(ModBlockEntities.CORE_TABLE.get(), CoreTableRenderer::new);
         // The loot chest with its animated lid.
         event.registerBlockEntityRenderer(ModBlockEntities.LOOT_CHEST.get(), LootChestRenderer::new);
     }

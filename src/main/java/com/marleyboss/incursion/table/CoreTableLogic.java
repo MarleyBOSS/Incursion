@@ -10,6 +10,8 @@ import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -21,60 +23,136 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantment;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Rules of the Core Table. The table lists the enchantments that are on the item and have a vanilla maximum of at
- * least II. An enchantment at its vanilla maximum can be unlocked once per world with shards; after that every level
- * above the maximum costs shards and experience levels, up to a limit that grows with the Core level.
+ * Rules of the Core Table. The table lists every enchantment that the item in the slot can have (vanilla maximum at
+ * least II). An enchantment that is on the item at its vanilla maximum can be raised one level at a time above it.
+ * Only one enchantment per item may be above its vanilla maximum. A raise costs shards and experience levels, takes
+ * time (the item stays in the table) and can only be started in the evening; the limit grows with the Core level.
  */
 public final class CoreTableLogic {
     /** Enchantments in this tag cannot be raised at the table (datapack-configurable). */
     public static final TagKey<Enchantment> BLOCKED = TagKey.create(Registries.ENCHANTMENT,
             ResourceLocation.fromNamespaceAndPath(Incursion.MODID, "table_blocked"));
 
-    public static final int STATE_NONE = 0;
-    /** At the vanilla maximum, not yet unlocked: the button unlocks it. */
-    public static final int STATE_LOCKED = 1;
-    /** Unlocked and below the limit: the button raises it by one level. */
-    public static final int STATE_READY = 2;
-    /** At the limit that the current Core level allows. */
-    public static final int STATE_AT_CAP = 3;
-    /** Below the vanilla maximum: use a normal enchanting table or anvil first. */
-    public static final int STATE_BELOW_MAX = 4;
-    /** There is no active Core. */
-    public static final int STATE_NO_CORE = 5;
+    /** The enchantment can be raised now. */
+    public static final int OK = 0;
+    // Reasons that only depend on the item (the client works them out itself).
+    public static final int NOT_ON_ITEM = 1;
+    public static final int BELOW_MAX = 2;
+    public static final int OTHER_OVER = 3;
+    // Reasons that depend on the table, the Core and the time.
+    public static final int BUSY = 4;
+    public static final int NO_CORE = 5;
+    public static final int NOT_EVENING = 6;
+    public static final int AT_CAP = 7;
 
-    /** One enchantment on the item that the table can work with. */
+    public static final int JOB_IDLE = 0;
+    public static final int JOB_WORKING = 1;
+    public static final int JOB_DONE = 2;
+
+    /** One enchantment of the list; {@code level} is 0 if it is not on the item. */
     public record Entry(Holder<Enchantment> holder, String key, int level, int vanillaMax) {
     }
 
     private CoreTableLogic() {
     }
 
-    /** The enchantments on the stack that the table lists, sorted by id (the same order on both sides). */
-    public static List<Entry> candidates(ItemStack stack) {
+    /** All enchantments the item can have (or has) with a vanilla maximum of at least II, sorted by id. */
+    public static List<Entry> entries(ItemStack stack, RegistryAccess access) {
         List<Entry> list = new ArrayList<>();
         if (stack.isEmpty()) {
             return list;
         }
-        ItemEnchantments enchantments = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
-        for (Holder<Enchantment> holder : enchantments.keySet()) {
-            int vanillaMax = holder.value().getMaxLevel();
+        ItemEnchantments onItem = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
+        Registry<Enchantment> registry = access.registryOrThrow(Registries.ENCHANTMENT);
+        registry.listElements().forEach(holder -> {
+            Enchantment enchantment = holder.value();
+            int vanillaMax = enchantment.getMaxLevel();
             if (vanillaMax < 2 || holder.is(BLOCKED)) {
-                continue;
+                return;
             }
-            String key = holder.unwrapKey().map(k -> k.location().toString()).orElse("");
-            if (key.isEmpty()) {
-                continue;
+            int level = onItem.getLevel(holder);
+            if (level <= 0 && !enchantment.isSupportedItem(stack)) {
+                return;
             }
-            list.add(new Entry(holder, key, enchantments.getLevel(holder), vanillaMax));
-        }
+            list.add(new Entry(holder, holder.key().location().toString(), level, vanillaMax));
+        });
         list.sort(Comparator.comparing(Entry::key));
         return list;
+    }
+
+    /** The enchantment that is already above its vanilla maximum, or {@code null}. */
+    @Nullable
+    public static Entry overEntry(List<Entry> entries) {
+        for (Entry entry : entries) {
+            if (entry.level() > entry.vanillaMax()) {
+                return entry;
+            }
+        }
+        return null;
+    }
+
+    /** What the item itself says about this enchantment: {@link #OK}, NOT_ON_ITEM, BELOW_MAX or OTHER_OVER. */
+    public static int itemState(Entry entry, @Nullable Entry over) {
+        if (entry.level() <= 0) {
+            return NOT_ON_ITEM;
+        }
+        if (entry.level() < entry.vanillaMax()) {
+            return BELOW_MAX;
+        }
+        if (over != null && !over.key().equals(entry.key())) {
+            return OTHER_OVER;
+        }
+        return OK;
+    }
+
+    /** Highest level the table may give this enchantment at the given Core level. */
+    public static int cap(Entry entry, int coreLevel) {
+        int extra = Math.min(Config.tableExtraLevels(coreLevel), Config.tableLimitFor(entry.key()));
+        return entry.vanillaMax() + extra;
+    }
+
+    /** The full state (server side). */
+    public static int state(Entry entry, @Nullable Entry over, boolean busy, @Nullable CoreBlockEntity core,
+                            boolean evening) {
+        int itemState = itemState(entry, over);
+        if (itemState != OK) {
+            return itemState;
+        }
+        if (busy) {
+            return BUSY;
+        }
+        if (core == null) {
+            return NO_CORE;
+        }
+        if (!evening) {
+            return NOT_EVENING;
+        }
+        if (entry.level() >= cap(entry, core.getCoreLevel())) {
+            return AT_CAP;
+        }
+        return OK;
+    }
+
+    /** Which level above the vanilla maximum the next raise reaches (1 = the first one). */
+    public static int overLevel(Entry entry) {
+        return entry.level() + 1 - entry.vanillaMax();
+    }
+
+    public static int shardCost(Entry entry) {
+        return Config.tableShardCost(overLevel(entry));
+    }
+
+    public static int xpCost(Entry entry) {
+        return Config.tableXpCost(overLevel(entry));
+    }
+
+    public static int durationTicks(Entry entry) {
+        return Config.tableDurationTicks(overLevel(entry));
     }
 
     /** The active Core of the world, or {@code null} if there is none (or it is not loaded). */
@@ -96,73 +174,19 @@ public final class CoreTableLogic {
         return null;
     }
 
-    /** Highest level that the table may give this enchantment at the given Core level. */
-    public static int cap(Entry entry, int coreLevel) {
-        return entry.vanillaMax() + Config.tableExtraLevels(coreLevel);
+    /** Is it evening (by the Overworld clock, like the shard nights)? */
+    public static boolean isEvening(MinecraftServer server) {
+        return Config.isTableTime(server.overworld().getDayTime());
     }
 
-    public static int state(Entry entry, @Nullable CoreBlockEntity core, CoreTableData unlocks) {
-        if (core == null) {
-            return STATE_NO_CORE;
-        }
-        if (entry.level() < entry.vanillaMax()) {
-            return STATE_BELOW_MAX;
-        }
-        if (!unlocks.isUnlocked(entry.key())) {
-            return STATE_LOCKED;
-        }
-        if (entry.level() >= cap(entry, core.getCoreLevel())) {
-            return STATE_AT_CAP;
-        }
-        return STATE_READY;
-    }
-
-    /** Shard cost of the next step (unlock or raise); 0 if there is none. */
-    public static int shardCost(Entry entry, int state) {
-        if (state == STATE_LOCKED) {
-            return Config.TABLE_UNLOCK_COST.get();
-        }
-        if (state == STATE_READY) {
-            return Config.tableShardCost(entry.level() + 1 - entry.vanillaMax());
-        }
-        return 0;
-    }
-
-    /** Experience level cost of the next step; only raising costs experience. */
-    public static int xpCost(Entry entry, int state) {
-        return state == STATE_READY ? Config.tableXpCost(entry.level() + 1 - entry.vanillaMax()) : 0;
-    }
-
-    /** Unlocks the enchantment for the table (shards from the Core, free in creative mode). */
-    public static boolean tryUnlock(Player player, Entry entry, @Nullable CoreBlockEntity core, CoreTableData unlocks) {
-        if (state(entry, core, unlocks) != STATE_LOCKED) {
-            return false;
-        }
+    /**
+     * Pays for the raise (shards from the Core, experience levels from the player; free in creative mode) and starts
+     * the job in the table. The caller has checked that the state is {@link #OK}.
+     */
+    public static boolean tryStart(Player player, Entry entry, CoreBlockEntity core, CoreTableBlockEntity table) {
         boolean free = player.getAbilities().instabuild;
-        int cost = shardCost(entry, STATE_LOCKED);
-        if (!free && core.getShards() < cost) {
-            player.displayClientMessage(Component.translatable("message.incursion.table.need_shards", cost,
-                    core.getShards()).withStyle(ChatFormatting.RED), true);
-            return false;
-        }
-        if (!free) {
-            core.takeShards(cost);
-        }
-        unlocks.unlock(entry.key());
-        player.displayClientMessage(Component.translatable("message.incursion.table.unlocked",
-                entry.holder().value().description()).withStyle(ChatFormatting.AQUA), true);
-        return true;
-    }
-
-    /** Raises the enchantment on the stack by one level (shards from the Core, experience levels from the player). */
-    public static boolean tryRaise(Player player, ItemStack stack, Entry entry, @Nullable CoreBlockEntity core,
-                                   CoreTableData unlocks) {
-        if (state(entry, core, unlocks) != STATE_READY || stack.isEmpty()) {
-            return false;
-        }
-        boolean free = player.getAbilities().instabuild;
-        int shards = shardCost(entry, STATE_READY);
-        int xp = xpCost(entry, STATE_READY);
+        int shards = shardCost(entry);
+        int xp = xpCost(entry);
         if (!free && core.getShards() < shards) {
             player.displayClientMessage(Component.translatable("message.incursion.table.need_shards", shards,
                     core.getShards()).withStyle(ChatFormatting.RED), true);
@@ -177,10 +201,9 @@ public final class CoreTableLogic {
             core.takeShards(shards);
             player.giveExperienceLevels(-xp);
         }
-        int newLevel = entry.level() + 1;
-        EnchantmentHelper.updateEnchantments(stack, mutable -> mutable.set(entry.holder(), newLevel));
-        player.displayClientMessage(Component.translatable("message.incursion.table.raised",
-                entry.holder().value().description(), roman(newLevel)).withStyle(ChatFormatting.LIGHT_PURPLE), true);
+        table.startJob(entry.key(), entry.level() + 1, free ? 200 : durationTicks(entry));
+        player.displayClientMessage(Component.translatable("message.incursion.table.started",
+                entry.holder().value().description(), roman(entry.level() + 1)).withStyle(ChatFormatting.LIGHT_PURPLE), true);
         return true;
     }
 
