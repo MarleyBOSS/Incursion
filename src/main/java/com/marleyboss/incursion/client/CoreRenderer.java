@@ -40,6 +40,11 @@ import java.util.WeakHashMap;
  * Everything is driven by the synced block entity data (level, broken shields, ward positions).
  */
 public class CoreRenderer implements BlockEntityRenderer<CoreBlockEntity> {
+    /** Draws the see-through parts of the Sarcophagus after the water and other translucent blocks. */
+    public static void onRenderLevel(net.neoforged.neoforge.client.event.RenderLevelStageEvent event) {
+        SarcophagusRenderer.renderLate(event);
+    }
+
     private static final ResourceLocation HEX = ResourceLocation.fromNamespaceAndPath(Incursion.MODID,
             "textures/effect/shield_hex.png");
     private static final ResourceLocation PLASMA = ResourceLocation.fromNamespaceAndPath(Incursion.MODID,

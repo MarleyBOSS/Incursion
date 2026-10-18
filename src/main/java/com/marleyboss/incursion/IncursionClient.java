@@ -35,6 +35,7 @@ public class IncursionClient {
         modEventBus.addListener(IncursionClient::registerScreens);
         modEventBus.addListener(IncursionClient::registerRenderers);
         modEventBus.addListener(IncursionClient::registerItemExtensions);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(CoreRenderer::onRenderLevel);
     }
 
     /** The loot chest item is drawn like a chest (with the chest renderer), not as a flat cube. */

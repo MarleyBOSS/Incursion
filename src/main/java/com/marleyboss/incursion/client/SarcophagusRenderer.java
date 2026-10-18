@@ -7,6 +7,8 @@ import com.marleyboss.incursion.registry.ModSounds;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.client.Camera;
@@ -19,7 +21,10 @@ import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
@@ -271,32 +276,90 @@ final class SarcophagusRenderer {
         pose.popPose();
         flushSolid(buffer);
 
-        // 2. Additive glow: ritual items, the orb, rays.
-        if (contents > 0.0F) {
-            drawItemGlow(pose, buffer, time, contents, hasRune, hasBlaze && showHeaps, ready);
+        // 2. Everything see-through (additive glow, orb, rays, glass) is drawn later, after the water and the other
+        // translucent blocks: drawn before them, it would be painted over by water behind it and its depth would cut holes in it.
+        float flash = t < 1.0F ? Mth.sin(Mth.clamp((t - 0.45F) / 0.2F, 0.0F, 1.0F) * (float) Math.PI) : 0.0F;
+        Late late = new Late();
+        late.pos = core.getBlockPos();
+        late.time = time;
+        late.t = t;
+        late.light = light;
+        late.lift = lift;
+        late.twist = twist;
+        late.shake = shake;
+        late.orb = orb;
+        late.flash = flash;
+        late.glow = glow;
+        late.contents = contents;
+        late.hasRune = hasRune;
+        late.blazeHeap = hasBlaze && showHeaps;
+        late.ready = ready;
+        late.bolt = active && state.rising && t < 0.18F ? 1.0F - t / 0.18F : 0.0F;
+        LATE.add(late);
+    }
+
+    /** What the block needs for the see-through part of its drawing, collected while the block entities are drawn. */
+    private static final class Late {
+        BlockPos pos;
+        float time;
+        float t;
+        int light;
+        float lift;
+        float twist;
+        float shake;
+        float orb;
+        float flash;
+        float glow;
+        float contents;
+        boolean hasRune;
+        boolean blazeHeap;
+        boolean ready;
+        float bolt;
+    }
+
+    private static final List<Late> LATE = new ArrayList<>();
+
+    /** Draws the collected see-through parts once the translucent blocks (water, ice, glass) are in the picture. */
+    static void renderLate(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS || LATE.isEmpty()) {
+            return;
         }
-        if (active && state.rising && t < 0.18F) {
-            drawBolt(pose, buffer, time, 1.0F - t / 0.18F);
+        MultiBufferSource.BufferSource buffer = Minecraft.getInstance().renderBuffers().bufferSource();
+        Vec3 cam = event.getCamera().getPosition();
+        for (Late d : LATE) {
+            PoseStack pose = new PoseStack();
+            pose.translate(d.pos.getX() - cam.x, d.pos.getY() - cam.y, d.pos.getZ() - cam.z);
+            drawLate(d, pose, buffer);
         }
-        if (orb > 0.0F) {
-            drawInnerGlow(pose, buffer, time, orb, lift, twist, shake);
+        LATE.clear();
+        buffer.endBatch();
+    }
+
+    private static void drawLate(Late d, PoseStack pose, MultiBufferSource buffer) {
+        float t = d.t;
+        float time = d.time;
+        if (d.contents > 0.0F) {
+            drawItemGlow(pose, buffer, time, d.contents, d.hasRune, d.blazeHeap, d.ready);
         }
-        if (orb > 0.0F) {
-            float flash = t < 1.0F ? Mth.sin(Mth.clamp((t - 0.45F) / 0.2F, 0.0F, 1.0F) * (float) Math.PI) : 0.0F;
-            drawOrb(pose, buffer, time, orb, flash);
-            drawRays(pose, buffer, time, orb, lift, twist);
+        if (d.bolt > 0.0F) {
+            drawBolt(pose, buffer, time, d.bolt);
+        }
+        if (d.orb > 0.0F) {
+            drawInnerGlow(pose, buffer, time, d.orb, d.lift, d.twist, d.shake);
+            drawOrb(pose, buffer, time, d.orb, d.flash);
+            drawRays(pose, buffer, time, d.orb, d.lift, d.twist);
         }
 
-        // 3. Glass, last.
+        // Glass, last.
         pose.pushPose();
-        pose.translate(0.5F + shake, lift, 0.5F);
-        pose.mulPose(Axis.YP.rotationDegrees(twist));
+        pose.translate(0.5F + d.shake, d.lift, 0.5F);
+        pose.mulPose(Axis.YP.rotationDegrees(d.twist));
         pose.translate(-0.5F, 0.0F, -0.5F);
-        drawGlass(pose.last(), buffer, light);
+        drawGlass(pose.last(), buffer, d.light);
         pose.popPose();
         if (t <= 0.0F) {
             // A shut Sarcophagus glimmers along its gold when the ritual is ready.
-            drawGlimmer(pose, buffer, ready ? glow : 0.0F);
+            drawGlimmer(pose, buffer, d.ready ? d.glow : 0.0F);
         }
     }
 
