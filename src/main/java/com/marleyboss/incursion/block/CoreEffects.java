@@ -18,7 +18,7 @@ final class CoreEffects {
         RandomSource random = level.random;
         long time = level.getGameTime();
         double cx = pos.getX() + 0.5;
-        double cy = pos.getY() + 1.15; // the crystal floats above the dish
+        double cy = pos.getY() + 0.95; // the fire orb floats in the opened Sarcophagus
         double cz = pos.getZ() + 0.5;
         if (time % 2 == 0) {
             for (int k = 0; k < 2; k++) {
@@ -37,11 +37,11 @@ final class CoreEffects {
         if (random.nextInt(14) == 0) {
             double ex = cx + (random.nextBoolean() ? 0.36 : -0.36);
             double ez = cz + (random.nextBoolean() ? 0.36 : -0.36);
-            level.addParticle(ParticleTypes.ELECTRIC_SPARK, ex, pos.getY() + 0.55, ez,
+            level.addParticle(ParticleTypes.ELECTRIC_SPARK, ex, pos.getY() + 0.9, ez,
                     (random.nextDouble() - 0.5) * 0.3, 0.1 + random.nextDouble() * 0.2, (random.nextDouble() - 0.5) * 0.3);
         }
         if (time % 7 == 0) {
-            level.addParticle(ParticleTypes.END_ROD, cx + (random.nextDouble() - 0.5) * 0.8, pos.getY() + 0.6,
+            level.addParticle(ParticleTypes.END_ROD, cx + (random.nextDouble() - 0.5) * 0.8, pos.getY() + 1.0,
                     cz + (random.nextDouble() - 0.5) * 0.8, 0.0, 0.03, 0.0);
         }
     }

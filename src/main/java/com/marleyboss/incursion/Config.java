@@ -26,9 +26,10 @@ public final class Config {
             .comment("Highest level the Incursion Core can reach.")
             .defineInRange("maxLevel", 20, 1, 100);
 
-    public static final ModConfigSpec.ConfigValue<String> ACTIVATION_ITEM = BUILDER
-            .comment("Item that activates the Core (consumes one). Activation starts the siege at level 1.")
-            .define("activationItem", "minecraft:blaze_rod", Config::isValidItem);
+    public static final ModConfigSpec.IntValue SARCOPHAGUS_POWDER = BUILDER
+            .comment("How much gunpowder and how much blaze powder the Sarcophagus takes before the ritual is ready.",
+                    "The Core is then activated by throwing the Mythic Potion onto it (starts the siege at level 1).")
+            .defineInRange("sarcophagusPowder", 24, 1, 64);
 
     public static final ModConfigSpec.ConfigValue<String> UPGRADE_ITEM = BUILDER
             .comment("Item used to pay for Core upgrades.")
@@ -993,10 +994,6 @@ public final class Config {
     // ------------------------------------------------------------------
     // Derived values
     // ------------------------------------------------------------------
-
-    public static Item activationItem() {
-        return resolveItem(ACTIVATION_ITEM.get(), Items.BLAZE_ROD);
-    }
 
     public static Item upgradeItem() {
         return resolveItem(UPGRADE_ITEM.get(), Items.DIAMOND);

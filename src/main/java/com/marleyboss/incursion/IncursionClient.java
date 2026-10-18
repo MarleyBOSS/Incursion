@@ -1,5 +1,6 @@
 package com.marleyboss.incursion;
 
+import com.marleyboss.incursion.client.CoreItemRenderer;
 import com.marleyboss.incursion.client.CoreRenderer;
 import com.marleyboss.incursion.client.LootChestItemRenderer;
 import com.marleyboss.incursion.client.LootChestRenderer;
@@ -49,6 +50,18 @@ public class IncursionClient {
                 return renderer;
             }
         }, ModItems.LOOT_CHEST.get());
+        // The Sarcophagus item is the shut block, drawn by the same code as the block.
+        event.registerItem(new IClientItemExtensions() {
+            private CoreItemRenderer renderer;
+
+            @Override
+            public BlockEntityWithoutLevelRenderer getCustomRenderer() {
+                if (renderer == null) {
+                    renderer = new CoreItemRenderer();
+                }
+                return renderer;
+            }
+        }, ModItems.CORE.get());
     }
 
     private static void registerScreens(RegisterMenuScreensEvent event) {

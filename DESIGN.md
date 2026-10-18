@@ -158,9 +158,11 @@ Mit jeder Stufe stärker:
 
 **Warum die Mobs ihn wollen.** Sie wollen nicht zerstören, sie wollen **heimkehren**: Der Ankerstein ist der Schlüssel zu ihrer Welt. Solange er schläft, ist das Tor zu. Wird er geweckt, leuchtet er wie ein Leuchtfeuer durch den Riss, und die Eindringlinge spüren ihn jede Nacht („Nacht der Heimsuchung“). Gelingt es ihnen, ihn zu zerbrechen, reißt das Tor endgültig auf (die Explosion, wenn ein aktiver Kern zerstört oder gewaltsam entfernt wird).
 
-**Das Siegel.** Der **Orden der Siegelwächter** (Obsidian, violettes Tuch, Gold, Türkis; dieselbe Handschrift wie der Kern-Tisch, ihre Schmiede) barg den Stein und sperrte ihn in ein **Siegel**: eine Hülle aus zwei Hälften, vier Platten und einem Deckel. Vier goldene **Kolben** pressen das Siegel zu, vier **Pylone** (türkise Emitter) halten den Kristall mit Lasern schwebend. Geschlossen ist der Stein für die Eindringlinge unsichtbar.
+**Der Sarkophag (ersetzt das alte Siegel, v0.10.1.4).** Ein Würfel aus schwarzem Marmor mit Goldeinfassung. Die untere Hälfte hat auf jeder Seite eine V-Kerbe bis zur halben Höhe (die vier Ecken ragen als Spitzen auf), die obere Hälfte ist eine Haut aus Deckplatte und vier Glasdreiecken, die in den Kerben sitzen. Im Hohlraum liegt, was das Ritual verlangt.
 
-**Aktivieren = Entsiegeln.** Mit dem Aktivierungsgegenstand klappt das Siegel wie ein Transformer auf: der Deckel fährt auf den Kolben hoch, die vier Platten klappen nach außen, der Kristall erscheint, dreht sich und schwebt zwischen den Hälften, die Laser verbinden ihn mit den Pylonen, ein Siegelkreis leuchtet am Boden und der Kern summt. Der Block ist dadurch optisch fast zwei Blöcke hoch.
+**Ritual (Reihenfolge frei, 8 Zustände).** Kernrune (schwebt in der Mitte), Schwarzpulver (Nord-Süd-Rinne) und Lohenstaub (Ost-West-Rinne, glimmt) werden per Rechtsklick eingelegt. Pulver je 24 Stück (Config `sarcophagusPowder`). Sind alle drei drin, ist der Sarkophag bereit.
+
+**Aktivieren = Mythischen Trank werfen.** Der Trank auf den fertigen Sarkophag löst die Kettenreaktion aus: ein Blitz schlägt ein, die obere Hälfte hebt sich ab und dreht sich um 35°, die Einlagen verglühen, die goldene Feuerkugel zündet, goldene Strahlen verbinden sie mit den Ecken, der Kern summt. Ohne Sarkophag verbrennt der Trank nur. Bild und Maße: `docs/sarkophag_referenz.png`.
 
 **Splitter und Handwerk.** Übersteht der Kern eine Nacht, bricht er **Kernsplitter** ab (kondensierte Resonanz). Die Wächter schmieden daraus: Kern-Tisch (Verzauberungen über die Natur hinaus), Upgrade-Werkzeuge (stimmen den Kern höher), Schilde (Plasma-Gitter des Siegels), Schutztotems (Wächtersäulen) und die Beute-Kiste (Ankerkiste, sammelt, was die Eindringlinge mitbringen).
 

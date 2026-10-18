@@ -151,11 +151,11 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
                     "gui.incursion.core.defuse_tooltip", menu.get(CoreMenu.DATA_DEFUSE_SECONDS))));
         }
         if (!active) {
-            boolean canPay = menu.get(CoreMenu.DATA_ACTIVATION_ITEMS_OWNED) >= 1;
-            actionButton.setMessage(Component.translatable("gui.incursion.core.button.activate"));
-            actionButton.active = canPay;
-            actionButton.setTooltip(canPay ? null : Tooltip.create(Component.translatable(
-                    "message.incursion.core.need_activation_item", menu.getActivationItem().getDescription())));
+            // The Core is activated by throwing the Mythic Potion onto the Sarcophagus; the button only explains that.
+            actionButton.setMessage(Component.translatable("gui.incursion.core.button.activate_hint"));
+            actionButton.active = false;
+            actionButton.setTooltip(Tooltip.create(Component.translatable("gui.incursion.core.activate_tooltip",
+                    menu.getActivationItem().getDescription())));
             return;
         }
         int level = menu.get(CoreMenu.DATA_LEVEL);

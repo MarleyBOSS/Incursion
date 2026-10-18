@@ -12,39 +12,42 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import org.jetbrains.annotations.Nullable;
 
 /** Activation and upgrades, shared by right-clicking with an item and by the Core GUI. */
 public final class CoreActions {
     private CoreActions() {
     }
 
-    public static void tryActivate(ServerLevel level, BlockPos pos, Player player) {
+    /**
+     * The ritual succeeded (a Mythic Potion landed on a ready Sarcophagus): the Core is created and activated at
+     * level 1. Returns false if it could not be activated (another Core is active in this world); the caller then
+     * gives the potion back. {@code player} (the thrower) may be null.
+     */
+    public static boolean activateByRitual(ServerLevel level, BlockPos pos, @Nullable Player player) {
         BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof CoreBlock) || state.getValue(CoreBlock.ACTIVE)
+        if (!(state.getBlock() instanceof CoreBlock) || state.getValue(CoreBlock.ACTIVE) || !Ritual.isReady(state)
                 || !(level.getBlockEntity(pos) instanceof CoreBlockEntity core)) {
-            return;
-        }
-        Item activationItem = Config.activationItem();
-        if (countItem(player, activationItem) < 1) {
-            player.displayClientMessage(Component.translatable("message.incursion.core.need_activation_item",
-                    activationItem.getDescription()).withStyle(ChatFormatting.RED), true);
-            return;
+            return false;
         }
         CoreWorldData data = CoreWorldData.get(level.getServer());
         BlockPos other = data.findOtherActiveCore(level.getServer(), level.dimension(), pos);
         if (other != null) {
-            player.displayClientMessage(Component.translatable("message.incursion.core.another_active",
-                    other.getX(), other.getY(), other.getZ()).withStyle(ChatFormatting.RED), false);
-            return;
+            if (player != null) {
+                player.displayClientMessage(Component.translatable("message.incursion.core.another_active",
+                        other.getX(), other.getY(), other.getZ()).withStyle(ChatFormatting.RED), false);
+            }
+            return false;
         }
 
-        removeItems(player, activationItem, 1);
         data.setActiveCore(level.dimension(), pos);
         core.setCoreLevel(1);
         core.resetShields();
@@ -55,8 +58,18 @@ public final class CoreActions {
         ChunkLoading.update(level, pos, core.getLoadedChunkRadius(), radius);
         core.setLoadedChunkRadius(radius);
         level.playSound(null, pos, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1.0F, 0.6F);
-        player.displayClientMessage(Component.translatable("message.incursion.core.activated")
-                .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD), false);
+        // The chain reaction: a bolt of lightning (harmless, only the show) strikes the Sarcophagus.
+        LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(level);
+        if (bolt != null) {
+            bolt.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
+            bolt.setVisualOnly(true);
+            level.addFreshEntity(bolt);
+        }
+        if (player != null) {
+            player.displayClientMessage(Component.translatable("message.incursion.core.activated")
+                    .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD), false);
+        }
+        return true;
     }
 
     /**

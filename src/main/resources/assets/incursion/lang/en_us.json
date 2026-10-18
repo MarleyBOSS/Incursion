@@ -1,5 +1,5 @@
 {
-  "block.incursion.core": "Incursion Core",
+  "block.incursion.core": "Sarcophagus",
   "message.incursion.core.state.active": "ACTIVE",
   "message.incursion.core.state.inactive": "inactive",
   "message.incursion.core.activated": "The Incursion Core is active. The siege begins!",
@@ -348,5 +348,18 @@
   "subtitles.incursion.table_zap": "Core Table crackles",
   "subtitles.incursion.table_ambient": "Core Table chimes",
   "subtitles.incursion.core_open": "Core Seal unfolds",
-  "subtitles.incursion.core_hum": "Core hums"
+  "subtitles.incursion.core_hum": "Core hums",
+  "item.incursion.core_rune": "Core Rune",
+  "item.incursion.mythic_potion": "Mythic Potion",
+  "item.incursion.mythic_potion.tooltip.1": "Throw it onto a Sarcophagus that is ready.",
+  "item.incursion.mythic_potion.tooltip.2": "Anywhere else it only burns.",
+  "gui.incursion.core.title": "Incursion Core",
+  "gui.incursion.core.button.activate_hint": "Throw a Mythic Potion at the Sarcophagus",
+  "gui.incursion.core.activate_tooltip": "The Core is activated by throwing a %s onto the finished Sarcophagus.",
+  "message.incursion.ritual.status": "Sarcophagus – Core Rune: %s  Gunpowder: %s  Blaze Powder: %s",
+  "message.incursion.ritual.ready": "The Sarcophagus is ready. Throw a Mythic Potion onto it!",
+  "message.incursion.ritual.full": "The Sarcophagus already holds that.",
+  "message.incursion.ritual.not_ready": "The Sarcophagus is not ready yet. Missing: %s",
+  "message.incursion.ritual.already_active": "This Core is already active.",
+  "incursion.configuration.sarcophagusPowder": "Sarcophagus: gunpowder / blaze powder needed"
 }

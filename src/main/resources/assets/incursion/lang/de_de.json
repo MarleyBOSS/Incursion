@@ -1,5 +1,5 @@
 {
-  "block.incursion.core": "Incursion-Kern",
+  "block.incursion.core": "Sarkophag",
   "message.incursion.core.state.active": "AKTIV",
   "message.incursion.core.state.inactive": "inaktiv",
   "message.incursion.core.activated": "Der Incursion-Kern ist aktiv. Die Belagerung beginnt!",
@@ -348,5 +348,18 @@
   "subtitles.incursion.table_zap": "Kern-Tisch knistert",
   "subtitles.incursion.table_ambient": "Kern-Tisch klingt",
   "subtitles.incursion.core_open": "Kern-Siegel klappt auf",
-  "subtitles.incursion.core_hum": "Kern summt"
+  "subtitles.incursion.core_hum": "Kern summt",
+  "item.incursion.core_rune": "Kernrune",
+  "item.incursion.mythic_potion": "Mythischer Trank",
+  "item.incursion.mythic_potion.tooltip.1": "Auf einen fertigen Sarkophag werfen.",
+  "item.incursion.mythic_potion.tooltip.2": "Überall sonst verbrennt er nur.",
+  "gui.incursion.core.title": "Incursion-Kern",
+  "gui.incursion.core.button.activate_hint": "Mythischen Trank auf den Sarkophag werfen",
+  "gui.incursion.core.activate_tooltip": "Der Kern wird aktiviert, indem du einen %s auf den fertigen Sarkophag wirfst.",
+  "message.incursion.ritual.status": "Sarkophag – Kernrune: %s  Schwarzpulver: %s  Lohenstaub: %s",
+  "message.incursion.ritual.ready": "Der Sarkophag ist bereit. Wirf einen Mythischen Trank darauf!",
+  "message.incursion.ritual.full": "Der Sarkophag enthält das bereits.",
+  "message.incursion.ritual.not_ready": "Der Sarkophag ist noch nicht bereit. Es fehlt: %s",
+  "message.incursion.ritual.already_active": "Dieser Kern ist bereits aktiv.",
+  "incursion.configuration.sarcophagusPowder": "Sarkophag: nötiges Schwarzpulver / Lohenstaub"
 }

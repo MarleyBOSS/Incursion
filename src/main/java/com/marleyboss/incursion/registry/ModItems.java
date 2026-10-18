@@ -1,10 +1,15 @@
 package com.marleyboss.incursion.registry;
 
 import com.marleyboss.incursion.Incursion;
+import com.marleyboss.incursion.item.MythicPotionItem;
 import com.marleyboss.incursion.item.UpgradeToolItem;
+import java.util.List;
+import java.util.Optional;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
+import net.minecraft.world.item.alchemy.PotionContents;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
@@ -26,6 +31,20 @@ public final class ModItems {
     /** The currency of the mod: earned for every night the Core survives, kept in the Core, can be taken out. */
     public static final DeferredItem<Item> CORE_SHARD = ITEMS.registerSimpleItem(
             "core_shard", new Item.Properties().rarity(Rarity.RARE));
+
+    /** Laid into the Sarcophagus (right-click), the foundation of the Core. */
+    public static final DeferredItem<Item> CORE_RUNE = ITEMS.registerSimpleItem(
+            "core_rune", new Item.Properties().rarity(Rarity.EPIC).stacksTo(16));
+
+    /**
+     * Thrown onto the ready Sarcophagus it creates and activates the Core; thrown at living things it burns them.
+     * A splash potion without effects (only a colour), so nothing but our own impact handler reacts to it.
+     */
+    public static final DeferredItem<MythicPotionItem> MYTHIC_POTION = ITEMS.register("mythic_potion",
+            () -> new MythicPotionItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)
+                    .component(DataComponents.POTION_CONTENTS,
+                            new PotionContents(Optional.empty(), Optional.of(0xFF8A1E), List.of()))
+                    .component(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true)));
 
     public static final DeferredItem<BlockItem> SIEGE_STONE = ITEMS.registerSimpleBlockItem(
             "siege_stone", ModBlocks.SIEGE_STONE, new Item.Properties());

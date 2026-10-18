@@ -48,9 +48,15 @@ public class CoreBlockEntity extends BlockEntity {
     private static final String TAG_NIGHTS = "DefendedNights";
     private static final String TAG_KILLS = "KilledMobs";
     private static final String TAG_NIGHT_DAY = "NightDay";
+    private static final String TAG_GUNPOWDER = "RitualGunpowder";
+    private static final String TAG_BLAZE_POWDER = "RitualBlazePowder";
     /** Only in the client update tag (never saved to disk): ward totems whose border the client draws. */
     private static final String TAG_WARDS = "Wards";
 
+    /** Gunpowder laid into the Sarcophagus so far (the block state flag is set when the full amount is in). */
+    private int gunpowder = 0;
+    /** Blaze powder laid into the Sarcophagus so far. */
+    private int blazePowder = 0;
     private int coreLevel = 0;
     /** Core shards kept in the Core (the balance). */
     private int shards = 0;
@@ -478,6 +484,8 @@ public class CoreBlockEntity extends BlockEntity {
         tag.putInt(TAG_NIGHTS, defendedNights);
         tag.putInt(TAG_KILLS, killedMobs);
         tag.putLong(TAG_NIGHT_DAY, nightDay);
+        tag.putInt(TAG_GUNPOWDER, gunpowder);
+        tag.putInt(TAG_BLAZE_POWDER, blazePowder);
     }
 
     @Override
@@ -494,7 +502,27 @@ public class CoreBlockEntity extends BlockEntity {
         defendedNights = tag.getInt(TAG_NIGHTS);
         killedMobs = tag.getInt(TAG_KILLS);
         nightDay = tag.contains(TAG_NIGHT_DAY) ? tag.getLong(TAG_NIGHT_DAY) : -1;
+        gunpowder = tag.getInt(TAG_GUNPOWDER);
+        blazePowder = tag.getInt(TAG_BLAZE_POWDER);
         syncedWards = tag.contains(TAG_WARDS) ? tag.getLongArray(TAG_WARDS) : new long[0];
+    }
+
+    public int getGunpowder() {
+        return gunpowder;
+    }
+
+    public void setGunpowder(int gunpowder) {
+        this.gunpowder = Math.max(0, gunpowder);
+        setChanged();
+    }
+
+    public int getBlazePowder() {
+        return blazePowder;
+    }
+
+    public void setBlazePowder(int blazePowder) {
+        this.blazePowder = Math.max(0, blazePowder);
+        setChanged();
     }
 
     public boolean isShowBorders() {

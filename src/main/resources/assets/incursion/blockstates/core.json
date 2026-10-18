@@ -1,6 +1,5 @@
 {
   "variants": {
-    "active=false": { "model": "incursion:block/core" },
-    "active=true": { "model": "incursion:block/core_active" }
+    "": { "model": "incursion:block/core" }
   }
 }

@@ -1,5 +1,6 @@
 package com.marleyboss.incursion;
 
+import com.marleyboss.incursion.block.Ritual;
 import com.marleyboss.incursion.fallout.Fallout;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModBlocks;
@@ -39,6 +40,7 @@ public class Incursion {
         SiegeEvents.register();
         Rewards.register();
         Fallout.register();
+        Ritual.register();
         if (System.getenv("INCURSION_PROBE") != null) {
             com.marleyboss.incursion.dev.PhysicsProbe.register(); // development measurement, see the Probe workflow
         }
@@ -56,6 +58,10 @@ public class Incursion {
         }
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             event.accept(ModItems.CORE_SHARD);
+            event.accept(ModItems.CORE_RUNE);
+        }
+        if (event.getTabKey() == CreativeModeTabs.COMBAT) {
+            event.accept(ModItems.MYTHIC_POTION);
         }
         if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(ModItems.UPGRADE_TOOL_1);

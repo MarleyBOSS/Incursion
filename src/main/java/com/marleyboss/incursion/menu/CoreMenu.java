@@ -4,6 +4,7 @@ import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.block.CoreActions;
 import com.marleyboss.incursion.block.CoreBlockEntity;
 import com.marleyboss.incursion.registry.ModBlocks;
+import com.marleyboss.incursion.registry.ModItems;
 import com.marleyboss.incursion.registry.ModMenus;
 import com.marleyboss.incursion.siege.Rewards;
 import com.marleyboss.incursion.siege.Shields;
@@ -93,7 +94,7 @@ public class CoreMenu extends AbstractContainerMenu {
         this.core = core;
         this.pos = core.getBlockPos();
         this.upgradeItem = Config.upgradeItem();
-        this.activationItem = Config.activationItem();
+        this.activationItem = ModItems.MYTHIC_POTION.get();
         this.access = ContainerLevelAccess.create(core.getLevel(), core.getBlockPos());
         Player player = inventory.player;
         this.data = new ContainerData() {
@@ -108,7 +109,7 @@ public class CoreMenu extends AbstractContainerMenu {
                     case DATA_MAX_HEALTH -> core.getMaxHealth();
                     case DATA_NEXT_COST -> Config.upgradeCost(level + 1);
                     case DATA_UPGRADE_ITEMS_OWNED -> CoreActions.countItem(player, Config.upgradeItem());
-                    case DATA_ACTIVATION_ITEMS_OWNED -> CoreActions.countItem(player, Config.activationItem());
+                    case DATA_ACTIVATION_ITEMS_OWNED -> CoreActions.countItem(player, ModItems.MYTHIC_POTION.get());
                     case DATA_SIEGE_MOBS -> core.getSiegeMobCount();
                     case DATA_MAX_SIEGE_MOBS -> Config.maxSiegeMobs(Math.max(1, level));
                     case DATA_CORE_ZONE -> Config.coreZoneRadius(Math.max(1, level));
@@ -183,8 +184,7 @@ public class CoreMenu extends AbstractContainerMenu {
             return false;
         }
         if (id == BUTTON_ACTIVATE) {
-            CoreActions.tryActivate(level, pos, player);
-            return true;
+            return true; // the Core is activated by throwing the Mythic Potion onto the Sarcophagus, not by a button
         }
         if (id == BUTTON_UPGRADE) {
             CoreActions.tryUpgrade(level, pos, player, ItemStack.EMPTY);
