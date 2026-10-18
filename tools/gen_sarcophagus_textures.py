@@ -225,9 +225,6 @@ def glass():
     streak &= (np.arange(size)[None, :] + np.arange(size)[:, None]) % 3 != 0
     alpha[streak] = 110
     rgb[streak] = (240, 244, 250)
-    rim = dist_px < 1.0
-    alpha[rim] = 130
-    rgb[rim] = (225, 232, 240)
     return to_image(rgb, alpha)
 
 

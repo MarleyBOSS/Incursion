@@ -89,6 +89,8 @@ final class SarcophagusRenderer {
     private static final float TIP = 1.0F - SLAB;
     /** Rise of the lower half's surface per block from the notch to the corner. */
     private static final float FLOOR_SLOPE = (TIP - 0.5F) / 0.5F;
+    /** Width, along the wall, of the outer gold line of the glass frame where it meets the corner (the line is 0.010 thick across). */
+    private static final float CORNER_W = 0.010F * (float) Math.sqrt(1.0F + (0.5F / (TIP - 0.5F)) * (0.5F / (TIP - 0.5F)));
     private static final float ORB_RADIUS = 0.15F;
 
     private static final float[] C = {0.5F, 0.5F, 0.5F};
@@ -385,7 +387,7 @@ final class SarcophagusRenderer {
         // The slab's top edge: one thin gold line (the black side of the slab below it is the obsidian of the frame).
         float top = 1.0F + OUT;
         float low = 1.0F - 0.012F;
-        float[][] layers = {{0.0F, 0.012F, 0}};
+        float[][] layers = {{0.0F, CORNER_W, 0}};
         for (float[] layer : layers) {
             float o0 = layer[0];
             float o1 = layer[1];
@@ -398,7 +400,7 @@ final class SarcophagusRenderer {
         }
         // A gold post on each vertical edge of the slab: it joins the tip where the frame lines of two walls meet with the
         // gold line along the top.
-        float pw = 0.012F; // as wide as the gold line on top, and flush with it
+        float pw = CORNER_W; // as wide as the tip of the frame lines below it, so the post is flush with them
         float hi2 = 1.0F + OUT;
         box(vc, pose, bright, gold, 4, 0.0F, pw, TIP, hi2, 0.0F, pw);
         box(vc, pose, bright, gold, 4, 1.0F - pw, 1.0F, TIP, hi2, 0.0F, pw);
