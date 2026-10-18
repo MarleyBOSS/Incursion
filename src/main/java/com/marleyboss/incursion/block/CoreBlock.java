@@ -112,6 +112,10 @@ public class CoreBlock extends BaseEntityBlock {
             }
             return level.isClientSide ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
         }
+        if (stack.is(ModItems.MYTHIC_POTION.get())) {
+            // The Mythic Potion is thrown, also when aimed straight at the block (never opens the GUI).
+            return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        }
         boolean active = state.getValue(ACTIVE);
         if (!active) {
             // The ritual items (rune, gunpowder, blaze powder) go into the Sarcophagus.
