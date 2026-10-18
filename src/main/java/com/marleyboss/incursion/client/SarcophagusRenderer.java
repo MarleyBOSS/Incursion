@@ -522,7 +522,7 @@ final class SarcophagusRenderer {
             return;
         }
         float k = d.orb * (0.85F + 0.15F * Mth.sin(d.time * 0.17F));
-        VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
+        VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM)); // used completely before the next render type is fetched
         PoseStack.Pose p = pose.last();
         float rot = d.time * 0.03F;
         float cx = 0.5F;
@@ -660,8 +660,9 @@ final class SarcophagusRenderer {
 
     /** The glyphs of the tablets and their threads of light to the Core (additive). */
     private static void drawTabletGlyphs(PoseStack.Pose p, MultiBufferSource buffer, Late d) {
-        VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
-        VertexConsumer halo = buffer.getBuffer(RenderType.eyes(HALO));
+        // Always fetch the consumer right before drawing: fetching another render type ends the previous builder.
+        java.util.function.Supplier<VertexConsumer> vc = () -> buffer.getBuffer(RenderType.eyes(TRIM));
+        java.util.function.Supplier<VertexConsumer> halo = () -> buffer.getBuffer(RenderType.eyes(HALO));
         float ty = ORB_Y * d.scale;
         for (int i = 0; i < 4; i++) {
             float[] t = tabletAt(d.time, d.scale, i);
@@ -672,7 +673,7 @@ final class SarcophagusRenderer {
                 for (float[] line : glyph) {
                     float[] a = onTablet(t, line[0] * side, line[1], lz);
                     float[] b = onTablet(t, line[2] * side, line[3], lz);
-                    laser(vc, p, a[0], a[1], a[2], b[0], b[1], b[2], 0.013F, 1.0F * k, 0.6F * k, 0.15F * k);
+                    laser(vc.get(), p, a[0], a[1], a[2], b[0], b[1], b[2], 0.013F, 1.0F * k, 0.6F * k, 0.15F * k);
                 }
                 if (i == 0) {
                     // the circle of the first glyph
@@ -681,15 +682,15 @@ final class SarcophagusRenderer {
                         float phi = s * (float) (Math.PI * 2.0) / 16.0F;
                         float[] c = onTablet(t, Mth.cos(phi) * 0.2F * side, 0.2F + Mth.sin(phi) * 0.2F, lz);
                         if (last != null) {
-                            laser(vc, p, last[0], last[1], last[2], c[0], c[1], c[2], 0.013F, 1.0F * k, 0.6F * k, 0.15F * k);
+                            laser(vc.get(), p, last[0], last[1], last[2], c[0], c[1], c[2], 0.013F, 1.0F * k, 0.6F * k, 0.15F * k);
                         }
                         last = c;
                     }
                 }
             }
             float[] heart = onTablet(t, 0.0F, 0.0F, 0.0F);
-            billboard(halo, p, heart[0], heart[1], heart[2], 0.75F, 0.0F, 0.5F * k, 0.25F * k, 0.06F * k);
-            laser(vc, p, heart[0], heart[1], heart[2], 0.5F, ty, 0.5F, 0.008F, 0.55F * k, 0.28F * k, 0.08F * k);
+            billboard(halo.get(), p, heart[0], heart[1], heart[2], 0.75F, 0.0F, 0.5F * k, 0.25F * k, 0.06F * k);
+            laser(vc.get(), p, heart[0], heart[1], heart[2], 0.5F, ty, 0.5F, 0.008F, 0.55F * k, 0.28F * k, 0.08F * k);
         }
     }
 
@@ -707,17 +708,18 @@ final class SarcophagusRenderer {
         float sc = d.scale;
         PoseStack.Pose p = pose.last();
         int radius = CoreEvolution.plazaRadius(stage);
-        VertexConsumer solid = buffer.getBuffer(RenderType.eyes(TRIM));
+        java.util.function.Supplier<VertexConsumer> solid = () -> buffer.getBuffer(RenderType.eyes(TRIM));
+        java.util.function.Supplier<VertexConsumer> halo = () -> buffer.getBuffer(RenderType.eyes(HALO));
         // resonance: square waves run out from the Core over the plaza, pulses run along the gold lines to the pillars
         for (int k = 0; k < 3; k++) {
             float f = (time * 0.011F + k / 3.0F) % 1.0F;
             float r = 0.7F + f * (radius + 0.4F);
             float a = (float) Math.pow(1.0F - f, 1.4F);
             float y = 0.04F;
-            laser(solid, p, 0.5F - r, y, 0.5F - r, 0.5F + r, y, 0.5F - r, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
-            laser(solid, p, 0.5F + r, y, 0.5F - r, 0.5F + r, y, 0.5F + r, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
-            laser(solid, p, 0.5F + r, y, 0.5F + r, 0.5F - r, y, 0.5F + r, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
-            laser(solid, p, 0.5F - r, y, 0.5F + r, 0.5F - r, y, 0.5F - r, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
+            laser(solid.get(), p, 0.5F - r, y, 0.5F - r, 0.5F + r, y, 0.5F - r, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
+            laser(solid.get(), p, 0.5F + r, y, 0.5F - r, 0.5F + r, y, 0.5F + r, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
+            laser(solid.get(), p, 0.5F + r, y, 0.5F + r, 0.5F - r, y, 0.5F + r, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
+            laser(solid.get(), p, 0.5F - r, y, 0.5F + r, 0.5F - r, y, 0.5F - r, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
         }
         for (int i = 0; i < 4; i++) {
             float sx = i % 2 == 0 ? -1.0F : 1.0F;
@@ -725,18 +727,17 @@ final class SarcophagusRenderer {
             for (int j = 0; j < 3; j++) {
                 float t = (time * 0.02F + j / 3.0F) % 1.0F;
                 float u = Math.min(1.0F, t + 0.1F);
-                laser(solid, p, 0.5F + sx * radius * t, 0.05F, 0.5F + sz * radius * t, 0.5F + sx * radius * u, 0.05F,
+                laser(solid.get(), p, 0.5F + sx * radius * t, 0.05F, 0.5F + sz * radius * t, 0.5F + sx * radius * u, 0.05F,
                         0.5F + sz * radius * u, 0.07F, 1.0F, 0.8F * (1.0F - 0.4F * t), 0.4F * (1.0F - 0.4F * t));
             }
         }
         float top = CoreEvolution.pillarHeight(stage) - 1.0F;
-        VertexConsumer halo = buffer.getBuffer(RenderType.eyes(HALO));
         for (int i = 0; i < 4; i++) {
             float ax = 0.5F + (i % 2 == 0 ? -radius : radius);
             float az = 0.5F + (i < 2 ? -radius : radius);
             float k = 0.8F + 0.2F * Mth.sin(time * 0.15F + i);
-            billboard(halo, p, ax, top, az, 1.5F, time * 0.02F, 1.0F * k, 0.32F * k, 0.08F * k);
-            billboard(halo, p, ax, top, az, 0.7F, 0.0F, 1.0F * k, 0.6F * k, 0.25F * k);
+            billboard(halo.get(), p, ax, top, az, 1.5F, time * 0.02F, 1.0F * k, 0.32F * k, 0.08F * k);
+            billboard(halo.get(), p, ax, top, az, 0.7F, 0.0F, 1.0F * k, 0.6F * k, 0.25F * k);
         }
         if (stage >= 3) {
             drawTabletGlyphs(p, buffer, d);
@@ -763,8 +764,8 @@ final class SarcophagusRenderer {
                 float[] cur = {ax + (tx - ax) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F,
                         top + (ty - top) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F,
                         az + (tz - az) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F};
-                laser(solid, p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.025F, 1.0F, 0.95F, 0.85F);
-                laser(solid, p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.09F, 0.6F, 0.35F, 0.12F);
+                laser(solid.get(), p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.025F, 1.0F, 0.95F, 0.85F);
+                laser(solid.get(), p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.09F, 0.6F, 0.35F, 0.12F);
                 last = cur;
             }
         }
@@ -772,21 +773,21 @@ final class SarcophagusRenderer {
         float gy = CoreEvolution.pillarHeight(stage) + 3.0F;
         float gr = 2.7F;
         float pulse = 0.8F + 0.2F * Mth.sin(time * 0.1F);
-        plane(halo, p, 0.5F, gy, 0.5F, gr, 0.0F, 0.0F, 0.0F, 0.0F, gr, 0.5F * pulse, 0.15F * pulse, 0.9F * pulse);
+        plane(halo.get(), p, 0.5F, gy, 0.5F, gr, 0.0F, 0.0F, 0.0F, 0.0F, gr, 0.5F * pulse, 0.15F * pulse, 0.9F * pulse);
         final int ringSegs = 72;
         float[] last = null;
         for (int sIdx = 0; sIdx <= ringSegs; sIdx++) {
             float phi = sIdx * (float) (Math.PI * 2.0) / ringSegs;
             float[] cur = {0.5F + Mth.cos(phi) * gr, gy, 0.5F + Mth.sin(phi) * gr};
             if (last != null) {
-                laser(solid, p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.05F, 1.0F * pulse, 0.78F * pulse, 0.3F * pulse);
-                laser(solid, p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.14F, 0.5F * pulse, 0.3F * pulse, 0.06F * pulse);
+                laser(solid.get(), p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.05F, 1.0F * pulse, 0.78F * pulse, 0.3F * pulse);
+                laser(solid.get(), p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.14F, 0.5F * pulse, 0.3F * pulse, 0.06F * pulse);
             }
             last = cur;
         }
         for (int tick = 0; tick < 16; tick++) {
             float phi = tick * (float) (Math.PI * 2.0) / 16.0F + time * 0.004F;
-            laser(solid, p, 0.5F + Mth.cos(phi) * gr, gy, 0.5F + Mth.sin(phi) * gr, 0.5F + Mth.cos(phi) * (gr + 0.4F), gy,
+            laser(solid.get(), p, 0.5F + Mth.cos(phi) * gr, gy, 0.5F + Mth.sin(phi) * gr, 0.5F + Mth.cos(phi) * (gr + 0.4F), gy,
                     0.5F + Mth.sin(phi) * (gr + 0.4F), 0.04F, 1.0F * pulse, 0.7F * pulse, 0.25F * pulse);
         }
         for (int arm = 0; arm < 3; arm++) {
@@ -796,7 +797,7 @@ final class SarcophagusRenderer {
                 float phi = rr * 1.5F + time * 0.07F + arm * 2.094F;
                 float[] cur = {0.5F + Mth.cos(phi) * rr, gy, 0.5F + Mth.sin(phi) * rr};
                 if (prev != null) {
-                    laser(solid, p, prev[0], prev[1], prev[2], cur[0], cur[1], cur[2], 0.035F, 0.75F * pulse, 0.35F * pulse, 1.0F * pulse);
+                    laser(solid.get(), p, prev[0], prev[1], prev[2], cur[0], cur[1], cur[2], 0.035F, 0.75F * pulse, 0.35F * pulse, 1.0F * pulse);
                 }
                 prev = cur;
             }
@@ -804,7 +805,7 @@ final class SarcophagusRenderer {
         for (int i = 0; i < 4; i++) {
             float sx = i % 2 == 0 ? -1.0F : 1.0F;
             float sz = i < 2 ? -1.0F : 1.0F;
-            laser(solid, p, 0.5F + sx * radius, top, 0.5F + sz * radius, 0.5F + sx * gr * 0.75F, gy, 0.5F + sz * gr * 0.75F,
+            laser(solid.get(), p, 0.5F + sx * radius, top, 0.5F + sz * radius, 0.5F + sx * gr * 0.75F, gy, 0.5F + sz * gr * 0.75F,
                     0.03F, 0.7F * pulse, 0.3F * pulse, 0.95F * pulse);
         }
         // the column of light from the Ankerstein through the gate into the sky
@@ -814,10 +815,10 @@ final class SarcophagusRenderer {
             float k = 0.55F * (float) Math.pow(1.0F - i / 26.0F, 1.6F) * (0.85F + 0.15F * Mth.sin(time * 0.12F + i * 0.3F));
             float w1 = 0.14F * sc;
             float w2 = 0.34F * sc;
-            plane(solid, p, 0.5F, yc, 0.5F, w1, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.8F * k, 0.45F * k);
-            plane(solid, p, 0.5F, yc, 0.5F, 0.0F, 0.0F, w1, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.8F * k, 0.45F * k);
-            plane(solid, p, 0.5F, yc, 0.5F, w2, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 0.6F * k, 0.28F * k, 0.08F * k);
-            plane(solid, p, 0.5F, yc, 0.5F, 0.0F, 0.0F, w2, 0.0F, 3.0F, 0.0F, 0.6F * k, 0.28F * k, 0.08F * k);
+            plane(solid.get(), p, 0.5F, yc, 0.5F, w1, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.8F * k, 0.45F * k);
+            plane(solid.get(), p, 0.5F, yc, 0.5F, 0.0F, 0.0F, w1, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.8F * k, 0.45F * k);
+            plane(solid.get(), p, 0.5F, yc, 0.5F, w2, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 0.6F * k, 0.28F * k, 0.08F * k);
+            plane(solid.get(), p, 0.5F, yc, 0.5F, 0.0F, 0.0F, w2, 0.0F, 3.0F, 0.0F, 0.6F * k, 0.28F * k, 0.08F * k);
         }
     }
 
