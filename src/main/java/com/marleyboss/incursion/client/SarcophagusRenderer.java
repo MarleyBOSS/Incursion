@@ -414,14 +414,14 @@ final class SarcophagusRenderer {
      */
     private static void drawHeaps(PoseStack.Pose pose, VertexConsumer vc, int light, boolean gunpowder, boolean blaze) {
         if (gunpowder) {
-            pile(vc, pose, light, sprite(GUNPOWDER), 0.70F, 0.5F, 1);
+            pile(vc, pose, light, sprite(GUNPOWDER), 0.78F, 0.55F, 1);
         }
         if (blaze) {
             int bright = LightTexture.pack(Math.max(LightTexture.block(light), 13), LightTexture.sky(light));
             if (gunpowder) {
-                pile(vc, pose, bright, sprite(BLAZE), 0.84F, 1.0F, 2);
+                pile(vc, pose, bright, sprite(BLAZE), 0.90F, 0.9F, 2);
             } else {
-                pile(vc, pose, bright, sprite(BLAZE), 0.74F, 0.5F, 2);
+                pile(vc, pose, bright, sprite(BLAZE), 0.82F, 0.55F, 2);
             }
         }
     }
@@ -437,7 +437,7 @@ final class SarcophagusRenderer {
             float m = Math.min(Math.abs(c), Math.abs(sn));
             // Where the cone y = peak - slope * r meets the floor y = 0.5 + r * m, a little uneven.
             float r = (peak - 0.5F) / (slope + m);
-            r *= 0.9F + 0.2F * (((k * 7 + seed * 5) % 5) / 4.0F);
+            r = Math.min(0.46F, r * (0.9F + 0.2F * (((k * 7 + seed * 5) % 5) / 4.0F))); // never beyond the walls
             float x = 0.5F + c * r;
             float z = 0.5F + sn * r;
             ring[k] = new float[]{x, 0.5F + Math.min(Math.abs(x - 0.5F), Math.abs(z - 0.5F)), z};
