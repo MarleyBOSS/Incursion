@@ -21,7 +21,7 @@ public final class CoreEvolution {
     /** Ticks the blocks in the way shake before they blow up. */
     public static final int SHAKE = 40;
     private static final float[] SCALE = {1.0F, 1.4F, 1.8F, 2.4F, 3.0F};
-    private static final int[] PLAZA = {0, 2, 5, 6, 7};
+    private static final int[] PLAZA = {0, 3, 5, 6, 7};
     private static final int[] PILLAR = {0, 0, 6, 8, 10};
     /** Radius of the plaza disc (blocks from the middle): stage 1 is a 3x3 square, then a circle that holds the pillars. */
     private static final float[] DISC = {0.0F, 4.6F, 8.0F, 9.4F, 10.8F};
@@ -202,7 +202,7 @@ public final class CoreEvolution {
     /** The cell (as an offset on both axes) the chains of a stage are fixed on; the renderer uses the same position. */
     public static int anchorCell(int stage) {
         stage = clamp(stage);
-        float reach = Math.min(0.5F * SCALE[stage] + 1.5F, PLAZA[stage] + 0.4F);
+        float reach = Math.min(0.5F * SCALE[stage] + 2.3F, PLAZA[stage] + 0.4F);
         return Math.max(1, (int) Math.floor(reach + 0.5F));
     }
 
