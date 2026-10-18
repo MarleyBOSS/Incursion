@@ -54,7 +54,7 @@ public final class ModBlocks {
     public static final DeferredBlock<Block> CORE_FLOOR = BLOCKS.registerSimpleBlock("core_floor", structure(MapColor.COLOR_BLACK, 0));
     public static final DeferredBlock<Block> CORE_GOLD = BLOCKS.registerSimpleBlock("core_gold", structure(MapColor.GOLD, 6));
     public static final DeferredBlock<com.marleyboss.incursion.block.CoreCrystalBlock> CORE_CRYSTAL = BLOCKS.register("core_crystal",
-            () -> new com.marleyboss.incursion.block.CoreCrystalBlock(structure(MapColor.COLOR_RED, 15)));
+            () -> new com.marleyboss.incursion.block.CoreCrystalBlock(structure(MapColor.COLOR_RED, 15).noOcclusion()));
 
     private static BlockBehaviour.Properties structure(MapColor color, int light) {
         return BlockBehaviour.Properties.of()

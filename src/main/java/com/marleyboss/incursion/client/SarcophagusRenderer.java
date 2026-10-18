@@ -313,6 +313,7 @@ final class SarcophagusRenderer {
         }
 
         // 1. Solid parts.
+        int builtStage = active ? core.getBuiltStage() : -1;
         pose.pushPose();
         pose.translate(0.5F, 0.0F, 0.5F);
         pose.scale(sc, sc, sc);
@@ -320,6 +321,9 @@ final class SarcophagusRenderer {
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light, active && core.getStage() >= 3);
         drawLowerFrame(pose.last(), solid, light);
+        if (builtStage >= 2) {
+            drawPlinth(pose.last(), solid, light);
+        }
 
         if (contents > 0.0F) {
             if (showHeaps) {
@@ -340,10 +344,13 @@ final class SarcophagusRenderer {
         pose.translate(-0.5F, 0.0F, -0.5F);
         drawSlab(pose.last(), solid, light);
         drawUpperFrame(pose.last(), solid, light);
+        if (builtStage >= 1) {
+            drawLidTiers(pose.last(), solid, light, builtStage);
+        }
         pose.popPose();
         flushSolid(buffer);
         pose.popPose();
-        int built = active ? core.getBuiltStage() : -1;
+        int built = builtStage;
         if (built >= 1) {
             VertexConsumer fresh = buffer.getBuffer(Sheets.solidBlockSheet()); // a fresh consumer: the old one was flushed
             drawChains(pose, fresh, time, sc, built);
@@ -437,9 +444,15 @@ final class SarcophagusRenderer {
         }
         if (d.orb > 0.0F) {
             drawInnerGlow(pose, buffer, time, d.orb, d.lift, d.twist, d.shake);
+            float cf = coreFactor(d.built);
+            pose.pushPose();
+            pose.translate(0.5F, ORB_Y, 0.5F);
+            pose.scale(cf, cf, cf);
+            pose.translate(-0.5F, -ORB_Y, -0.5F);
             drawOrb(pose, buffer, time, d.orb, d.flash);
+            pose.popPose();
             drawRays(pose, buffer, time, d.orb, d.lift, d.twist);
-            drawAnkerstein(pose, buffer, d);
+            drawCorona(pose, buffer, d);
         }
         pose.popPose();
         drawEvolution(pose, buffer, d);
@@ -508,64 +521,163 @@ final class SarcophagusRenderer {
                 float[] b = eq[(e + 1) % 4];
                 float mx = (a[0] + b[0]) * 0.5F - cx;
                 float mz = (a[2] + b[2]) * 0.5F - cz;
-                polyAt(vc, p, LightTexture.FULL_BRIGHT, sprite, 4, 0.5F, 0.5F, mx, 0.6F, mz, a, b, top);
-                polyAt(vc, p, LightTexture.FULL_BRIGHT, sprite, 4, 0.5F, 0.5F, mx, -0.6F, mz, b, a, bottom);
+                // every facet shows the whole texture once (a triangle cut out of it), so nothing flickers or bands
+                polyUV(vc, p, LightTexture.FULL_BRIGHT, sprite, mx, 0.6F, mz, new float[][]{a, b, top}, FACET_UV);
+                polyUV(vc, p, LightTexture.FULL_BRIGHT, sprite, mx, -0.6F, mz, new float[][]{b, a, bottom}, FACET_UV);
             }
         }
     }
 
-    // --- stage 1: the Ankerstein and the anchor chains ---
+    // --- the Core itself: a fiery mass that changes with every stage ---
 
-    /** The Ankerstein, the violet crystal heart of the lost world, turns inside the fire (from stage 1 on). */
-    private static void drawAnkerstein(PoseStack pose, MultiBufferSource buffer, Late d) {
-        if (d.built < 1) {
+    /** How much bigger the fire is than at the start (per stage). */
+    private static float coreFactor(int stage) {
+        return switch (Math.max(0, Math.min(4, stage))) {
+            case 0 -> 1.0F;
+            case 1 -> 1.2F;
+            case 2 -> 1.4F;
+            case 3 -> 1.65F;
+            default -> 1.9F;
+        };
+    }
+
+    private static float[] dirOf(float phi, float theta) {
+        return new float[]{Mth.cos(phi) * Mth.cos(theta), Mth.sin(theta), Mth.sin(phi) * Mth.cos(theta)};
+    }
+
+    /**
+     * What the fire of the Core does on top of the bigger orb (scaled pose, additive): flame arcs rise from its surface and
+     * return to it (stage 1: four, then two more per stage), plasma balls with trails circle it (stage 2 and up), rings of
+     * glowing sparks turn round it (stage 3 and 4), and a flare burns on the tip of the crown (stage 4).
+     * Every consumer is fetched right before it is used (fetching another render type ends the previous builder).
+     */
+    private static void drawCorona(PoseStack pose, MultiBufferSource buffer, Late d) {
+        int stage = d.built;
+        if (stage < 1) {
             return;
         }
-        float k = d.orb * (0.85F + 0.15F * Mth.sin(d.time * 0.17F));
-        VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM)); // used completely before the next render type is fetched
+        final float time = d.time;
+        final float k = d.orb;
+        final float f = coreFactor(stage);
         PoseStack.Pose p = pose.last();
-        float rot = d.time * 0.03F;
         float cx = 0.5F;
         float cy = ORB_Y;
         float cz = 0.5F;
-        float h = 0.40F;
-        float r = 0.26F;
-        float[] top = {cx, cy + h, cz};
-        float[] bottom = {cx, cy - h, cz};
-        float[][] eq = new float[4][];
-        for (int e = 0; e < 4; e++) {
-            float ang = rot + e * (float) (Math.PI / 2.0);
-            eq[e] = new float[]{cx + Mth.cos(ang) * r, cy, cz + Mth.sin(ang) * r};
+        // flame arcs (prominences)
+        int loops = 2 + stage * 2;
+        float r0 = ORB_RADIUS * 1.35F * f;
+        float[][] tops = new float[loops][];
+        float[] topK = new float[loops];
+        for (int i = 0; i < loops; i++) {
+            float sign = i % 2 == 0 ? 1.0F : -1.0F;
+            float phi = time * 0.012F * sign + i * (float) (Math.PI * 2.0) / loops;
+            float theta = 0.85F * Mth.sin(i * 2.1F + time * 0.004F);
+            float span = 0.85F;
+            float growth = 0.15F + 0.85F * (0.5F + 0.5F * Mth.sin(time * 0.045F + i * 1.7F));
+            float h = (0.14F + 0.05F * stage) * f * growth;
+            float[] prev = null;
+            for (int sg = 0; sg <= 12; sg++) {
+                float u = sg / 12.0F;
+                float arc = Mth.sin(u * (float) Math.PI);
+                float[] dd = dirOf(phi + span * u, theta + 0.3F * arc);
+                float rr = r0 + h * arc;
+                float[] pos = {cx + dd[0] * rr, cy + dd[1] * rr, cz + dd[2] * rr};
+                if (prev != null) {
+                    laser(buffer.getBuffer(RenderType.eyes(TRIM)), p, prev[0], prev[1], prev[2], pos[0], pos[1], pos[2],
+                            0.016F, 1.0F * k, (0.9F - 0.5F * arc) * k, (0.5F - 0.4F * arc) * k);
+                    laser(buffer.getBuffer(RenderType.eyes(TRIM)), p, prev[0], prev[1], prev[2], pos[0], pos[1], pos[2],
+                            0.05F, 0.5F * k, 0.2F * k, 0.03F * k);
+                }
+                if (sg == 6) {
+                    tops[i] = pos;
+                    topK[i] = growth;
+                }
+                prev = pos;
+            }
         }
-        for (int e = 0; e < 4; e++) {
-            float[] a = eq[e];
-            float[] b = eq[(e + 1) % 4];
-            float up = (0.5F + 0.5F * Mth.cos(rot * 2.0F + e * 1.5708F)) * k;
-            float down = (0.5F + 0.5F * Mth.cos(rot * 2.0F + e * 1.5708F + 2.4F)) * k;
-            facet(vc, p, a, b, top, 0.25F + 0.55F * up, 0.08F + 0.2F * up, 0.55F + 0.45F * up);
-            facet(vc, p, b, a, bottom, 0.2F + 0.5F * down, 0.06F + 0.18F * down, 0.5F + 0.45F * down);
-            laser(vc, p, a[0], a[1], a[2], top[0], top[1], top[2], 0.007F, 0.85F * k, 0.7F * k, 1.0F * k);
-            laser(vc, p, a[0], a[1], a[2], bottom[0], bottom[1], bottom[2], 0.007F, 0.85F * k, 0.7F * k, 1.0F * k);
-            laser(vc, p, a[0], a[1], a[2], b[0], b[1], b[2], 0.007F, 0.85F * k, 0.7F * k, 1.0F * k);
+        for (int i = 0; i < loops; i++) {
+            float g = topK[i] * k;
+            billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, tops[i][0], tops[i][1], tops[i][2], 0.10F * f, 0.0F,
+                    0.85F * g, 0.35F * g, 0.07F * g);
         }
-        VertexConsumer halo = buffer.getBuffer(RenderType.eyes(HALO));
-        billboard(halo, p, cx, cy, cz, 0.7F, 0.0F, 0.45F * k, 0.15F * k, 0.9F * k);
+        // plasma balls with trails
+        if (stage >= 2) {
+            int sats = stage;
+            float[][] at = new float[sats][];
+            for (int i = 0; i < sats; i++) {
+                float radius = (0.44F + 0.05F * i) * f;
+                float tilt = 0.45F + 0.62F * i;
+                float speed = 0.045F * (1.0F + 0.2F * i) * (i % 2 == 0 ? 1.0F : -1.0F);
+                float a0 = time * speed + i * (float) (Math.PI * 2.0) / sats;
+                float[] prev = null;
+                for (int sg = 0; sg <= 10; sg++) {
+                    float a = a0 - sg * 0.09F * Math.signum(speed);
+                    float lx = Mth.cos(a) * radius;
+                    float lz = Mth.sin(a) * radius;
+                    float[] pos = {cx + lx, cy + lz * Mth.sin(tilt), cz + lz * Mth.cos(tilt)};
+                    if (sg == 0) {
+                        at[i] = pos;
+                    }
+                    if (prev != null) {
+                        float fade = 1.0F - sg / 11.0F;
+                        laser(buffer.getBuffer(RenderType.eyes(TRIM)), p, prev[0], prev[1], prev[2], pos[0], pos[1], pos[2],
+                                0.03F * fade, 1.0F * fade * k, 0.55F * fade * k, 0.15F * fade * k);
+                    }
+                    prev = pos;
+                }
+            }
+            for (int i = 0; i < sats; i++) {
+                pose.pushPose();
+                pose.translate(at[i][0], at[i][1], at[i][2]);
+                sphere(buffer.getBuffer(RenderType.eyes(ORB)), pose.last(), 0.07F * f * k, time * 0.01F, -time * 0.02F, 1.0F, 0.75F, 0.4F);
+                pose.popPose();
+            }
+            for (int i = 0; i < sats; i++) {
+                billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, at[i][0], at[i][1], at[i][2], 0.16F * f, 0.0F,
+                        0.9F * k, 0.45F * k, 0.1F * k);
+            }
+        }
+        // rings of sparks
+        if (stage >= 3) {
+            int rings = stage >= 4 ? 2 : 1;
+            for (int ring = 0; ring < rings; ring++) {
+                float radius = (0.52F + 0.14F * ring) * f;
+                float tilt = ring == 0 ? 0.32F : -0.7F;
+                float dir = ring == 0 ? 1.0F : -1.0F;
+                int n = 32;
+                float[][] pts = new float[n][];
+                for (int i = 0; i < n; i++) {
+                    float a = i * (float) (Math.PI * 2.0) / n + time * 0.03F * dir;
+                    float lx = Mth.cos(a) * radius;
+                    float lz = Mth.sin(a) * radius;
+                    pts[i] = new float[]{cx + lx, cy + lz * Mth.sin(tilt), cz + lz * Mth.cos(tilt)};
+                }
+                for (int i = 0; i < n; i++) {
+                    float[] a = pts[i];
+                    float[] b = pts[(i + 1) % n];
+                    float fl = 0.45F + 0.55F * (0.5F + 0.5F * Mth.sin(i * 0.9F - time * 0.2F * dir));
+                    laser(buffer.getBuffer(RenderType.eyes(TRIM)), p, a[0], a[1], a[2], b[0], b[1], b[2], 0.012F,
+                            1.0F * fl * k, 0.6F * fl * k, 0.18F * fl * k);
+                }
+                for (int i = 0; i < n; i += 2) {
+                    float fl = (0.5F + 0.5F * Mth.sin(i * 0.9F - time * 0.2F * dir)) * k;
+                    billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, pts[i][0], pts[i][1], pts[i][2], 0.06F * f, 0.0F,
+                            1.0F * fl, 0.55F * fl, 0.12F * fl);
+                }
+            }
+        }
+        // the flare on the tip of the crown
+        if (stage >= 4) {
+            float gy = CROWN_TOP + 0.62F + d.lift;
+            float pulse = 0.75F + 0.25F * Mth.sin(time * 0.2F);
+            billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, 0.5F, gy, 0.5F, 0.34F, 0.0F, 1.0F * pulse * k, 0.5F * pulse * k, 0.12F * pulse * k);
+            billboard(buffer.getBuffer(RenderType.eyes(FLARE)), p, 0.5F, gy, 0.5F, 0.5F, time * 0.03F, 1.0F * pulse * k, 0.65F * pulse * k, 0.25F * pulse * k);
+        }
     }
 
-    /** A triangle that glows from both sides. */
-    private static void facet(VertexConsumer vc, PoseStack.Pose p, float[] a, float[] b, float[] c, float r, float g, float bl) {
-        int ir = Mth.clamp((int) (r * 255.0F), 0, 255);
-        int ig = Mth.clamp((int) (g * 255.0F), 0, 255);
-        int ib = Mth.clamp((int) (bl * 255.0F), 0, 255);
-        float[][] forward = {a, b, c, c};
-        float[][] backward = {c, b, a, a};
-        for (float[] v : forward) {
-            glowVertex(vc, p, v[0], v[1], v[2], 0.5F, 0.5F, ir, ig, ib);
-        }
-        for (float[] v : backward) {
-            glowVertex(vc, p, v[0], v[1], v[2], 0.5F, 0.5F, ir, ig, ib);
-        }
-    }
+    /** Height of the tip of the crown (stage 4), relative to the lid. */
+    private static final float CROWN_TOP = 1.75F;
+    private static final float[][] FACET_UV = {{0.0F, 1.0F}, {1.0F, 1.0F}, {0.5F, 0.0F}};
 
     /**
      * The Sarcophagus is held down by four gold chains from the corners of its lower half to anchor rings in the plaza
@@ -604,6 +716,177 @@ final class SarcophagusRenderer {
             box(vc, p, light, gold, 4, ax - w, ax + w, 0.0F, 0.09F, az + w - t, az + w);
             box(vc, p, light, gold, 4, ax - w, ax - w + t, 0.0F, 0.09F, az - w, az + w);
             box(vc, p, light, gold, 4, ax + w - t, ax + w, 0.0F, 0.09F, az - w, az + w);
+        }
+    }
+
+    // --- the Sarcophagus itself changes its shape (in the style of the original: obsidian, gold, beads) ---
+
+    /** A box with its own texture on the top and the sides, every face shows the whole texture once (no bleeding). */
+    private static void fbox(VertexConsumer vc, PoseStack.Pose p, int light, TextureAtlasSprite top, TextureAtlasSprite side,
+                             float x0, float x1, float y0, float y1, float z0, float z1) {
+        float[][] uv = {{0.0F, 1.0F}, {1.0F, 1.0F}, {1.0F, 0.0F}, {0.0F, 0.0F}};
+        polyUV(vc, p, light, side, 0, 0, -1, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0}}, uv);
+        polyUV(vc, p, light, side, 0, 0, 1, new float[][]{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}, uv);
+        polyUV(vc, p, light, side, -1, 0, 0, new float[][]{{x0, y0, z0}, {x0, y0, z1}, {x0, y1, z1}, {x0, y1, z0}}, uv);
+        polyUV(vc, p, light, side, 1, 0, 0, new float[][]{{x1, y0, z0}, {x1, y0, z1}, {x1, y1, z1}, {x1, y1, z0}}, uv);
+        polyUV(vc, p, light, top, 0, 1, 0, new float[][]{{x0, y1, z0}, {x1, y1, z0}, {x1, y1, z1}, {x0, y1, z1}}, uv);
+        polyUV(vc, p, light, side, 0, -1, 0, new float[][]{{x0, y0, z0}, {x1, y0, z0}, {x1, y0, z1}, {x0, y0, z1}}, uv);
+    }
+
+    /** A bar of square section between two points (all faces, any direction). */
+    private static void beam(VertexConsumer vc, PoseStack.Pose p, int light, TextureAtlasSprite sprite, float ax, float ay,
+                             float az, float bx, float by, float bz, float w) {
+        float dx = bx - ax;
+        float dy = by - ay;
+        float dz = bz - az;
+        float len = Mth.sqrt(dx * dx + dy * dy + dz * dz);
+        if (len < 1.0E-4F) {
+            return;
+        }
+        dx /= len;
+        dy /= len;
+        dz /= len;
+        float ux = -dz;
+        float uz = dx;
+        float ul = Mth.sqrt(ux * ux + uz * uz);
+        if (ul < 1.0E-3F) {
+            ux = 1.0F;
+            uz = 0.0F;
+            ul = 1.0F;
+        }
+        ux = ux / ul;
+        uz = uz / ul;
+        float uy = 0.0F;
+        float vx = dy * uz - dz * uy;
+        float vy = dz * ux - dx * uz;
+        float vz = dx * uy - dy * ux;
+        float[][] off = new float[4][];
+        int[][] sg = {{-1, -1}, {1, -1}, {1, 1}, {-1, 1}};
+        for (int i = 0; i < 4; i++) {
+            off[i] = new float[]{(sg[i][0] * ux + sg[i][1] * vx) * w, (sg[i][0] * uy + sg[i][1] * vy) * w,
+                    (sg[i][0] * uz + sg[i][1] * vz) * w};
+        }
+        float[][] uv = {{0.0F, 1.0F}, {1.0F, 1.0F}, {1.0F, 0.0F}, {0.0F, 0.0F}};
+        for (int i = 0; i < 4; i++) {
+            float[] o0 = off[i];
+            float[] o1 = off[(i + 1) % 4];
+            polyUV(vc, p, light, sprite, o0[0] + o1[0], o0[1] + o1[1], o0[2] + o1[2], new float[][]{
+                    {ax + o0[0], ay + o0[1], az + o0[2]}, {ax + o1[0], ay + o1[1], az + o1[2]},
+                    {bx + o1[0], by + o1[1], bz + o1[2]}, {bx + o0[0], by + o0[1], bz + o0[2]}}, uv);
+        }
+        polyUV(vc, p, light, sprite, -dx, -dy, -dz, new float[][]{{ax + off[0][0], ay + off[0][1], az + off[0][2]},
+                {ax + off[1][0], ay + off[1][1], az + off[1][2]}, {ax + off[2][0], ay + off[2][1], az + off[2][2]},
+                {ax + off[3][0], ay + off[3][1], az + off[3][2]}}, uv);
+        polyUV(vc, p, light, sprite, dx, dy, dz, new float[][]{{bx + off[0][0], by + off[0][1], bz + off[0][2]},
+                {bx + off[1][0], by + off[1][1], bz + off[1][2]}, {bx + off[2][0], by + off[2][1], bz + off[2][2]},
+                {bx + off[3][0], by + off[3][1], bz + off[3][2]}}, uv);
+    }
+
+    /** A quad or triangle with its own texture coordinates (0..1 over the whole sprite); faces are oriented against (hx, hy, hz). */
+    private static void polyUV(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, float hx, float hy,
+                               float hz, float[][] pts, float[][] uvs) {
+        float[] n = normal(pts[0], pts[1], pts[2]);
+        float len = Mth.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+        if (len < 1.0E-8F) {
+            return;
+        }
+        float nx = n[0] / len;
+        float ny = n[1] / len;
+        float nz = n[2] / len;
+        boolean flip = nx * hx + ny * hy + nz * hz < 0.0F;
+        if (flip) {
+            nx = -nx;
+            ny = -ny;
+            nz = -nz;
+        }
+        int count = pts.length;
+        for (int v = 0; v < 4; v++) {
+            int i = Math.min(v, count - 1);
+            int idx = flip ? count - 1 - i : i;
+            float[] q = pts[idx];
+            float u = sprite.getU0() + (sprite.getU1() - sprite.getU0()) * uvs[idx][0];
+            float vv = sprite.getV0() + (sprite.getV1() - sprite.getV0()) * uvs[idx][1];
+            vc.addVertex(pose, q[0], q[1], q[2]).setColor(255, 255, 255, 255).setUv(u, vv)
+                    .setOverlay(OverlayTexture.NO_OVERLAY).setLight(light).setNormal(pose, nx, ny, nz);
+        }
+    }
+
+    /** Stage 2: a stepped plinth round the foot of the lower half (lower pose). */
+    private static void drawPlinth(PoseStack.Pose p, VertexConsumer vc, int light) {
+        TextureAtlasSprite wall = sprite(WALL);
+        TextureAtlasSprite marble = sprite(MARBLE);
+        TextureAtlasSprite gold = sprite(GOLD);
+        int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
+        float o = 0.12F;
+        float h = 0.10F;
+        fbox(vc, p, light, marble, wall, -o, 1.0F + o, 0.0F, h, -o, 1.0F + o);
+        // gold along the top edge and the foot of the plinth
+        float w = 0.022F;
+        float lo = -o - OUT;
+        float hi = 1.0F + o + OUT;
+        for (float y : new float[]{h - 0.012F, 0.0F}) {
+            box(vc, p, bright, gold, 4, lo, hi, y, y + 0.024F, lo, lo + w);
+            box(vc, p, bright, gold, 4, lo, hi, y, y + 0.024F, hi - w, hi);
+            box(vc, p, bright, gold, 4, lo, lo + w, y, y + 0.024F, lo + w, hi - w);
+            box(vc, p, bright, gold, 4, hi - w, hi, y, y + 0.024F, lo + w, hi - w);
+        }
+    }
+
+    /** Stage 1 on: the lid gets steps (like a stepped pyramid), from stage 3 on a crown of ribs rises over it (lid pose). */
+    private static void drawLidTiers(PoseStack.Pose p, VertexConsumer vc, int light, int stage) {
+        TextureAtlasSprite top = sprite(TOP);
+        TextureAtlasSprite marble = sprite(MARBLE);
+        TextureAtlasSprite wall = sprite(WALL);
+        TextureAtlasSprite gold = sprite(GOLD);
+        int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
+        fbox(vc, p, light, top, marble, 0.17F, 0.83F, 0.998F, 1.07F, 0.17F, 0.83F);
+        fbox(vc, p, light, top, marble, 0.33F, 0.67F, 1.068F, 1.14F, 0.33F, 0.67F);
+        float w = 0.016F;
+        float[][] steps = {{0.17F, 0.83F, 1.07F}, {0.33F, 0.67F, 1.14F}};
+        for (float[] st : steps) {
+            float a = st[0] - OUT;
+            float b = st[1] + OUT;
+            float y = st[2] - 0.008F;
+            box(vc, p, bright, gold, 4, a, b, y, y + 0.016F, a, a + w);
+            box(vc, p, bright, gold, 4, a, b, y, y + 0.016F, b - w, b);
+            box(vc, p, bright, gold, 4, a, a + w, y, y + 0.016F, a + w, b - w);
+            box(vc, p, bright, gold, 4, b - w, b, y, y + 0.016F, a + w, b - w);
+        }
+        if (stage < 3) {
+            return;
+        }
+        // the crown: ribs from the corners of the lid (stage 4: and from the middle of the edges) to a point above the centre
+        float apex = stage >= 4 ? CROWN_TOP : 1.55F;
+        int ribs = stage >= 4 ? 8 : 4;
+        for (int r = 0; r < ribs; r++) {
+            float sx;
+            float sz;
+            if (r < 4) {
+                sx = r % 2 == 0 ? 0.0F : 1.0F;
+                sz = r < 2 ? 0.0F : 1.0F;
+            } else {
+                int q = r - 4;
+                sx = q == 0 ? 0.5F : q == 1 ? 1.0F : q == 2 ? 0.5F : 0.0F;
+                sz = q == 0 ? 0.0F : q == 1 ? 0.5F : q == 2 ? 1.0F : 0.5F;
+            }
+            float height = r < 4 ? apex - 1.0F : (apex - 1.0F) * 0.7F;
+            float[] prev = null;
+            final int segs = 10;
+            for (int sg = 0; sg <= segs; sg++) {
+                float t = sg / (float) segs;
+                float x = sx + (0.5F - sx) * t;
+                float z = sz + (0.5F - sz) * t;
+                float y = 1.0F + height * Mth.sin(t * (float) (Math.PI / 2.0));
+                if (prev != null) {
+                    beam(vc, p, light, wall, prev[0], prev[1], prev[2], x, y, z, 0.026F);
+                    beam(vc, p, bright, gold, prev[0], prev[1] + 0.022F, prev[2], x, y + 0.022F, z, 0.011F);
+                }
+                prev = new float[]{x, y, z};
+            }
+        }
+        if (stage >= 4) {
+            fbox(vc, p, light, top, marble, 0.455F, 0.545F, apex - 0.05F, apex + 0.05F, 0.455F, 0.545F);
+            beam(vc, p, bright, gold, 0.5F, apex + 0.05F, 0.5F, 0.5F, apex + 0.5F, 0.5F, 0.022F);
         }
     }
 
@@ -771,7 +1054,7 @@ final class SarcophagusRenderer {
         }
         // the sealing gate high above: the Core's anchor holds the rift shut
         float gy = CoreEvolution.pillarHeight(stage) + 3.0F;
-        float gr = 2.7F;
+        float gr = Math.max(2.7F, radius * 0.62F);
         float pulse = 0.8F + 0.2F * Mth.sin(time * 0.1F);
         plane(halo.get(), p, 0.5F, gy, 0.5F, gr, 0.0F, 0.0F, 0.0F, 0.0F, gr, 0.5F * pulse, 0.15F * pulse, 0.9F * pulse);
         final int ringSegs = 72;

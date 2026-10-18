@@ -11,9 +11,9 @@ import net.minecraft.world.level.block.state.BlockState;
  * <ul>
  *     <li>stage 0 (level 1-4): the Sarcophagus, 1x2 blocks;</li>
  *     <li>stage 1 (level 5-9): bigger, on a 3x3 plaza of obsidian with gold lines;</li>
- *     <li>stage 2 (level 10-14): bigger, 5x5 plaza, four small pillars with red energy crystals;</li>
- *     <li>stage 3 (level 15-19): bigger, 7x7 plaza, taller pillars, energy beams from the crystals to the Core;</li>
- *     <li>stage 4 (level 20): the full size: 9x9 plaza, tall pillars, strong beams.</li>
+ *     <li>stage 2 (level 10-14): bigger, 7x7 plaza, four small pillars with red energy crystals;</li>
+ *     <li>stage 3 (level 15-19): bigger, 9x9 plaza, taller pillars, energy beams from the crystals to the Core;</li>
+ *     <li>stage 4 (level 20): the full size: 11x11 plaza, tall pillars, strong beams.</li>
  * </ul>
  */
 public final class CoreEvolution {
@@ -21,7 +21,7 @@ public final class CoreEvolution {
     /** Ticks the blocks in the way shake before they blow up. */
     public static final int SHAKE = 40;
     private static final float[] SCALE = {1.0F, 1.4F, 1.8F, 2.4F, 3.0F};
-    private static final int[] PLAZA = {0, 1, 2, 3, 4};
+    private static final int[] PLAZA = {0, 1, 3, 4, 5};
     private static final int[] PILLAR = {0, 0, 3, 5, 7};
     /** Strength of the energy beams per stage. */
     private static final float[] BEAMS = {0.0F, 0.0F, 0.5F, 0.75F, 1.0F};
@@ -31,7 +31,7 @@ public final class CoreEvolution {
     }
 
     /** The largest radius of the protected area (stage 4). */
-    public static final int MAX_AREA_RADIUS = 4;
+    public static final int MAX_AREA_RADIUS = 5;
 
     private CoreEvolution() {
     }
