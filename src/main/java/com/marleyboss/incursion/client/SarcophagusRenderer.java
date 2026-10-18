@@ -69,9 +69,9 @@ final class SarcophagusRenderer {
     private static final float OPEN_TICKS = 80.0F;
     /** Time the closing after a defuse takes (ticks). */
     private static final float CLOSE_TICKS = 60.0F;
-    /** Half thickness of the gold bars on the edges (chunky, like a vanilla frame). */
-    private static final float BAR_LOWER = 0.026F;
-    private static final float BAR_UPPER = 0.0285F;
+    /** The gold frame is built from small cubes: their half size (a little uneven), the distance between them. */
+    private static final float CUBE = 0.030F;
+    private static final float CUBE_STEP = 0.0625F;
     /** How far the upper half rises. */
     private static final float LIFT = 0.8F;
     /** How far the upper half is turned against the lower one (degrees). */
@@ -228,13 +228,17 @@ final class SarcophagusRenderer {
         }
         // The ritual items are consumed while the Core ignites and come back (the rune) when it is defused.
         float contents = t > 0.0F ? 1.0F - ease(t / 0.45F) : 1.0F;
+        // The powders are destroyed by a defuse: while the countdown runs (and the block closes) only the rune comes back.
+        boolean showHeaps = !(active && progress >= 0.0F);
 
         // 1. Solid parts.
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light);
-        drawBars(pose.last(), solid, LOWER_BARS, BAR_LOWER, light);
+        drawBars(pose.last(), solid, LOWER_BARS, light);
         if (contents > 0.0F) {
-            drawHeaps(pose.last(), solid, light, hasGunpowder, hasBlaze);
+            if (showHeaps) {
+                drawHeaps(pose.last(), solid, light, hasGunpowder, hasBlaze);
+            }
             if (hasRune) {
                 pose.pushPose();
                 pose.translate(0.5F, 0.77F + 0.025F * Mth.sin(time * 0.08F), 0.5F);
@@ -249,13 +253,13 @@ final class SarcophagusRenderer {
         pose.mulPose(Axis.YP.rotationDegrees(twist));
         pose.translate(-0.5F, 0.0F, -0.5F);
         drawSlab(pose.last(), solid, light);
-        drawBars(pose.last(), solid, UPPER_BARS, BAR_UPPER, light);
+        drawBars(pose.last(), solid, UPPER_BARS, light);
         pose.popPose();
         flushSolid(buffer);
 
         // 2. Additive glow: ritual items, the orb, rays.
         if (contents > 0.0F) {
-            drawItemGlow(pose, buffer, time, contents, hasRune, hasBlaze, ready);
+            drawItemGlow(pose, buffer, time, contents, hasRune, hasBlaze && showHeaps, ready);
         }
         if (active && state.rising && t < 0.18F) {
             drawBolt(pose, buffer, time, 1.0F - t / 0.18F);
@@ -283,9 +287,9 @@ final class SarcophagusRenderer {
     static void renderItem(PoseStack pose, MultiBufferSource buffer, int light) {
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light);
-        drawBars(pose.last(), solid, LOWER_BARS, BAR_LOWER, light);
+        drawBars(pose.last(), solid, LOWER_BARS, light);
         drawSlab(pose.last(), solid, light);
-        drawBars(pose.last(), solid, UPPER_BARS, BAR_UPPER, light);
+        drawBars(pose.last(), solid, UPPER_BARS, light);
         flushSolid(buffer);
         drawGlass(pose.last(), buffer, light);
     }
@@ -344,66 +348,66 @@ final class SarcophagusRenderer {
                 new float[]{b, y0, a}, new float[]{b, y0, b}, new float[]{b, 1, b}, new float[]{b, 1, a});
     }
 
-    /** Gold bars (square prisms), a little brighter than the surroundings so the gold glows. */
-    private static void drawBars(PoseStack.Pose pose, VertexConsumer vc, float[][] bars, float half, int light) {
+    /**
+     * The gold frame: a chain of small cubes along every edge (like a vanilla frame, not a smooth bar). The cubes differ
+     * a little in size and each shows one pixel of the gold texture. Every cube is moved so that it lies flush with the
+     * block (it stands out of the surface by a few thousandths only), so nothing sticks out at corners and tips.
+     */
+    private static void drawBars(PoseStack.Pose pose, VertexConsumer vc, float[][] bars, int light) {
         TextureAtlasSprite gold = sprite(GOLD);
         int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
+        int barIndex = 0;
         for (float[] e : bars) {
-            bar(vc, pose, bright, gold, e[0], e[1], e[2], e[3], e[4], e[5], half);
+            float dx = e[3] - e[0];
+            float dy = e[4] - e[1];
+            float dz = e[5] - e[2];
+            float len = Mth.sqrt(dx * dx + dy * dy + dz * dz);
+            int n = Math.max(1, Math.round(len / CUBE_STEP));
+            float off = 0.003F + 0.0005F * (barIndex % 8);
+            for (int i = 0; i <= n; i++) {
+                float f = (float) i / n;
+                int hash = hash(barIndex * 131 + i);
+                float h = CUBE + ((hash & 7) - 3.5F) * 0.0013F;
+                float cx = Mth.clamp(e[0] + dx * f, h - off, 1.0F - h + off);
+                float cy = Mth.clamp(e[1] + dy * f, h - off, 1.0F - h + off);
+                float cz = Mth.clamp(e[2] + dz * f, h - off, 1.0F - h + off);
+                float fu = (((hash >> 8) & 15) + 0.5F) / 16.0F;
+                float fv = (((hash >> 12) & 15) + 0.5F) / 16.0F;
+                cube(vc, pose, bright, gold, cx, cy, cz, h, fu, fv);
+            }
+            barIndex++;
         }
     }
 
-    private static void bar(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite gold, float ax, float ay,
-                            float az, float bx, float by, float bz, float h) {
-        float tx = bx - ax;
-        float ty = by - ay;
-        float tz = bz - az;
-        float len = Mth.sqrt(tx * tx + ty * ty + tz * tz);
-        if (len < 1.0E-4F) {
-            return;
-        }
-        tx /= len;
-        ty /= len;
-        tz /= len;
-        // Extend both ends so that bars meeting in a corner overlap.
-        ax -= tx * h;
-        ay -= ty * h;
-        az -= tz * h;
-        bx += tx * h;
-        by += ty * h;
-        bz += tz * h;
-        // p = t x up (or x when vertical), q = t x p.
-        float px = -tz;
-        float py = 0.0F;
-        float pz = tx;
-        float pl = Mth.sqrt(px * px + pz * pz);
-        if (pl < 1.0E-3F) {
-            px = 1.0F;
-            pz = 0.0F;
-            pl = 1.0F;
-        }
-        px = px / pl * h;
-        pz = pz / pl * h;
-        float qx = ty * pz - tz * py;
-        float qy = tz * px - tx * pz;
-        float qz = tx * py - ty * px;
-        float ql = Mth.sqrt(qx * qx + qy * qy + qz * qz);
-        qx = qx / ql * h;
-        qy = qy / ql * h;
-        qz = qz / ql * h;
-        side(vc, pose, light, gold, ax, ay, az, bx, by, bz, px, py, pz, qx, qy, qz);
-        side(vc, pose, light, gold, ax, ay, az, bx, by, bz, qx, qy, qz, -px, -py, -pz);
-        side(vc, pose, light, gold, ax, ay, az, bx, by, bz, -px, -py, -pz, -qx, -qy, -qz);
-        side(vc, pose, light, gold, ax, ay, az, bx, by, bz, -qx, -qy, -qz, px, py, pz);
+    private static int hash(int value) {
+        int x = value * 0x9E3779B1;
+        x ^= x >>> 15;
+        x *= 0x85EBCA6B;
+        x ^= x >>> 13;
+        return x;
     }
 
-    /** One side of a bar: the strip at offset o (the outward direction) between o + w and o - w. */
-    private static void side(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite gold, float ax, float ay,
-                             float az, float bx, float by, float bz, float ox, float oy, float oz, float wx, float wy,
-                             float wz) {
-        poly(vc, pose, light, gold, 3, ox, oy, oz,
-                new float[]{ax + ox + wx, ay + oy + wy, az + oz + wz}, new float[]{bx + ox + wx, by + oy + wy, bz + oz + wz},
-                new float[]{bx + ox - wx, by + oy - wy, bz + oz - wz}, new float[]{ax + ox - wx, ay + oy - wy, az + oz - wz});
+    /** A cube of half size h around (cx, cy, cz), all six faces showing the pixel (fu, fv) of the sprite. */
+    private static void cube(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, float cx, float cy,
+                             float cz, float h, float fu, float fv) {
+        float x0 = cx - h;
+        float x1 = cx + h;
+        float y0 = cy - h;
+        float y1 = cy + h;
+        float z0 = cz - h;
+        float z1 = cz + h;
+        polyAt(vc, pose, light, sprite, 3, fu, fv, 0, 0, -1,
+                new float[]{x0, y0, z0}, new float[]{x1, y0, z0}, new float[]{x1, y1, z0}, new float[]{x0, y1, z0});
+        polyAt(vc, pose, light, sprite, 3, fu, fv, 0, 0, 1,
+                new float[]{x0, y0, z1}, new float[]{x1, y0, z1}, new float[]{x1, y1, z1}, new float[]{x0, y1, z1});
+        polyAt(vc, pose, light, sprite, 3, fu, fv, -1, 0, 0,
+                new float[]{x0, y0, z0}, new float[]{x0, y0, z1}, new float[]{x0, y1, z1}, new float[]{x0, y1, z0});
+        polyAt(vc, pose, light, sprite, 3, fu, fv, 1, 0, 0,
+                new float[]{x1, y0, z0}, new float[]{x1, y0, z1}, new float[]{x1, y1, z1}, new float[]{x1, y1, z0});
+        polyAt(vc, pose, light, sprite, 3, fu, fv, 0, -1, 0,
+                new float[]{x0, y0, z0}, new float[]{x1, y0, z0}, new float[]{x1, y0, z1}, new float[]{x0, y0, z1});
+        polyAt(vc, pose, light, sprite, 3, fu, fv, 0, 1, 0,
+                new float[]{x0, y1, z0}, new float[]{x1, y1, z0}, new float[]{x1, y1, z1}, new float[]{x0, y1, z1});
     }
 
     /**
@@ -454,7 +458,7 @@ final class SarcophagusRenderer {
      */
     private static void drawTablet(PoseStack.Pose pose, VertexConsumer vc) {
         TextureAtlasSprite rune = sprite(RUNE_ITEM);
-        TextureAtlasSprite gold = sprite(GOLD);
+        TextureAtlasSprite edge = sprite(MARBLE); // the edge of the tablet is obsidian
         int full = LightTexture.FULL_BRIGHT;
         float hw = 0.115F;
         float hh = 0.16F;
@@ -466,10 +470,10 @@ final class SarcophagusRenderer {
         float v1 = rune.getV0() + (rune.getV1() - rune.getV0()) * (15.0F / 16.0F);
         face(vc, pose, full, -hw, -hh, hd, hw, -hh, hd, hw, hh, hd, -hw, hh, hd, u0, v1, u1, v1, u1, v0, u0, v0, 0, 0, 1);
         face(vc, pose, full, hw, -hh, -hd, -hw, -hh, -hd, -hw, hh, -hd, hw, hh, -hd, u0, v1, u1, v1, u1, v0, u0, v0, 0, 0, -1);
-        poly(vc, pose, full, gold, 3, 1, 0, 0, new float[]{hw, -hh, -hd}, new float[]{hw, hh, -hd}, new float[]{hw, hh, hd}, new float[]{hw, -hh, hd});
-        poly(vc, pose, full, gold, 3, -1, 0, 0, new float[]{-hw, -hh, -hd}, new float[]{-hw, hh, -hd}, new float[]{-hw, hh, hd}, new float[]{-hw, -hh, hd});
-        poly(vc, pose, full, gold, 3, 0, 1, 0, new float[]{-hw, hh, -hd}, new float[]{hw, hh, -hd}, new float[]{hw, hh, hd}, new float[]{-hw, hh, hd});
-        poly(vc, pose, full, gold, 3, 0, -1, 0, new float[]{-hw, -hh, -hd}, new float[]{hw, -hh, -hd}, new float[]{hw, -hh, hd}, new float[]{-hw, -hh, hd});
+        poly(vc, pose, full, edge, 3, 1, 0, 0, new float[]{hw, -hh, -hd}, new float[]{hw, hh, -hd}, new float[]{hw, hh, hd}, new float[]{hw, -hh, hd});
+        poly(vc, pose, full, edge, 3, -1, 0, 0, new float[]{-hw, -hh, -hd}, new float[]{-hw, hh, -hd}, new float[]{-hw, hh, hd}, new float[]{-hw, -hh, hd});
+        poly(vc, pose, full, edge, 3, 0, 1, 0, new float[]{-hw, hh, -hd}, new float[]{hw, hh, -hd}, new float[]{hw, hh, hd}, new float[]{-hw, hh, hd});
+        poly(vc, pose, full, edge, 3, 0, -1, 0, new float[]{-hw, -hh, -hd}, new float[]{hw, -hh, -hd}, new float[]{hw, -hh, hd}, new float[]{-hw, -hh, hd});
     }
 
     private static void face(VertexConsumer vc, PoseStack.Pose pose, int light, float x0, float y0, float z0, float x1,
@@ -741,6 +745,12 @@ final class SarcophagusRenderer {
      */
     private static void poly(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, int uvMode,
                              float hx, float hy, float hz, float[]... pts) {
+        polyAt(vc, pose, light, sprite, uvMode, 0.5F, 0.5F, hx, hy, hz, pts);
+    }
+
+    /** Like {@link #poly}; with {@code uvMode} 3 the polygon shows the point (fixedU, fixedV) of the sprite. */
+    private static void polyAt(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, int uvMode,
+                               float fixedU, float fixedV, float hx, float hy, float hz, float[]... pts) {
         float[] n = normal(pts[0], pts[1], pts[2]);
         float len = Mth.sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
         if (len < 1.0E-8F) {
@@ -763,8 +773,8 @@ final class SarcophagusRenderer {
             float fu;
             float fv;
             if (uvMode == 3) {
-                fu = 0.5F;
-                fv = 0.5F;
+                fu = fixedU;
+                fv = fixedV;
             } else {
                 fu = uvMode == 2 ? p[2] : p[0];
                 fv = uvMode == 0 ? p[2] : 1.0F - p[1];

@@ -86,7 +86,7 @@ def posterize(v, levels):
     return np.array(levels, dtype=float)[idx]
 
 
-MARBLE_LEVELS = [(8, 8, 13), (14, 13, 21), (22, 21, 31), (34, 32, 46)]
+MARBLE_LEVELS = [(9, 5, 18), (15, 9, 28), (25, 15, 44), (39, 25, 68)]
 
 
 def marble_rgb(size, seed):
@@ -97,8 +97,8 @@ def marble_rgb(size, seed):
     rgb = posterize(base * 0.95, MARBLE_LEVELS)
     cracks = fbm(size, size, rng, ((3, 0.6), (6, 0.4)))
     threads = fbm(size, size, rng, ((2, 0.7), (5, 0.3)))
-    rgb[np.abs(cracks - 0.5) < 0.018] = (58, 55, 72)
-    rgb[np.abs(threads - 0.63) < 0.012] = (118, 88, 30)
+    rgb[np.abs(cracks - 0.5) < 0.018] = (78, 58, 126)
+    rgb[np.abs(threads - 0.63) < 0.006] = (118, 88, 30)
     return rgb
 
 
@@ -140,7 +140,7 @@ def wall_frame(f):
     # glowing cracks: a warm wave travels through them
     crack = cracks_mask(size, 1801) & inside
     wave = 0.5 + 0.5 * np.sin(phase - (xx * 0.55 + yy * 0.35))
-    rgb[crack] = mix((50, 28, 8), (235, 170, 50), wave ** 3)[crack]
+    rgb[crack] = mix((46, 22, 90), (90, 235, 230), wave ** 3)[crack]
     # the glyph (a diamond with a heart) in the lower middle
     gx = np.abs(xx - 7.5)
     gy = np.abs(yy - 12.0)
@@ -151,11 +151,11 @@ def wall_frame(f):
     # the border: dark gold on the edge pixel (under the 3D bar), a beaded ring inside it that shimmers
     edge_row = dist_px < 1.0
     ring = (dist_px >= 1.0) & (dist_px < 2.0)
-    rgb[edge_row] = (96, 70, 22)
+    rgb[edge_row] = (12, 7, 22)
     bead = ((xx + yy) % 2 == 0)
     shimmer = 0.5 + 0.5 * np.sin(phase * 1.0 - (xx + yy) * 0.9)
-    rgb[ring & bead] = mix((190, 140, 40), (255, 235, 140), shimmer)[ring & bead]
-    rgb[ring & ~bead] = (120, 88, 26)
+    rgb[ring & bead] = mix((26, 100, 120), (110, 250, 238), shimmer)[ring & bead]
+    rgb[ring & ~bead] = (24, 14, 44)
     rgb[d_notch < 0] *= 0.4
     return rgb
 
@@ -173,20 +173,20 @@ def top_frame(f):
     ring_b = (dist_px >= 1.0) & (dist_px < 2.0)
     bead = ((xx + yy) % 2 == 0)
     shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.9)
-    rgb[edge_row] = (96, 70, 22)
-    rgb[ring_b & bead] = mix((190, 140, 40), (255, 235, 140), shimmer)[ring_b & bead]
-    rgb[ring_b & ~bead] = (120, 88, 26)
+    rgb[edge_row] = (12, 7, 22)
+    rgb[ring_b & bead] = mix((26, 100, 120), (110, 250, 238), shimmer)[ring_b & bead]
+    rgb[ring_b & ~bead] = (24, 14, 44)
     dx = xx - 7.5
     dz = yy - 7.5
     r = np.sqrt(dx * dx + dz * dz)
     ang = np.arctan2(dz, dx)
     inner = (r >= 2.3) & (r < 3.5)
     lit = np.sin(3 * ang - phase) > -0.35  # three arcs that turn
-    rgb[inner & lit] = (230, 176, 56)
-    rgb[inner & ~lit] = (90, 62, 18)
+    rgb[inner & lit] = (84, 228, 224)
+    rgb[inner & ~lit] = (30, 18, 60)
     outer = (r >= 4.6) & (r < 5.6)
     lit2 = np.sin(6 * ang + phase) > 0.2
-    rgb[outer & lit2] = (190, 140, 40)
+    rgb[outer & lit2] = (110, 70, 190)
     heart = r < 1.6
     beat = 0.5 + 0.5 * np.sin(phase)
     rgb[heart] = mix((200, 130, 30), (255, 240, 170), beat * np.ones_like(r))[heart]
@@ -194,8 +194,8 @@ def top_frame(f):
     along = np.maximum(np.abs(dx), np.abs(dz))
     runner = ((along * 1.0 - f) % 4 == 0)
     mask = diag & (r > 5.6) & (dist_px > 2.5)
-    rgb[mask] = (90, 62, 18)
-    rgb[mask & runner] = (255, 214, 100)
+    rgb[mask] = (40, 24, 76)
+    rgb[mask & runner] = (110, 250, 238)
     return rgb
 
 
@@ -230,11 +230,15 @@ def inner():
 
 
 def gold():
-    return to_image(np.full((16, 16, 3), (204, 158, 48), dtype=float))
+    """Gold block style: noisy pixels in four shades (the 3D frame cubes each pick one pixel)."""
+    rng = np.random.default_rng(1809)
+    shades = [(250, 222, 104), (232, 184, 52), (200, 148, 34), (156, 108, 24)]
+    idx = rng.integers(0, 4, size=(16, 16))
+    return to_image(np.array(shades, dtype=float)[idx])
 
 
 def glass():
-    """Glass triangle (16px): u 0..1 along the top edge, v 0 (top edge) .. 1 (tip). Real height is half the width."""
+    """Diamond glass (16px): u 0..1 along the top edge, v 0 (top edge) .. 1 (tip). Clear, a few light streaks, a light rim."""
     size = 16
     yy, xx = np.mgrid[0:size, 0:size]
     u = (xx + 0.5) / size
@@ -245,19 +249,16 @@ def glass():
     dr = ((1 - X) - Y) / np.sqrt(2.0)
     dist_px = np.minimum.reduce([dl, dr, Y]) * size
     rgb = np.zeros((size, size, 3))
-    rgb[...] = (170, 195, 225)
-    alpha = np.full((size, size), 44.0)
-    alpha += 18 * (1.0 - v)  # a bit denser near the top
+    rgb[...] = (150, 226, 236)
+    alpha = np.full((size, size), 34.0)
+    alpha += 12 * (1.0 - v)
     streak = ((xx * 2 + yy) % 11 == 0) | ((xx * 2 + yy) % 11 == 1)
     streak &= (np.arange(size)[None, :] + np.arange(size)[:, None]) % 3 != 0
-    alpha[streak] = 120
-    rgb[streak] = (225, 238, 255)
+    alpha[streak] = 110
+    rgb[streak] = (225, 250, 255)
     rim = dist_px < 1.0
-    alpha[rim] = 150
-    rgb[rim] = (210, 225, 245)
-    frame = (dist_px >= 1.5) & (dist_px < 2.5)
-    rgb[frame] = (214, 170, 60)
-    alpha[frame] = 255
+    alpha[rim] = 130
+    rgb[rim] = (190, 245, 250)
     return to_image(rgb, alpha)
 
 
@@ -349,45 +350,47 @@ def from_art(rows):
 
 
 def rune_frame(f):
-    """The Core Rune (16px item icon, animated): a golden tablet with an engraved glyph whose glow runs around it."""
+    """The Core Rune (16px item icon, animated): an obsidian tablet with diamond gems, a glowing glyph and a golden heart."""
     phase = 2 * np.pi * f / FRAMES
     rgba = np.zeros((16, 16, 4), dtype=float)
     yy, xx = np.mgrid[0:16, 0:16]
     tablet = (xx >= 3) & (xx <= 12) & (yy >= 1) & (yy <= 14)
-    # cut the corners
     corner = ((xx == 3) | (xx == 12)) & ((yy == 1) | (yy == 14))
     tablet &= ~corner
     body = np.zeros((16, 16, 3))
-    t = (xx - 3 + (yy - 1) * 0.6) / 17.0  # lighter top-left, darker bottom-right
-    body[:] = mix((255, 214, 96), (186, 112, 24), t)
-    body *= 0.95 + 0.05 * np.sin(phase)
-    # outline and bevel
+    t = (xx - 3 + (yy - 1) * 0.6) / 17.0
+    body[:] = mix((58, 40, 96), (20, 12, 36), t)  # obsidian, lighter top-left
+    rng = np.random.default_rng(1811)
+    speck = rng.random((16, 16)) < 0.12
+    body[speck] *= 1.35
     outline = tablet & ((xx == 3) | (xx == 12) | (yy == 1) | (yy == 14))
-    body[outline] = (84, 52, 12)
-    inner_light = tablet & ~outline & ((xx == 4) | (yy == 2))
-    body[inner_light] = (255, 236, 150)
-    inner_dark = tablet & ~outline & ((xx == 11) | (yy == 13))
-    body[inner_dark] = (150, 88, 18)
-    # glyph: diamond ring, heart, four spikes
+    body[outline] = (8, 4, 16)
+    body[tablet & ~outline & ((xx == 4) | (yy == 2))] = (118, 92, 176)
+    body[tablet & ~outline & ((xx == 11) | (yy == 13))] = (12, 6, 24)
+    # diamond gems in the four corners, they twinkle
+    for i, (gx, gy) in enumerate([(4, 2), (11, 2), (4, 13), (11, 13)]):
+        k = 0.5 + 0.5 * np.sin(phase + i * 1.6)
+        body[gy, gx] = mix((60, 190, 200), (200, 255, 252), np.array(k))
     cx, cy = 7.5, 7.5
     d = np.abs(xx - cx) + np.abs(yy - cy)
     ring = (d >= 2.9) & (d < 4.1)
     heart = (np.abs(xx - cx) < 1.0) & (np.abs(yy - cy) < 1.0)
-    spikes = ((np.abs(xx - cx) < 1.0) & ((yy == 3) | (yy == 4) | (yy == 11) | (yy == 12))) | \
-             ((np.abs(yy - cy) < 1.0) & ((xx == 5) | (xx == 6) | (xx == 9) | (xx == 10)) & False)
-    spikes2 = ((np.abs(yy - cy) < 1.0) & ((xx == 4) | (xx == 5) | (xx == 10) | (xx == 11)))
-    glyph = (ring | heart | spikes | spikes2) & tablet & ~outline
+    spikes = ((np.abs(xx - cx) < 1.0) & ((yy == 3) | (yy == 12))) | ((np.abs(yy - cy) < 1.0) & ((xx == 5) | (xx == 10)))
     ang = np.arctan2(yy - cy, xx - cx)
-    glow = 0.5 + 0.5 * np.sin(phase - ang)  # the glow runs around the glyph
-    glow = np.where(heart, 0.5 + 0.5 * np.sin(phase), glow)
-    body[glyph] = mix((120, 52, 8), (255, 244, 180), glow)[glyph]
+    glow = 0.5 + 0.5 * np.sin(phase - ang)  # the glow runs around the ring
+    ringpx = ring & tablet & ~outline
+    body[ringpx] = mix((70, 40, 150), (110, 255, 240), glow)[ringpx]
+    spikepx = spikes & tablet & ~outline & ~ring
+    body[spikepx] = mix((190, 140, 40), (255, 236, 150), glow)[spikepx]
+    beat = np.full((16, 16), 0.5 + 0.5 * np.sin(phase))
+    heartpx = heart & tablet
+    body[heartpx] = mix((220, 150, 30), (255, 246, 190), beat)[heartpx]
     rgba[..., :3] = body
     rgba[..., 3] = np.where(tablet, 255, 0)
-    # twinkling sparks on the corners
     sparks = [(2, 0), (13, 0), (2, 15), (13, 15), (1, 8), (14, 7)]
     for i, (sx, sy) in enumerate(sparks):
         if (f + i * 3) % FRAMES == 0:
-            rgba[sy, sx] = (255, 245, 190, 255)
+            rgba[sy, sx] = (190, 250, 250, 255)
     return rgba
 
 

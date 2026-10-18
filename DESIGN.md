@@ -158,7 +158,7 @@ Mit jeder Stufe stärker:
 
 **Warum die Mobs ihn wollen.** Sie wollen nicht zerstören, sie wollen **heimkehren**: Der Ankerstein ist der Schlüssel zu ihrer Welt. Solange er schläft, ist das Tor zu. Wird er geweckt, leuchtet er wie ein Leuchtfeuer durch den Riss, und die Eindringlinge spüren ihn jede Nacht („Nacht der Heimsuchung“). Gelingt es ihnen, ihn zu zerbrechen, reißt das Tor endgültig auf (die Explosion, wenn ein aktiver Kern zerstört oder gewaltsam entfernt wird).
 
-**Der Sarkophag (ersetzt das alte Siegel, v0.10.1.4).** Ein Würfel aus schwarzem Marmor mit Goldeinfassung. Die untere Hälfte hat auf jeder Seite eine V-Kerbe bis zur halben Höhe (die vier Ecken ragen als Spitzen auf), die obere Hälfte ist eine Haut aus Deckplatte und vier Glasdreiecken, die in den Kerben sitzen. Im Hohlraum liegt, was das Ritual verlangt.
+**Der Sarkophag (ersetzt das alte Siegel, v0.10.1.4).** Ein Würfel aus Obsidian (dunkles Violett mit türkisen Diamant-Akzenten) mit schmaler, rauer Goldeinfassung aus kleinen Würfeln (Rezept: Obsidian in den Ecken, Diamanten in den Seitenmitten). Die untere Hälfte hat auf jeder Seite eine V-Kerbe bis zur halben Höhe (die vier Ecken ragen als Spitzen auf), die obere Hälfte ist eine Haut aus Deckplatte und vier Glasdreiecken, die in den Kerben sitzen. Im Hohlraum liegt, was das Ritual verlangt.
 
 **Ritual (Reihenfolge frei, 8 Zustände).** Kernrune (schwebt in der Mitte), Schwarzpulver (Nord-Süd-Rinne) und Lohenstaub (Ost-West-Rinne, glimmt) werden per Rechtsklick eingelegt. Pulver je 24 Stück (Config `sarcophagusPowder`). Sind alle drei drin, ist der Sarkophag bereit.
 

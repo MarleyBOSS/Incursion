@@ -2,13 +2,13 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [
-    "OOO",
     "ODO",
-    "OOO"
+    "D D",
+    "ODO"
   ],
   "key": {
-    "O": { "item": "minecraft:polished_blackstone" },
-    "D": { "item": "minecraft:gold_ingot" }
+    "O": { "item": "minecraft:obsidian" },
+    "D": { "item": "minecraft:diamond" }
   },
   "result": { "id": "incursion:core", "count": 1 }
 }
