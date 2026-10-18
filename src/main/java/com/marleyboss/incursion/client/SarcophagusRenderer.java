@@ -410,25 +410,53 @@ final class SarcophagusRenderer {
 
     /**
      * The frame round each glass triangle, as in the artwork, from the outside in: gold line, obsidian, gold line, glass.
-     * The layers lie inside the triangle, next to its edge; they stop at the slab above.
+     * It runs all the way round (the two slanted sides and the top edge under the slab); each layer is a ring between two
+     * triangles that are the glass triangle shrunk towards its centre, so the corners are mitred.
      */
     private static void glassFrames(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite gold,
                                     TextureAtlasSprite dark) {
-        float[][] layers = {{0.0F, 0.010F, 0}, {0.010F, 0.040F, 1}, {0.040F, 0.050F, 0}};
         float top = 1.0F - SLAB;
+        float[][] tri = {{SLAB, top}, {1.0F - SLAB, top}, {0.5F, 0.5F}};
+        float la = dist(tri[1], tri[2]);
+        float lb = dist(tri[0], tri[2]);
+        float lc = dist(tri[0], tri[1]);
+        float sum = la + lb + lc;
+        float ix = (la * tri[0][0] + lb * tri[1][0] + lc * tri[2][0]) / sum;
+        float iy = (la * tri[0][1] + lb * tri[1][1] + lc * tri[2][1]) / sum;
+        float area = 0.5F * Math.abs((tri[1][0] - tri[0][0]) * (tri[2][1] - tri[0][1])
+                - (tri[2][0] - tri[0][0]) * (tri[1][1] - tri[0][1]));
+        float r = area / (sum * 0.5F); // the radius of the circle inside the triangle
+        float[][] layers = {{0.0F, 0.010F, 0}, {0.010F, 0.040F, 1}, {0.040F, 0.050F, 0}};
         float out = OUT * 0.5F;
         for (int wall = 0; wall < 4; wall++) {
             boolean alongX = wall < 2;
             float at = wall % 2;
+            float sign = at < 0.5F ? -1.0F : 1.0F;
+            float front = at + sign * out;
+            float[] nrm = alongX ? new float[]{0, 0, sign} : new float[]{sign, 0, 0};
             for (float[] layer : layers) {
-                float half = (layer[1] - layer[0]) * 0.5F;
-                float shift = (layer[1] + layer[0]) * 0.5F;
                 TextureAtlasSprite sprite = layer[2] > 0.5F ? dark : gold;
                 int mode = layer[2] > 0.5F ? 3 : 4;
-                vStrip(vc, pose, light, sprite, mode, alongX, at, 0.0F, 1.0F, 0.5F, 0.5F, half, shift, top, out);
-                vStrip(vc, pose, light, sprite, mode, alongX, at, 1.0F, 1.0F, 0.5F, 0.5F, half, shift, top, out);
+                float[][] o = new float[3][];
+                float[][] n = new float[3][];
+                for (int i = 0; i < 3; i++) {
+                    float ko = (r - layer[0]) / r;
+                    float kn = (r - layer[1]) / r;
+                    o[i] = wallPoint(alongX, new float[]{ix + (tri[i][0] - ix) * ko, iy + (tri[i][1] - iy) * ko}, front);
+                    n[i] = wallPoint(alongX, new float[]{ix + (tri[i][0] - ix) * kn, iy + (tri[i][1] - iy) * kn}, front);
+                }
+                for (int e = 0; e < 3; e++) {
+                    int f = (e + 1) % 3;
+                    polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, nrm[0], nrm[1], nrm[2], o[e], o[f], n[f], n[e]);
+                }
             }
         }
+    }
+
+    private static float dist(float[] a, float[] b) {
+        float dx = a[0] - b[0];
+        float dy = a[1] - b[1];
+        return Mth.sqrt(dx * dx + dy * dy);
     }
 
     /**
