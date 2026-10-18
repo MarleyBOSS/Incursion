@@ -82,9 +82,11 @@ final class SarcophagusRenderer {
     private static final float TWIST = 35.0F;
     /** Thickness of the upper slab and the gap to the wall plane. */
     private static final float SLAB = 0.05F;
-    /** The slab is exactly as wide as the block (no slot between it and the glass); the gold on it stands out by FLUSH. */
-    private static final float INSET = 0.0F;
-    private static final float FLUSH = 0.0015F;
+    /**
+     * The slab reaches a hair past the block (negative inset): no slot between it and the glass, and it ends flush with the
+     * gold frame of the lower half, whose outer face lies OUT outside the block. The gold on the slab lies in that same plane.
+     */
+    private static final float INSET = -0.0025F;
     /** Height of the orb's centre, relative to the block. */
     private static final float ORB_Y = 1.12F;
     /** Height of the four corner tips of the lower half: exactly where the slab begins, so the frame lines meet there. */
@@ -320,6 +322,12 @@ final class SarcophagusRenderer {
         wall(vc, pose, light, wall, 1.0F, true, 0, 0, 1);
         wall(vc, pose, light, wall, 0.0F, false, -1, 0, 0);
         wall(vc, pose, light, wall, 1.0F, false, 1, 0, 0);
+        // The same walls seen from inside (dark): otherwise one can look through them from the open top.
+        TextureAtlasSprite dark = sprite(INNER);
+        wall(vc, pose, light, dark, 0.0F, true, 0, 0, 1);
+        wall(vc, pose, light, dark, 1.0F, true, 0, 0, -1);
+        wall(vc, pose, light, dark, 0.0F, false, 1, 0, 0);
+        wall(vc, pose, light, dark, 1.0F, false, -1, 0, 0);
         for (float[][] tri : FLOOR) {
             poly(vc, pose, light, marble, 0, 0, 1, 0, tri[0], tri[1], tri[2]);
         }
@@ -359,6 +367,15 @@ final class SarcophagusRenderer {
                 new float[]{a, y0, a}, new float[]{a, y0, b}, new float[]{a, 1, b}, new float[]{a, 1, a});
         poly(vc, pose, light, marble, 2, 1, 0, 0,
                 new float[]{b, y0, a}, new float[]{b, y0, b}, new float[]{b, 1, b}, new float[]{b, 1, a});
+        // The sides seen from inside (dark), so that one cannot look through the slab from below.
+        poly(vc, pose, light, inner, 1, 0, 0, 1,
+                new float[]{a, y0, a}, new float[]{b, y0, a}, new float[]{b, 1, a}, new float[]{a, 1, a});
+        poly(vc, pose, light, inner, 1, 0, 0, -1,
+                new float[]{a, y0, b}, new float[]{b, y0, b}, new float[]{b, 1, b}, new float[]{a, 1, b});
+        poly(vc, pose, light, inner, 2, 1, 0, 0,
+                new float[]{a, y0, a}, new float[]{a, y0, b}, new float[]{a, 1, b}, new float[]{a, 1, a});
+        poly(vc, pose, light, inner, 2, -1, 0, 0,
+                new float[]{b, y0, a}, new float[]{b, y0, b}, new float[]{b, 1, b}, new float[]{b, 1, a});
     }
 
     /** The frame of the lower half: gold, clean. Bottom edges, corner posts and the V notches. */
@@ -387,9 +404,9 @@ final class SarcophagusRenderer {
         TextureAtlasSprite dark = sprite(INNER);
         int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
         // The slab's top edge: one thin gold line (the black side of the slab below it is the obsidian of the frame). It and
-        // the posts stand out of the slab by a hair, so that they win against the slab's own side faces.
-        float lo = -FLUSH;
-        float hi = 1.0F + FLUSH;
+        // the posts end in the plane of the lower frame and stand out of the slab by a hair, so that they win against its side faces.
+        float lo = -OUT;
+        float hi = 1.0F + OUT;
         float top = 1.0F + OUT;
         float low = 1.0F - 0.012F;
         float w = CORNER_W; // as wide as the tip of the frame lines below, so that the posts are flush with them
