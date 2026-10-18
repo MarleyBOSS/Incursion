@@ -512,24 +512,33 @@ public class CoreBlockEntity extends BlockEntity {
         }
         int radius = CoreEvolution.plazaRadius(built);
         int height = CoreEvolution.pillarHeight(built);
+        // stage 2 the forge (flames and lava drips), 3 the souls, 4 the rift (ash)
+        double top = built >= 4 ? height + 0.3 : built == 3 ? height - 0.4 : height + 0.1;
         if (level.getGameTime() % 3 == 0) {
             for (int sx = -1; sx <= 1; sx += 2) {
                 for (int sz = -1; sz <= 1; sz += 2) {
                     double x = pos.getX() + 0.5 + sx * radius + (level.random.nextDouble() - 0.5) * 0.6;
                     double z = pos.getZ() + 0.5 + sz * radius + (level.random.nextDouble() - 0.5) * 0.6;
-                    double y = pos.getY() + height - 0.75 + level.random.nextDouble() * 0.9;
-                    level.addParticle(ParticleTypes.FLAME, x, y, z, 0.0, 0.05, 0.0);
-                    if (built >= 3 && level.random.nextInt(3) == 0) {
-                        level.addParticle(ParticleTypes.ELECTRIC_SPARK, x, y, z, (level.random.nextDouble() - 0.5) * 0.3,
-                                (level.random.nextDouble() - 0.5) * 0.3, (level.random.nextDouble() - 0.5) * 0.3);
+                    double y = pos.getY() + top + level.random.nextDouble() * 0.9;
+                    if (built == 2) {
+                        level.addParticle(ParticleTypes.FLAME, x, y, z, 0.0, 0.05, 0.0);
+                        if (level.random.nextInt(3) == 0) {
+                            level.addParticle(ParticleTypes.LAVA, x, pos.getY() + height - 1.2, z, 0.0, 0.0, 0.0);
+                        }
+                    } else if (built == 3) {
+                        level.addParticle(ParticleTypes.SOUL_FIRE_FLAME, x, y, z, 0.0, 0.04, 0.0);
+                        if (level.random.nextInt(3) == 0) {
+                            level.addParticle(ParticleTypes.ENCHANT, x, y, z, 0.0, 0.1, 0.0);
+                        }
+                    } else {
+                        level.addParticle(ParticleTypes.ASH, x, y, z, 0.0, 0.03, 0.0);
+                        if (level.random.nextInt(3) == 0) {
+                            level.addParticle(ParticleTypes.ELECTRIC_SPARK, x, y, z, (level.random.nextDouble() - 0.5) * 0.3,
+                                    (level.random.nextDouble() - 0.5) * 0.3, (level.random.nextDouble() - 0.5) * 0.3);
+                        }
                     }
                 }
             }
-        }
-        if (built >= 4) {
-            double x = pos.getX() + 0.5 + (level.random.nextDouble() - 0.5) * 0.8;
-            double z = pos.getZ() + 0.5 + (level.random.nextDouble() - 0.5) * 0.8;
-            level.addParticle(ParticleTypes.END_ROD, x, pos.getY() + 2.0 + level.random.nextDouble() * 2.0, z, 0.0, 0.18, 0.0);
         }
     }
 
