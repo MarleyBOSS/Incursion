@@ -41,6 +41,7 @@ public class Incursion {
         Rewards.register();
         Fallout.register();
         Ritual.register();
+        com.marleyboss.incursion.command.CoreCommands.register();
         if (System.getenv("INCURSION_PROBE") != null) {
             com.marleyboss.incursion.dev.PhysicsProbe.register(); // development measurement, see the Probe workflow
         }
