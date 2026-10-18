@@ -82,7 +82,9 @@ final class SarcophagusRenderer {
     private static final float TWIST = 35.0F;
     /** Thickness of the upper slab and the gap to the wall plane. */
     private static final float SLAB = 0.05F;
-    private static final float INSET = 0.004F;
+    /** The slab is exactly as wide as the block (no slot between it and the glass); the gold on it stands out by FLUSH. */
+    private static final float INSET = 0.0F;
+    private static final float FLUSH = 0.0015F;
     /** Height of the orb's centre, relative to the block. */
     private static final float ORB_Y = 1.12F;
     /** Height of the four corner tips of the lower half: exactly where the slab begins, so the frame lines meet there. */
@@ -384,28 +386,23 @@ final class SarcophagusRenderer {
         TextureAtlasSprite gold = sprite(GOLD);
         TextureAtlasSprite dark = sprite(INNER);
         int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
-        // The slab's top edge: one thin gold line (the black side of the slab below it is the obsidian of the frame).
+        // The slab's top edge: one thin gold line (the black side of the slab below it is the obsidian of the frame). It and
+        // the posts stand out of the slab by a hair, so that they win against the slab's own side faces.
+        float lo = -FLUSH;
+        float hi = 1.0F + FLUSH;
         float top = 1.0F + OUT;
         float low = 1.0F - 0.012F;
-        float[][] layers = {{0.0F, CORNER_W, 0}};
-        for (float[] layer : layers) {
-            float o0 = layer[0];
-            float o1 = layer[1];
-            TextureAtlasSprite sprite = layer[2] > 0.5F ? dark : gold;
-            int mode = layer[2] > 0.5F ? 3 : 4;
-            box(vc, pose, bright, sprite, mode, o0, 1.0F - o0, low, top, o0, o1);
-            box(vc, pose, bright, sprite, mode, o0, 1.0F - o0, low, top, 1.0F - o1, 1.0F - o0);
-            box(vc, pose, bright, sprite, mode, o0, o1, low, top, o1, 1.0F - o1);
-            box(vc, pose, bright, sprite, mode, 1.0F - o1, 1.0F - o0, low, top, o1, 1.0F - o1);
-        }
+        float w = CORNER_W; // as wide as the tip of the frame lines below, so that the posts are flush with them
+        box(vc, pose, bright, gold, 4, lo, hi, low, top, lo, w);
+        box(vc, pose, bright, gold, 4, lo, hi, low, top, 1.0F - w, hi);
+        box(vc, pose, bright, gold, 4, lo, w, low, top, w, 1.0F - w);
+        box(vc, pose, bright, gold, 4, 1.0F - w, hi, low, top, w, 1.0F - w);
         // A gold post on each vertical edge of the slab: it joins the tip where the frame lines of two walls meet with the
         // gold line along the top.
-        float pw = CORNER_W; // as wide as the tip of the frame lines below it, so the post is flush with them
-        float hi2 = 1.0F + OUT;
-        box(vc, pose, bright, gold, 4, 0.0F, pw, TIP, hi2, 0.0F, pw);
-        box(vc, pose, bright, gold, 4, 1.0F - pw, 1.0F, TIP, hi2, 0.0F, pw);
-        box(vc, pose, bright, gold, 4, 0.0F, pw, TIP, hi2, 1.0F - pw, 1.0F);
-        box(vc, pose, bright, gold, 4, 1.0F - pw, 1.0F, TIP, hi2, 1.0F - pw, 1.0F);
+        box(vc, pose, bright, gold, 4, lo, w, TIP, top, lo, w);
+        box(vc, pose, bright, gold, 4, 1.0F - w, hi, TIP, top, lo, w);
+        box(vc, pose, bright, gold, 4, lo, w, TIP, top, 1.0F - w, hi);
+        box(vc, pose, bright, gold, 4, 1.0F - w, hi, TIP, top, 1.0F - w, hi);
         glassFrames(vc, pose, bright, gold, dark);
     }
 
@@ -491,8 +488,8 @@ final class SarcophagusRenderer {
         poly.add(new float[]{bx + px, by + py});
         poly.add(new float[]{bx - px, by - py});
         poly.add(new float[]{ax - px, ay - py});
-        poly = clip(poly, -1.0F, 0.0F, left ? 0.0F : -0.5F); // s >= 0 (left half) or s >= 0.5
-        poly = clip(poly, 1.0F, 0.0F, left ? 0.5F : 1.0F);   // s <= 0.5 or s <= 1
+        poly = clip(poly, -1.0F, 0.0F, left ? out : -0.5F); // s >= -out (left half, so the strips of two walls meet in the corner) or s >= 0.5
+        poly = clip(poly, 1.0F, 0.0F, left ? 0.5F : 1.0F + out);   // s <= 0.5 or s <= 1 + out
         poly = clip(poly, 0.0F, 1.0F, ymax);                 // y <= top
         if (poly.size() < 3) {
             return;
