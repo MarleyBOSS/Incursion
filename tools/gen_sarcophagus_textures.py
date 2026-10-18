@@ -86,18 +86,25 @@ def posterize(v, levels):
     return np.array(levels, dtype=float)[idx]
 
 
-MARBLE_LEVELS = [(13, 9, 24), (19, 14, 33), (27, 20, 45), (42, 31, 70)]
+MARBLE_LEVELS = [(10, 8, 16), (17, 12, 30), (26, 18, 42), (38, 27, 64), (56, 40, 92)]
 
 
-def marble_rgb(size, seed):
-    """Obsidian in vanilla pixel style (16px): per-pixel noise in four hard steps, a few lighter violet pixels."""
+def marble_v(size, seed):
     rng = np.random.default_rng(seed)
     smooth = fbm(size, size, rng, ((2, 0.6), (4, 0.4)))
     smooth = (smooth - smooth.min()) / (smooth.max() - smooth.min() + 1e-9)
     noise = rng.random((size, size))
-    v = (0.35 * smooth + 0.65 * noise) ** 1.7
-    v = v / (v.max() + 1e-9)
-    return posterize(v * 0.98, MARBLE_LEVELS)
+    v = (0.35 * smooth + 0.65 * noise) ** 1.6
+    return v / (v.max() + 1e-9)
+
+
+def marble_rgb(size, seed, boost=None):
+    """Obsidian in vanilla pixel style (16px): per-pixel noise in five hard steps (black to violet).
+    boost (same shape) is added before the steps: a moving boost makes the tones shimmer."""
+    v = marble_v(size, seed) * 0.97
+    if boost is not None:
+        v = v + boost
+    return posterize(np.clip(v, 0.0, 0.999), MARBLE_LEVELS)
 
 
 def gold_ring(rgb, dist_px, xx, yy):
@@ -124,70 +131,30 @@ def cracks_mask(size, seed):
 
 
 def wall_frame(f):
-    """Wall of the lower half (16px): x = u, y = 1 - v. Glowing golden cracks, a pulsing glyph, a shimmering bead ring."""
+    """Wall of the lower half (16px): x = u, y = 1 - v. Obsidian whose tones shimmer in a slow diagonal wave, a few faint amber cracks."""
     size = 16
     phase = 2 * np.pi * f / FRAMES
-    rgb = marble_rgb(size, 1801)
     yy, xx = np.mgrid[0:size, 0:size]
+    wave = np.clip(np.sin(phase - (xx * 0.5 + yy * 0.35)), 0.0, 1.0) ** 2
+    rgb = marble_rgb(size, 1801, boost=0.34 * wave)
     u = (xx + 0.5) / size
     y = 1.0 - (yy + 0.5) / size
-    edge = 0.5 + np.abs(u - 0.5)
-    d_notch = (edge - y) / np.sqrt(2.0)
+    d_notch = (0.5 + np.abs(u - 0.5) - y) / np.sqrt(2.0)
     dist_px = np.minimum.reduce([y, u, 1 - u, d_notch]) * size
-    inside = dist_px >= 2.0
-    # glowing cracks: a warm wave travels through them
-    crack = cracks_mask(size, 1801) & inside
-    wave = 0.5 + 0.5 * np.sin(phase - (xx * 0.55 + yy * 0.35))
-    rgb[crack] = mix((44, 30, 20), (170, 124, 36), wave ** 2)[crack]
-    # the glyph (a diamond with a heart) in the lower middle
-    gx = np.abs(xx - 7.5)
-    gy = np.abs(yy - 12.0)
-    d = gx + gy
-    glyph = (((d >= 1.9) & (d < 3.1)) | ((gx < 1.0) & (gy < 1.0))) & (yy >= 10) & (yy <= 14)
-    beat = 0.5 + 0.5 * np.sin(phase)
-    rgb[glyph] = mix((100, 70, 20), (240, 196, 80), beat * np.ones_like(d))[glyph]
-    # the border: dark gold on the edge pixel (under the 3D bar), a beaded ring inside it that shimmers
-    edge_row = dist_px < 1.0
-    ring = (dist_px >= 1.0) & (dist_px < 2.0)
-    rgb[edge_row] = (8, 5, 14)
-    shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.45)
-    rgb[ring] = mix((70, 50, 18), (176, 132, 40), shimmer)[ring]
+    crack = cracks_mask(size, 1801) & (dist_px >= 2.0)
+    glow = 0.5 + 0.5 * np.sin(phase - (xx * 0.55 + yy * 0.35))
+    rgb[crack] = mix((34, 24, 22), (120, 84, 28), glow ** 2)[crack]
     rgb[d_notch < 0] *= 0.4
     return rgb
 
 
 def top_frame(f):
-    """Top plate (16px): x = u, z = v. A turning rune ring, a heart that pulses, sparks running along the diagonals."""
+    """Top plate (16px): x = u, z = v. Plain obsidian, tones shimmer in a slow wave."""
     size = 16
     phase = 2 * np.pi * f / FRAMES
-    rgb = marble_rgb(size, 1807)
     yy, xx = np.mgrid[0:size, 0:size]
-    u = (xx + 0.5) / size
-    v = (yy + 0.5) / size
-    dist_px = np.minimum.reduce([u, 1 - u, v, 1 - v]) * size
-    edge_row = dist_px < 1.0
-    ring_b = (dist_px >= 1.0) & (dist_px < 2.0)
-    shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.45)
-    rgb[edge_row] = (8, 5, 14)
-    rgb[ring_b] = mix((70, 50, 18), (176, 132, 40), shimmer)[ring_b]
-    dx = xx - 7.5
-    dz = yy - 7.5
-    r = np.sqrt(dx * dx + dz * dz)
-    ang = np.arctan2(dz, dx)
-    inner = (r >= 2.3) & (r < 3.5)
-    lit = np.sin(3 * ang - phase) > -0.35  # three arcs that turn
-    rgb[inner & lit] = (200, 154, 52)
-    rgb[inner & ~lit] = (30, 22, 40)
-    outer = (r >= 4.6) & (r < 5.6)
-    lit2 = np.sin(6 * ang + phase) > 0.2
-    rgb[outer & lit2] = (60, 42, 24)
-    heart = r < 1.6
-    beat = 0.5 + 0.5 * np.sin(phase)
-    rgb[heart] = mix((200, 130, 30), (255, 240, 170), beat * np.ones_like(r))[heart]
-    diag = np.minimum(np.abs(xx - yy), np.abs(xx + yy - (size - 1))) == 0
-    along = np.maximum(np.abs(dx), np.abs(dz))
-    runner = ((along * 1.0 - f) % 4 == 0)
-    return rgb
+    wave = np.clip(np.sin(phase - (xx * 0.4 + yy * 0.4)), 0.0, 1.0) ** 2
+    return marble_rgb(size, 1807, boost=0.34 * wave)
 
 
 def wall():
@@ -221,11 +188,8 @@ def inner():
 
 
 def gold():
-    """Gold block style: noisy pixels in four shades (the 3D frame cubes each pick one pixel)."""
-    rng = np.random.default_rng(1809)
-    shades = [(236, 190, 58), (214, 162, 40)]
-    idx = (rng.random((16, 16)) < 0.3).astype(int)
-    return to_image(np.array(shades, dtype=float)[idx])
+    """Plain gold (the frame bars show a single pixel of it)."""
+    return to_image(np.full((16, 16, 3), (232, 184, 52), dtype=float))
 
 
 def glass():

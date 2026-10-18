@@ -69,9 +69,14 @@ final class SarcophagusRenderer {
     private static final float OPEN_TICKS = 80.0F;
     /** Time the closing after a defuse takes (ticks). */
     private static final float CLOSE_TICKS = 60.0F;
-    /** The gold frame is built from small cubes: their half size (a little uneven), the distance between them. */
-    private static final float CUBE = 0.021F;
-    private static final float CUBE_STEP = 0.04F;
+    /** Half width of the gold frame of the lower half, of the gold outline of the slab and of the obsidian frame round the glass. */
+    private static final float GOLD_HALF = 0.022F;
+    private static final float OUTLINE_HALF = 0.013F;
+    private static final float GLASS_FRAME_HALF = 0.03F;
+    /** How far the frame stands out of the surface (so that it wins against the wall behind it). */
+    private static final float OUT = 0.004F;
+    /** How deep the frame reaches into the block. */
+    private static final float DEPTH = 0.04F;
     /** How far the upper half rises. */
     private static final float LIFT = 0.8F;
     /** How far the upper half is turned against the lower one (degrees). */
@@ -234,7 +239,7 @@ final class SarcophagusRenderer {
         // 1. Solid parts.
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light);
-        drawBars(pose.last(), solid, LOWER_BARS, light);
+        drawLowerFrame(pose.last(), solid, light);
         if (contents > 0.0F) {
             if (showHeaps) {
                 drawHeaps(pose.last(), solid, light, hasGunpowder, hasBlaze);
@@ -253,7 +258,7 @@ final class SarcophagusRenderer {
         pose.mulPose(Axis.YP.rotationDegrees(twist));
         pose.translate(-0.5F, 0.0F, -0.5F);
         drawSlab(pose.last(), solid, light);
-        drawBars(pose.last(), solid, UPPER_BARS, light);
+        drawUpperFrame(pose.last(), solid, light);
         pose.popPose();
         flushSolid(buffer);
 
@@ -287,9 +292,9 @@ final class SarcophagusRenderer {
     static void renderItem(PoseStack pose, MultiBufferSource buffer, int light) {
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light);
-        drawBars(pose.last(), solid, LOWER_BARS, light);
+        drawLowerFrame(pose.last(), solid, light);
         drawSlab(pose.last(), solid, light);
-        drawBars(pose.last(), solid, UPPER_BARS, light);
+        drawUpperFrame(pose.last(), solid, light);
         flushSolid(buffer);
         drawGlass(pose.last(), buffer, light);
     }
@@ -348,65 +353,159 @@ final class SarcophagusRenderer {
                 new float[]{b, y0, a}, new float[]{b, y0, b}, new float[]{b, 1, b}, new float[]{b, 1, a});
     }
 
-    /**
-     * The gold frame: a chain of small cubes along every edge (like a vanilla frame, not a smooth bar). The cubes differ
-     * a little in size and each shows one pixel of the gold texture. Every cube is moved so that it lies flush with the
-     * block (it stands out of the surface by a few thousandths only), so nothing sticks out at corners and tips.
-     */
-    private static void drawBars(PoseStack.Pose pose, VertexConsumer vc, float[][] bars, int light) {
+    /** The frame of the lower half: gold, clean. Bottom edges, corner posts and the V notches. */
+    private static void drawLowerFrame(PoseStack.Pose pose, VertexConsumer vc, int light) {
         TextureAtlasSprite gold = sprite(GOLD);
         int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
-        int barIndex = 0;
-        for (float[] e : bars) {
-            float dx = e[3] - e[0];
-            float dy = e[4] - e[1];
-            float dz = e[5] - e[2];
-            float len = Mth.sqrt(dx * dx + dy * dy + dz * dz);
-            int n = Math.max(1, Math.round(len / CUBE_STEP));
-            float off = 0.003F + 0.0005F * (barIndex % 8);
-            for (int i = 0; i <= n; i++) {
-                float f = (float) i / n;
-                int hash = hash(barIndex * 131 + i);
-                float h = CUBE + ((hash & 3) - 1.5F) * 0.0008F;
-                float cx = Mth.clamp(e[0] + dx * f, h - off, 1.0F - h + off);
-                float cy = Mth.clamp(e[1] + dy * f, h - off, 1.0F - h + off);
-                float cz = Mth.clamp(e[2] + dz * f, h - off, 1.0F - h + off);
-                float fu = (((hash >> 8) & 15) + 0.5F) / 16.0F;
-                float fv = (((hash >> 12) & 15) + 0.5F) / 16.0F;
-                cube(vc, pose, bright, gold, cx, cy, cz, h, fu, fv);
-            }
-            barIndex++;
+        float w = GOLD_HALF * 2.0F;
+        float lo = -OUT;
+        float hi = 1.0F + OUT;
+        // bottom edges
+        box(vc, pose, bright, gold, lo, hi, lo, lo + w, lo, lo + w);
+        box(vc, pose, bright, gold, lo, hi, lo, lo + w, hi - w, hi);
+        box(vc, pose, bright, gold, lo, lo + w, lo, lo + w, lo, hi);
+        box(vc, pose, bright, gold, hi - w, hi, lo, lo + w, lo, hi);
+        // corner posts, up to the tips
+        box(vc, pose, bright, gold, lo, lo + w, lo, 1.0F, lo, lo + w);
+        box(vc, pose, bright, gold, hi - w, hi, lo, 1.0F, lo, lo + w);
+        box(vc, pose, bright, gold, lo, lo + w, lo, 1.0F, hi - w, hi);
+        box(vc, pose, bright, gold, hi - w, hi, lo, 1.0F, hi - w, hi);
+        notches(vc, pose, bright, gold, GOLD_HALF, OUT);
+    }
+
+    /** The frame of the upper half: a thin gold outline round the slab, an obsidian frame round the glass. */
+    private static void drawUpperFrame(PoseStack.Pose pose, VertexConsumer vc, int light) {
+        TextureAtlasSprite gold = sprite(GOLD);
+        TextureAtlasSprite dark = sprite(INNER);
+        int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
+        float w = OUTLINE_HALF * 2.0F;
+        float lo = -OUT;
+        float hi = 1.0F + OUT;
+        box(vc, pose, bright, gold, lo, hi, hi - w, hi, lo, lo + w);
+        box(vc, pose, bright, gold, lo, hi, hi - w, hi, hi - w, hi);
+        box(vc, pose, bright, gold, lo, lo + w, hi - w, hi, lo, hi);
+        box(vc, pose, bright, gold, hi - w, hi, hi - w, hi, lo, hi);
+        // a hair less proud than the gold of the lower half, so that the gold wins while the block is shut
+        notches(vc, pose, light, dark, GLASS_FRAME_HALF, OUT * 0.5F);
+    }
+
+    /** The two V strips on each of the four walls. */
+    private static void notches(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, float half, float out) {
+        for (int wall = 0; wall < 4; wall++) {
+            boolean alongX = wall < 2;
+            float at = wall % 2;
+            vStrip(vc, pose, light, sprite, alongX, at, 0.0F, 1.0F, 0.5F, 0.5F, half, out);
+            vStrip(vc, pose, light, sprite, alongX, at, 1.0F, 1.0F, 0.5F, 0.5F, half, out);
         }
     }
 
-    private static int hash(int value) {
-        int x = value * 0x9E3779B1;
-        x ^= x >>> 15;
-        x *= 0x85EBCA6B;
-        x ^= x >>> 13;
-        return x;
+    /**
+     * A flat strip along one side of a V notch, lying on the wall at {@code at} (alongX: the wall z = at, else x = at).
+     * Its ends are cut clean: at the block's edge, at the top and in the middle of the notch, so nothing sticks out.
+     * (sa, ya) is the end at the corner, (sb, yb) the end in the middle.
+     */
+    private static void vStrip(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, boolean alongX,
+                               float at, float sa, float ya, float sb, float yb, float half, float out) {
+        float dx = sb - sa;
+        float dy = yb - ya;
+        float len = Mth.sqrt(dx * dx + dy * dy);
+        dx /= len;
+        dy /= len;
+        float px = -dy * half;
+        float py = dx * half;
+        float ext = half * 3.0F;
+        float ax = sa - dx * ext;
+        float ay = ya - dy * ext;
+        float bx = sb + dx * ext;
+        float by = yb + dy * ext;
+        java.util.List<float[]> poly = new java.util.ArrayList<>();
+        poly.add(new float[]{ax + px, ay + py});
+        poly.add(new float[]{bx + px, by + py});
+        poly.add(new float[]{bx - px, by - py});
+        poly.add(new float[]{ax - px, ay - py});
+        boolean left = sa < sb;
+        poly = clip(poly, -1.0F, 0.0F, left ? 0.0F : -0.5F); // s >= 0 (left half) or s >= 0.5
+        poly = clip(poly, 1.0F, 0.0F, left ? 0.5F : 1.0F);   // s <= 0.5 or s <= 1
+        poly = clip(poly, 0.0F, 1.0F, 1.0F);                 // y <= 1
+        if (poly.size() < 3) {
+            return;
+        }
+        float sign = at < 0.5F ? -1.0F : 1.0F;
+        float front = at + sign * out;
+        float back = at - sign * DEPTH;
+        float cs = 0.0F;
+        float cy = 0.0F;
+        for (float[] q : poly) {
+            cs += q[0] / poly.size();
+            cy += q[1] / poly.size();
+        }
+        float[] nrm = alongX ? new float[]{0, 0, sign} : new float[]{sign, 0, 0};
+        // front face: a fan of triangles
+        for (int i = 1; i + 1 < poly.size(); i++) {
+            polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, nrm[0], nrm[1], nrm[2],
+                    wallPoint(alongX, poly.get(0), front), wallPoint(alongX, poly.get(i), front),
+                    wallPoint(alongX, poly.get(i + 1), front));
+        }
+        // sides (not those on the block's own boundary)
+        for (int i = 0; i < poly.size(); i++) {
+            float[] a = poly.get(i);
+            float[] b = poly.get((i + 1) % poly.size());
+            if (onBoundary(a, b)) {
+                continue;
+            }
+            float mx = (a[0] + b[0]) * 0.5F - cs;
+            float my = (a[1] + b[1]) * 0.5F - cy;
+            float hx = alongX ? mx : 0.0F;
+            float hz = alongX ? 0.0F : mx;
+            polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, hx, my, hz,
+                    wallPoint(alongX, a, front), wallPoint(alongX, b, front), wallPoint(alongX, b, back), wallPoint(alongX, a, back));
+        }
     }
 
-    /** A cube of half size h around (cx, cy, cz), all six faces showing the pixel (fu, fv) of the sprite. */
-    private static void cube(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, float cx, float cy,
-                             float cz, float h, float fu, float fv) {
-        float x0 = cx - h;
-        float x1 = cx + h;
-        float y0 = cy - h;
-        float y1 = cy + h;
-        float z0 = cz - h;
-        float z1 = cz + h;
-        polyAt(vc, pose, light, sprite, 3, fu, fv, 0, 0, -1,
+    private static boolean onBoundary(float[] a, float[] b) {
+        float e = 1.0E-4F;
+        return (a[0] < e && b[0] < e) || (a[0] > 1.0F - e && b[0] > 1.0F - e)
+                || (Math.abs(a[0] - 0.5F) < e && Math.abs(b[0] - 0.5F) < e)
+                || (a[1] > 1.0F - e && b[1] > 1.0F - e);
+    }
+
+    private static float[] wallPoint(boolean alongX, float[] q, float depth) {
+        return alongX ? new float[]{q[0], q[1], depth} : new float[]{depth, q[1], q[0]};
+    }
+
+    /** Clips a convex polygon to the half plane {@code nx * s + ny * y <= c}. */
+    private static java.util.List<float[]> clip(java.util.List<float[]> in, float nx, float ny, float c) {
+        java.util.List<float[]> out = new java.util.ArrayList<>();
+        for (int i = 0; i < in.size(); i++) {
+            float[] a = in.get(i);
+            float[] b = in.get((i + 1) % in.size());
+            float da = nx * a[0] + ny * a[1] - c;
+            float db = nx * b[0] + ny * b[1] - c;
+            if (da <= 0.0F) {
+                out.add(a);
+            }
+            if ((da < 0.0F && db > 0.0F) || (da > 0.0F && db < 0.0F)) {
+                float t = da / (da - db);
+                out.add(new float[]{a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t});
+            }
+        }
+        return out;
+    }
+
+    /** An axis-aligned box showing one flat colour (the middle of the sprite). */
+    private static void box(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, float x0, float x1,
+                            float y0, float y1, float z0, float z1) {
+        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 0, 0, -1,
                 new float[]{x0, y0, z0}, new float[]{x1, y0, z0}, new float[]{x1, y1, z0}, new float[]{x0, y1, z0});
-        polyAt(vc, pose, light, sprite, 3, fu, fv, 0, 0, 1,
+        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 0, 0, 1,
                 new float[]{x0, y0, z1}, new float[]{x1, y0, z1}, new float[]{x1, y1, z1}, new float[]{x0, y1, z1});
-        polyAt(vc, pose, light, sprite, 3, fu, fv, -1, 0, 0,
+        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, -1, 0, 0,
                 new float[]{x0, y0, z0}, new float[]{x0, y0, z1}, new float[]{x0, y1, z1}, new float[]{x0, y1, z0});
-        polyAt(vc, pose, light, sprite, 3, fu, fv, 1, 0, 0,
+        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 1, 0, 0,
                 new float[]{x1, y0, z0}, new float[]{x1, y0, z1}, new float[]{x1, y1, z1}, new float[]{x1, y1, z0});
-        polyAt(vc, pose, light, sprite, 3, fu, fv, 0, -1, 0,
+        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 0, -1, 0,
                 new float[]{x0, y0, z0}, new float[]{x1, y0, z0}, new float[]{x1, y0, z1}, new float[]{x0, y0, z1});
-        polyAt(vc, pose, light, sprite, 3, fu, fv, 0, 1, 0,
+        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 0, 1, 0,
                 new float[]{x0, y1, z0}, new float[]{x1, y1, z0}, new float[]{x1, y1, z1}, new float[]{x0, y1, z1});
     }
 
@@ -585,7 +684,8 @@ final class SarcophagusRenderer {
         for (float[] e : LOWER_BARS) {
             laser(vc, p, e[0], e[1], e[2], e[3], e[4], e[5], 0.02F, 1.0F * k, 0.7F * k, 0.15F * k);
         }
-        for (float[] e : UPPER_BARS) {
+        for (int i = 0; i < 4; i++) { // the gold outline of the slab
+            float[] e = UPPER_BARS[i];
             laser(vc, p, e[0], e[1], e[2], e[3], e[4], e[5], 0.02F, 1.0F * k, 0.7F * k, 0.15F * k);
         }
     }
@@ -600,33 +700,40 @@ final class SarcophagusRenderer {
         pose.translate(0.5F, cy, 0.5F);
         pose.mulPose(Axis.YP.rotationDegrees(time * 1.7F));
         pose.mulPose(Axis.XP.rotationDegrees(14.0F * Mth.sin(time * 0.05F)));
-        sphere(fire, pose.last(), ORB_RADIUS * scale * flick, time * 0.006F, -time * 0.012F, 1.0F * pulse, 1.0F * pulse, 1.0F * pulse);
+        sphere(fire, pose.last(), ORB_RADIUS * scale * flick, time * 0.006F, -time * 0.012F, 1.0F * pulse, 0.78F * pulse, 0.5F * pulse);
         pose.popPose();
         pose.pushPose();
         pose.translate(0.5F, cy, 0.5F);
         pose.mulPose(Axis.YP.rotationDegrees(-time * 2.6F));
         pose.mulPose(Axis.ZP.rotationDegrees(25.0F));
-        sphere(fire, pose.last(), ORB_RADIUS * 1.28F * scale * flick, 0.37F - time * 0.008F, -time * 0.02F, 0.55F * pulse, 0.5F * pulse, 0.45F * pulse);
+        sphere(fire, pose.last(), ORB_RADIUS * 1.28F * scale * flick, 0.37F - time * 0.008F, -time * 0.02F, 0.6F * pulse, 0.36F * pulse, 0.18F * pulse);
+        pose.popPose();
+        // Flames licking out of it: a wide, faint shell that turns slowly the other way.
+        pose.pushPose();
+        pose.translate(0.5F, cy, 0.5F);
+        pose.mulPose(Axis.YP.rotationDegrees(time * 1.1F));
+        pose.mulPose(Axis.XP.rotationDegrees(-30.0F));
+        sphere(fire, pose.last(), ORB_RADIUS * 1.7F * scale * flick, 0.71F + time * 0.004F, -time * 0.03F, 0.34F * pulse, 0.16F * pulse, 0.05F * pulse);
         pose.popPose();
         VertexConsumer heart = buffer.getBuffer(RenderType.eyes(TRIM));
         pose.pushPose();
         pose.translate(0.5F, cy, 0.5F);
-        sphere(heart, pose.last(), ORB_RADIUS * 0.55F * scale, 0.0F, 0.0F, 1.0F, 0.95F, 0.72F);
+        sphere(heart, pose.last(), ORB_RADIUS * 0.36F * scale, 0.0F, 0.0F, 1.0F, 0.68F, 0.26F);
         pose.popPose();
         // Light around it.
         VertexConsumer glow = buffer.getBuffer(RenderType.eyes(HALO));
         PoseStack.Pose p = pose.last();
         float s = scale;
-        billboard(glow, p, 0.5F, cy, 0.5F, 0.75F * s, 0.0F, 0.55F * pulse * s, 0.28F * pulse * s, 0.05F * s);
-        billboard(glow, p, 0.5F, cy, 0.5F, 0.32F * s, 0.0F, 1.0F * pulse * s, 0.8F * pulse * s, 0.35F * s);
+        billboard(glow, p, 0.5F, cy, 0.5F, 0.75F * s, 0.0F, 0.4F * pulse * s, 0.17F * pulse * s, 0.03F * s);
+        billboard(glow, p, 0.5F, cy, 0.5F, 0.27F * s, 0.0F, 0.75F * pulse * s, 0.38F * pulse * s, 0.08F * s);
         if (flash > 0.0F) {
-            billboard(glow, p, 0.5F, cy, 0.5F, (0.8F + 1.4F * flash) * s, 0.0F, flash, 0.8F * flash, 0.35F * flash);
+            billboard(glow, p, 0.5F, cy, 0.5F, (0.8F + 1.4F * flash) * s, 0.0F, flash, 0.55F * flash, 0.15F * flash);
         }
         // Star of light: two turning stars of different size.
         VertexConsumer flare = buffer.getBuffer(RenderType.eyes(FLARE));
         float fk = (0.8F + 0.2F * Mth.sin(time * 0.31F)) * s;
-        billboard(flare, p, 0.5F, cy, 0.5F, (0.85F + 0.5F * flash) * s, time * 0.012F, 1.0F * fk, 0.8F * fk, 0.35F * fk);
-        billboard(flare, p, 0.5F, cy, 0.5F, 0.55F * s, 0.4F - time * 0.02F, 0.8F * fk, 0.6F * fk, 0.25F * fk);
+        billboard(flare, p, 0.5F, cy, 0.5F, (0.6F + 0.5F * flash) * s, time * 0.012F, 0.6F * fk, 0.36F * fk, 0.12F * fk);
+        billboard(flare, p, 0.5F, cy, 0.5F, 0.4F * s, 0.4F - time * 0.02F, 0.45F * fk, 0.26F * fk, 0.08F * fk);
         // A ring of runes turning around the orb.
         VertexConsumer ring = buffer.getBuffer(RenderType.eyes(RING));
         pose.pushPose();
@@ -642,7 +749,7 @@ final class SarcophagusRenderer {
         VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
         PoseStack.Pose p = pose.last();
         float flicker = 0.8F + 0.2F * Mth.sin(time * 0.9F);
-        float k = 0.95F * scale * flicker;
+        float k = 0.8F * scale * flicker;
         float cy = ORB_Y;
         float[][] lowerEnds = {NW, NE, SE, SW, N, S, W, E};
         for (float[] end : lowerEnds) {
