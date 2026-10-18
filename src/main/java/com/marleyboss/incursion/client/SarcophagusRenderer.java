@@ -22,6 +22,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
@@ -142,6 +143,7 @@ final class SarcophagusRenderer {
         float last;
         float nextHum;
         float nextSpark;
+        long ghostDone = Long.MIN_VALUE;
     }
 
     private SarcophagusRenderer() {
@@ -249,6 +251,34 @@ final class SarcophagusRenderer {
         float contents = t > 0.0F ? 1.0F - ease(t / 0.45F) : 1.0F;
         // The powders are destroyed by a defuse: while the countdown runs (and the block closes) only the rune comes back.
         boolean showHeaps = !(active && progress >= 0.0F);
+
+        // The block that stood above the Sarcophagus shakes while it opens and blows up when the upper half rises.
+        BlockState ghost = core.getGhostState();
+        long ghostTime = core.getGhostTime();
+        if (ghost != null && ghostTime != state.ghostDone) {
+            float age = level.getGameTime() - ghostTime;
+            if (age > 100.0F) {
+                state.ghostDone = ghostTime; // long ago (the player came near later): nothing to show
+            } else if (state.open < 0.42F) {
+                float amp = 0.008F + 0.03F * (state.open / 0.42F);
+                if (ghost.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL) {
+                    pose.pushPose();
+                    pose.translate(Mth.sin(time * 3.1F) * amp, 1.0F + Mth.sin(time * 2.3F + 1.0F) * amp * 0.5F,
+                            Mth.sin(time * 2.7F + 2.0F) * amp);
+                    Minecraft.getInstance().getBlockRenderer().renderSingleBlock(ghost, pose, buffer, light,
+                            OverlayTexture.NO_OVERLAY);
+                    pose.popPose();
+                }
+            } else {
+                state.ghostDone = ghostTime;
+                BlockPos above = core.getBlockPos().above();
+                Minecraft.getInstance().particleEngine.destroy(above, ghost);
+                level.addParticle(ParticleTypes.EXPLOSION_EMITTER, above.getX() + 0.5, above.getY() + 0.5, above.getZ() + 0.5,
+                        0.0, 0.0, 0.0);
+                level.playLocalSound(above.getX() + 0.5, above.getY() + 0.5, above.getZ() + 0.5,
+                        SoundEvents.GENERIC_EXPLODE.value(), SoundSource.BLOCKS, 2.0F, 1.0F, false);
+            }
+        }
 
         // 1. Solid parts.
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());

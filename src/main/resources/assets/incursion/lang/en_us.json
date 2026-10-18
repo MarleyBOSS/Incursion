@@ -1,5 +1,6 @@
 {
   "block.incursion.core": "Sarcophagus",
+  "block.incursion.core_top": "Sarcophagus (upper half)",
   "message.incursion.core.state.active": "ACTIVE",
   "message.incursion.core.state.inactive": "inactive",
   "message.incursion.core.activated": "The Incursion Core is active. The siege begins!",

@@ -3,6 +3,7 @@ package com.marleyboss.incursion.block;
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.entity.CoreTargetEntity;
 import com.marleyboss.incursion.registry.ModBlockEntities;
+import com.marleyboss.incursion.registry.ModBlocks;
 import com.marleyboss.incursion.registry.ModEntities;
 import com.marleyboss.incursion.siege.Shields;
 import com.marleyboss.incursion.siege.SiegeManager;
@@ -10,7 +11,9 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
@@ -99,6 +102,10 @@ public class CoreBlockEntity extends BlockEntity {
     private int defuseTicksTotal = 0;
     @Nullable
     private UUID defuser;
+    /** The block that stood above the Sarcophagus when it was activated (shown shaking until it blows up) and when (game time). Synced to clients only. */
+    @Nullable
+    private BlockState ghost;
+    private long ghostTime = 0L;
 
     public CoreBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.CORE.get(), pos, state);
@@ -118,13 +125,8 @@ public class CoreBlockEntity extends BlockEntity {
             return;
         }
         core.tickCounter++;
-        if (core.tickCounter % 4 == 0) {
-            // The open Sarcophagus lifts its upper half into the block above: no water or lava may stand there (it would
-            // flood the Core). The heat of the Core drives it out; neighbouring sources just flow in again and get removed again.
-            BlockPos above = pos.above();
-            if (level.getBlockState(above).getBlock() instanceof net.minecraft.world.level.block.LiquidBlock) {
-                level.setBlock(above, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
-            }
+        if (core.tickCounter % 10 == 0 && !level.getBlockState(pos.above()).is(ModBlocks.CORE_TOP.get())) {
+            core.raiseTop(serverLevel); // a Core from an older version, or the upper half was removed by a command
         }
         if (core.defuseTicksLeft > 0) {
             core.tickDefuse(serverLevel);
@@ -144,6 +146,35 @@ public class CoreBlockEntity extends BlockEntity {
     // ------------------------------------------------------------------
     // Getters / setters
     // ------------------------------------------------------------------
+
+    /**
+     * The open Sarcophagus is two blocks high: puts the invisible upper half above it. Whatever stood there is removed
+     * without a drop (the client shows it shaking and blowing up, see {@link #getGhostState}).
+     */
+    public void raiseTop(ServerLevel serverLevel) {
+        BlockPos above = worldPosition.above();
+        BlockState old = serverLevel.getBlockState(above);
+        if (old.is(ModBlocks.CORE_TOP.get())) {
+            return;
+        }
+        if (!old.isAir() && old.getFluidState().isEmpty()
+                && old.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL) {
+            ghost = old;
+            ghostTime = serverLevel.getGameTime();
+        }
+        serverLevel.removeBlockEntity(above); // no contents fall out
+        serverLevel.setBlock(above, ModBlocks.CORE_TOP.get().defaultBlockState(), Block.UPDATE_ALL);
+        forceSync();
+    }
+
+    @Nullable
+    public BlockState getGhostState() {
+        return ghost;
+    }
+
+    public long getGhostTime() {
+        return ghostTime;
+    }
 
     /** Client: the particles of an active Core (see CoreEffects). */
     public static void clientTick(Level level, BlockPos pos, BlockState state, CoreBlockEntity core) {
@@ -207,6 +238,10 @@ public class CoreBlockEntity extends BlockEntity {
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         CompoundTag tag = saveWithoutMetadata(registries);
         tag.putLongArray(TAG_WARDS, syncedWards);
+        if (ghost != null) {
+            tag.put("Ghost", NbtUtils.writeBlockState(ghost));
+            tag.putLong("GhostTime", ghostTime);
+        }
         if (defuseTicksLeft > 0 && level != null) {
             tag.putLong("DefuseEnd", level.getGameTime() + defuseTicksLeft);
             tag.putInt("DefuseTotal", defuseTicksTotal);
@@ -522,6 +557,9 @@ public class CoreBlockEntity extends BlockEntity {
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         coreLevel = tag.getInt(TAG_LEVEL);
+        ghost = tag.contains("Ghost") && registries != null
+                ? NbtUtils.readBlockState(registries.lookupOrThrow(Registries.BLOCK), tag.getCompound("Ghost")) : null;
+        ghostTime = tag.getLong("GhostTime");
         clientDefuseEnd = tag.contains("DefuseEnd") ? tag.getLong("DefuseEnd") : 0L;
         clientDefuseTotal = tag.getInt("DefuseTotal");
         // Cores from v0.1 have no health yet: start them at full health.

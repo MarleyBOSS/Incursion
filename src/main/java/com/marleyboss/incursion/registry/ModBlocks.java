@@ -2,6 +2,7 @@ package com.marleyboss.incursion.registry;
 
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlock;
+import com.marleyboss.incursion.block.CoreTopBlock;
 import com.marleyboss.incursion.block.LootChestBlock;
 import com.marleyboss.incursion.block.WardBlock;
 import com.marleyboss.incursion.table.CoreTableBlock;
@@ -24,6 +25,17 @@ public final class ModBlocks {
                     .sound(SoundType.NETHERITE_BLOCK)
                     .lightLevel(state -> state.getValue(CoreBlock.ACTIVE) ? 12 : 3)
                     .noOcclusion() // the active Core is open above its bottom half, neighbours must still draw their faces
+                    .pushReaction(PushReaction.BLOCK)));
+
+    /** The invisible upper half of an active Core (see CoreTopBlock): unbreakable, immune to explosions, no drops. */
+    public static final DeferredBlock<CoreTopBlock> CORE_TOP = BLOCKS.register("core_top", () -> new CoreTopBlock(
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_PURPLE)
+                    .strength(-1.0F, 3600000.0F)
+                    .sound(SoundType.NETHERITE_BLOCK)
+                    .lightLevel(state -> 12)
+                    .noOcclusion()
+                    .noLootTable()
                     .pushReaction(PushReaction.BLOCK)));
 
     public static final DeferredBlock<WardBlock> WARD = BLOCKS.register("ward", () -> new WardBlock(

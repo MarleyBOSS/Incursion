@@ -52,6 +52,7 @@ public final class CoreActions {
         core.setNightDay(-1);
         core.setHealth(core.getMaxHealth());
         level.setBlock(pos, state.setValue(CoreBlock.ACTIVE, true), Block.UPDATE_ALL);
+        core.raiseTop(level);
         int radius = Config.siegeChunkRadius(1);
         ChunkLoading.update(level, pos, core.getLoadedChunkRadius(), radius);
         core.setLoadedChunkRadius(radius);
