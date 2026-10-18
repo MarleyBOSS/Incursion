@@ -398,13 +398,12 @@ final class SarcophagusRenderer {
         }
         // A gold post on each vertical edge of the slab: it joins the tip where the frame lines of two walls meet with the
         // gold line along the top.
-        float pw = 0.020F;
-        float lo2 = -OUT;
+        float pw = 0.012F; // as wide as the gold line on top, and flush with it
         float hi2 = 1.0F + OUT;
-        box(vc, pose, bright, gold, 4, lo2, lo2 + pw, TIP, hi2, lo2, lo2 + pw);
-        box(vc, pose, bright, gold, 4, hi2 - pw, hi2, TIP, hi2, lo2, lo2 + pw);
-        box(vc, pose, bright, gold, 4, lo2, lo2 + pw, TIP, hi2, hi2 - pw, hi2);
-        box(vc, pose, bright, gold, 4, hi2 - pw, hi2, TIP, hi2, hi2 - pw, hi2);
+        box(vc, pose, bright, gold, 4, 0.0F, pw, TIP, hi2, 0.0F, pw);
+        box(vc, pose, bright, gold, 4, 1.0F - pw, 1.0F, TIP, hi2, 0.0F, pw);
+        box(vc, pose, bright, gold, 4, 0.0F, pw, TIP, hi2, 1.0F - pw, 1.0F);
+        box(vc, pose, bright, gold, 4, 1.0F - pw, 1.0F, TIP, hi2, 1.0F - pw, 1.0F);
         glassFrames(vc, pose, bright, gold, dark);
     }
 
