@@ -345,7 +345,7 @@ final class SarcophagusRenderer {
         flushSolid(buffer);
         pose.popPose();
         if (active && core.getBuiltStage() >= 2) {
-            drawCrystals(pose, solid, time, core.getBuiltStage());
+            drawCrystals(pose, buffer.getBuffer(Sheets.solidBlockSheet()), time, core.getBuiltStage()); // a fresh consumer: the old one was flushed
             flushSolid(buffer);
         }
 
