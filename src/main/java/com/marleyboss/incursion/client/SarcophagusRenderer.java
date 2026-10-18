@@ -70,8 +70,8 @@ final class SarcophagusRenderer {
     /** Time the closing after a defuse takes (ticks). */
     private static final float CLOSE_TICKS = 60.0F;
     /** The gold frame is built from small cubes: their half size (a little uneven), the distance between them. */
-    private static final float CUBE = 0.030F;
-    private static final float CUBE_STEP = 0.0625F;
+    private static final float CUBE = 0.021F;
+    private static final float CUBE_STEP = 0.04F;
     /** How far the upper half rises. */
     private static final float LIFT = 0.8F;
     /** How far the upper half is turned against the lower one (degrees). */
@@ -367,7 +367,7 @@ final class SarcophagusRenderer {
             for (int i = 0; i <= n; i++) {
                 float f = (float) i / n;
                 int hash = hash(barIndex * 131 + i);
-                float h = CUBE + ((hash & 7) - 3.5F) * 0.0013F;
+                float h = CUBE + ((hash & 3) - 1.5F) * 0.0008F;
                 float cx = Mth.clamp(e[0] + dx * f, h - off, 1.0F - h + off);
                 float cy = Mth.clamp(e[1] + dy * f, h - off, 1.0F - h + off);
                 float cz = Mth.clamp(e[2] + dz * f, h - off, 1.0F - h + off);

@@ -86,7 +86,7 @@ def posterize(v, levels):
     return np.array(levels, dtype=float)[idx]
 
 
-MARBLE_LEVELS = [(9, 5, 18), (15, 9, 28), (25, 15, 44), (39, 25, 68)]
+MARBLE_LEVELS = [(10, 6, 20), (15, 9, 29), (22, 13, 40)]
 
 
 def marble_rgb(size, seed):
@@ -97,8 +97,7 @@ def marble_rgb(size, seed):
     rgb = posterize(base * 0.95, MARBLE_LEVELS)
     cracks = fbm(size, size, rng, ((3, 0.6), (6, 0.4)))
     threads = fbm(size, size, rng, ((2, 0.7), (5, 0.3)))
-    rgb[np.abs(cracks - 0.5) < 0.018] = (78, 58, 126)
-    rgb[np.abs(threads - 0.63) < 0.006] = (118, 88, 30)
+    rgb[np.abs(cracks - 0.5) < 0.012] = (44, 28, 78)
     return rgb
 
 
@@ -140,22 +139,20 @@ def wall_frame(f):
     # glowing cracks: a warm wave travels through them
     crack = cracks_mask(size, 1801) & inside
     wave = 0.5 + 0.5 * np.sin(phase - (xx * 0.55 + yy * 0.35))
-    rgb[crack] = mix((46, 22, 90), (90, 235, 230), wave ** 3)[crack]
+    rgb[crack] = mix((34, 20, 64), (52, 120, 128), wave ** 2)[crack]
     # the glyph (a diamond with a heart) in the lower middle
     gx = np.abs(xx - 7.5)
     gy = np.abs(yy - 12.0)
     d = gx + gy
     glyph = (((d >= 1.9) & (d < 3.1)) | ((gx < 1.0) & (gy < 1.0))) & (yy >= 10) & (yy <= 14)
     beat = 0.5 + 0.5 * np.sin(phase)
-    rgb[glyph] = mix((100, 56, 14), (255, 214, 100), beat * np.ones_like(d))[glyph]
+    rgb[glyph] = mix((30, 80, 92), (110, 230, 226), beat * np.ones_like(d))[glyph]
     # the border: dark gold on the edge pixel (under the 3D bar), a beaded ring inside it that shimmers
     edge_row = dist_px < 1.0
     ring = (dist_px >= 1.0) & (dist_px < 2.0)
-    rgb[edge_row] = (12, 7, 22)
-    bead = ((xx + yy) % 2 == 0)
-    shimmer = 0.5 + 0.5 * np.sin(phase * 1.0 - (xx + yy) * 0.9)
-    rgb[ring & bead] = mix((26, 100, 120), (110, 250, 238), shimmer)[ring & bead]
-    rgb[ring & ~bead] = (24, 14, 44)
+    rgb[edge_row] = (8, 5, 16)
+    shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.45)
+    rgb[ring] = mix((22, 60, 72), (64, 170, 178), shimmer)[ring]
     rgb[d_notch < 0] *= 0.4
     return rgb
 
@@ -171,31 +168,26 @@ def top_frame(f):
     dist_px = np.minimum.reduce([u, 1 - u, v, 1 - v]) * size
     edge_row = dist_px < 1.0
     ring_b = (dist_px >= 1.0) & (dist_px < 2.0)
-    bead = ((xx + yy) % 2 == 0)
-    shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.9)
-    rgb[edge_row] = (12, 7, 22)
-    rgb[ring_b & bead] = mix((26, 100, 120), (110, 250, 238), shimmer)[ring_b & bead]
-    rgb[ring_b & ~bead] = (24, 14, 44)
+    shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.45)
+    rgb[edge_row] = (8, 5, 16)
+    rgb[ring_b] = mix((22, 60, 72), (64, 170, 178), shimmer)[ring_b]
     dx = xx - 7.5
     dz = yy - 7.5
     r = np.sqrt(dx * dx + dz * dz)
     ang = np.arctan2(dz, dx)
     inner = (r >= 2.3) & (r < 3.5)
     lit = np.sin(3 * ang - phase) > -0.35  # three arcs that turn
-    rgb[inner & lit] = (84, 228, 224)
-    rgb[inner & ~lit] = (30, 18, 60)
+    rgb[inner & lit] = (90, 210, 210)
+    rgb[inner & ~lit] = (26, 16, 50)
     outer = (r >= 4.6) & (r < 5.6)
     lit2 = np.sin(6 * ang + phase) > 0.2
-    rgb[outer & lit2] = (110, 70, 190)
+    rgb[outer & lit2] = (56, 36, 104)
     heart = r < 1.6
     beat = 0.5 + 0.5 * np.sin(phase)
     rgb[heart] = mix((200, 130, 30), (255, 240, 170), beat * np.ones_like(r))[heart]
     diag = np.minimum(np.abs(xx - yy), np.abs(xx + yy - (size - 1))) == 0
     along = np.maximum(np.abs(dx), np.abs(dz))
     runner = ((along * 1.0 - f) % 4 == 0)
-    mask = diag & (r > 5.6) & (dist_px > 2.5)
-    rgb[mask] = (40, 24, 76)
-    rgb[mask & runner] = (110, 250, 238)
     return rgb
 
 
@@ -232,8 +224,8 @@ def inner():
 def gold():
     """Gold block style: noisy pixels in four shades (the 3D frame cubes each pick one pixel)."""
     rng = np.random.default_rng(1809)
-    shades = [(250, 222, 104), (232, 184, 52), (200, 148, 34), (156, 108, 24)]
-    idx = rng.integers(0, 4, size=(16, 16))
+    shades = [(236, 190, 58), (214, 162, 40)]
+    idx = (rng.random((16, 16)) < 0.3).astype(int)
     return to_image(np.array(shades, dtype=float)[idx])
 
 
