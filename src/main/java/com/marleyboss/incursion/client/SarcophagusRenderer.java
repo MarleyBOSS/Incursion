@@ -271,11 +271,11 @@ final class SarcophagusRenderer {
                 }
             } else {
                 state.ghostDone = ghostTime;
-                BlockPos above = core.getBlockPos().above();
-                Minecraft.getInstance().particleEngine.destroy(above, ghost);
-                level.addParticle(ParticleTypes.EXPLOSION_EMITTER, above.getX() + 0.5, above.getY() + 0.5, above.getZ() + 0.5,
+                BlockPos ghostPos = core.getBlockPos().above();
+                Minecraft.getInstance().particleEngine.destroy(ghostPos, ghost);
+                level.addParticle(ParticleTypes.EXPLOSION_EMITTER, ghostPos.getX() + 0.5, ghostPos.getY() + 0.5, ghostPos.getZ() + 0.5,
                         0.0, 0.0, 0.0);
-                level.playLocalSound(above.getX() + 0.5, above.getY() + 0.5, above.getZ() + 0.5,
+                level.playLocalSound(ghostPos.getX() + 0.5, ghostPos.getY() + 0.5, ghostPos.getZ() + 0.5,
                         SoundEvents.GENERIC_EXPLODE.value(), SoundSource.BLOCKS, 2.0F, 1.0F, false);
             }
         }
