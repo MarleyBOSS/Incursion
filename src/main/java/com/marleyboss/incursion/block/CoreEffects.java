@@ -48,9 +48,5 @@ final class CoreEffects {
             level.addParticle(ParticleTypes.SMALL_FLAME, ex, pos.getY() + 0.9, ez,
                     (random.nextDouble() - 0.5) * 0.3, 0.1 + random.nextDouble() * 0.2, (random.nextDouble() - 0.5) * 0.3);
         }
-        if (time % 7 == 0) {
-            level.addParticle(ParticleTypes.END_ROD, cx + (random.nextDouble() - 0.5) * 0.8, pos.getY() + 1.0,
-                    cz + (random.nextDouble() - 0.5) * 0.8, 0.0, 0.03, 0.0);
-        }
     }
 }

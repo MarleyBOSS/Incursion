@@ -80,99 +80,86 @@ GOLD_LIGHT = np.array([255, 226, 130], dtype=float)
 GOLD_DARK = np.array([112, 80, 20], dtype=float)
 
 
+def posterize(v, levels):
+    """Maps 0..1 noise to the given list of colours (hard steps, like vanilla pixel art)."""
+    idx = np.clip((v * len(levels)).astype(int), 0, len(levels) - 1)
+    return np.array(levels, dtype=float)[idx]
+
+
+MARBLE_LEVELS = [(8, 8, 13), (14, 13, 21), (22, 21, 31), (34, 32, 46)]
+
+
 def marble_rgb(size, seed):
-    """Glossy black marble: dark body, faint pale cracks, a few thin gold threads."""
+    """Black marble in vanilla pixel style (16px): a few dark steps, sparse pale cracks, sparse gold threads."""
     rng = np.random.default_rng(seed)
     base = fbm(size, size, rng, ((2, 0.5), (4, 0.3), (8, 0.2)))
+    base = (base - base.min()) / (base.max() - base.min() + 1e-9)
+    rgb = posterize(base * 0.95, MARBLE_LEVELS)
     cracks = fbm(size, size, rng, ((3, 0.6), (6, 0.4)))
     threads = fbm(size, size, rng, ((2, 0.7), (5, 0.3)))
-    dark = np.array([7, 7, 11], dtype=float)
-    mid = np.array([27, 26, 36], dtype=float)
-    k = base[..., None]
-    rgb = dark * (1 - k) + mid * k
-    crack = np.exp(-((cracks - 0.5) ** 2) / 0.0010)
-    rgb += crack[..., None] * np.array([70, 66, 82], dtype=float) * 0.5
-    thread = np.exp(-((threads - 0.63) ** 2) / 0.0004)
-    rgb += thread[..., None] * np.array([150, 110, 30], dtype=float) * 0.45
+    rgb[np.abs(cracks - 0.5) < 0.018] = (58, 55, 72)
+    rgb[np.abs(threads - 0.63) < 0.012] = (118, 88, 30)
     return rgb
 
 
-def gold_band(rgb, dist, lo, hi, phase, beads=True):
-    """Paints a band of gold where lo <= dist <= hi; with beads (small dots) running along 'phase'."""
-    inside = (dist >= lo) & (dist <= hi)
-    t = np.clip((dist - lo) / max(hi - lo, 1e-6), 0, 1)
-    shade = 1.0 - 0.55 * np.abs(t - 0.5) * 2.0  # lighter in the middle of the band
-    col = GOLD_DARK[None, None, :] * (1 - shade[..., None]) + GOLD_LIGHT[None, None, :] * shade[..., None]
-    if beads:
-        bead = 0.78 + 0.22 * np.sin(phase)
-        col = col * bead[..., None]
-    rgb[inside] = col[inside]
+def gold_ring(rgb, dist_px, xx, yy):
+    """The gold border: one beaded pixel ring along the edges (the 3D gold bar sits on the edge itself)."""
+    bead = ((xx + yy) % 2 == 0)
+    ring = dist_px < 1.0
+    rgb[ring & bead] = (232, 188, 70)
+    rgb[ring & ~bead] = (150, 112, 32)
 
 
 def wall():
-    """Wall of the lower half (128px): x = u, y = 1 - v. Gold border along the outside and the V notch."""
-    size = 128
+    """Wall of the lower half (16px): x = u, y = 1 - v. Gold border along the outside and the V notch."""
+    size = 16
     rgb = marble_rgb(size, 1801)
     yy, xx = np.mgrid[0:size, 0:size]
     u = (xx + 0.5) / size
     y = 1.0 - (yy + 0.5) / size
-    edge = 0.5 + np.abs(u - 0.5)  # height of the notch edge
+    edge = 0.5 + np.abs(u - 0.5)
     d_notch = (edge - y) / np.sqrt(2.0)
-    dist = np.minimum.reduce([y, u, 1 - u, d_notch])
-    phase = (u + y) * 190.0
-    gold_band(rgb, dist, 0.030, 0.052, phase)
-    gold_band(rgb, dist, 0.066, 0.074, phase, beads=False)
-    # above the notch edge nothing of the wall is drawn: darken so a seam never shows light
+    dist_px = np.minimum.reduce([y, u, 1 - u, d_notch]) * size
+    gold_ring(rgb, dist_px, xx, yy)
     rgb[d_notch < 0] *= 0.4
     return to_image(rgb)
 
 
 def top():
-    """Top plate (128px): x = u, z = v. Gold border, thin diagonals to the centre, a small ring."""
-    size = 128
+    """Top plate (16px): x = u, z = v. Gold border, a small ring, dotted diagonals."""
+    size = 16
     rgb = marble_rgb(size, 1807)
     yy, xx = np.mgrid[0:size, 0:size]
     u = (xx + 0.5) / size
     v = (yy + 0.5) / size
-    dist = np.minimum.reduce([u, 1 - u, v, 1 - v])
-    phase = (u + v) * 190.0
-    gold_band(rgb, dist, 0.030, 0.052, phase)
-    gold_band(rgb, dist, 0.066, 0.074, phase, beads=False)
-    r = np.sqrt((u - 0.5) ** 2 + (v - 0.5) ** 2)
-    gold_band(rgb, np.abs(r - 0.16), 0.0, 0.006, phase, beads=False)
-    gold_band(rgb, np.abs(r - 0.10), 0.0, 0.004, phase, beads=False)
-    diag = np.minimum(np.abs(u - v), np.abs(u + v - 1.0)) / np.sqrt(2.0)
-    mask = (r > 0.2) & (dist > 0.09)
-    d2 = np.where(mask, diag, 1.0)
-    gold_band(rgb, d2, 0.0, 0.0035, phase, beads=False)
+    dist_px = np.minimum.reduce([u, 1 - u, v, 1 - v]) * size
+    gold_ring(rgb, dist_px, xx, yy)
+    r_px = np.sqrt((u - 0.5) ** 2 + (v - 0.5) ** 2) * size
+    rgb[(r_px >= 2.4) & (r_px < 3.4)] = (170, 130, 40)
+    rgb[r_px < 0.9] = (232, 188, 70)
+    diag = np.minimum(np.abs(xx - yy), np.abs(xx + yy - (size - 1)))
+    rgb[(diag == 0) & (r_px > 4.2) & (dist_px > 4.5)] = (120, 90, 28)
     return to_image(rgb)
 
 
 def plain_marble():
-    return to_image(marble_rgb(64, 1808))
+    return to_image(marble_rgb(16, 1808))
 
 
 def inner():
     rng = np.random.default_rng(1802)
-    base = fbm(64, 64, rng)
-    dark = np.array([8, 7, 12], dtype=float)
-    mid = np.array([20, 18, 30], dtype=float)
-    k = base[..., None]
-    return to_image(dark * (1 - k) + mid * k)
+    base = fbm(16, 16, rng)
+    base = (base - base.min()) / (base.max() - base.min() + 1e-9)
+    return to_image(posterize(base * 0.9, [(7, 6, 11), (11, 10, 17), (17, 15, 25)]))
 
 
 def gold():
-    rng = np.random.default_rng(1809)
-    n = rng.random((16, 16))[..., None]
-    rgb = GOLD[None, None, :] * (0.92 + 0.12 * n)
-    return to_image(rgb)
+    return to_image(np.full((16, 16, 3), (214, 170, 60), dtype=float))
 
 
 def glass():
-    """Glass triangle (128px): u 0..1 along the top edge, v 0 (top edge) .. 1 (tip). Real height is half the width."""
-    size = 128
-    rng = np.random.default_rng(1803)
-    n = fbm(size, size, rng, ((2, 0.7), (4, 0.3)))
+    """Glass triangle (16px): u 0..1 along the top edge, v 0 (top edge) .. 1 (tip). Real height is half the width."""
+    size = 16
     yy, xx = np.mgrid[0:size, 0:size]
     u = (xx + 0.5) / size
     v = (yy + 0.5) / size
@@ -180,33 +167,32 @@ def glass():
     Y = v * 0.5
     dl = (X - Y) / np.sqrt(2.0)
     dr = ((1 - X) - Y) / np.sqrt(2.0)
-    dt = Y
-    dist = np.minimum.reduce([dl, dr, dt])
-    streak = np.exp(-(((u * 1.0 + v * 0.6) - 0.75) ** 2) / 0.004) + 0.6 * np.exp(-(((u + v * 0.6) - 0.35) ** 2) / 0.0015)
-    sky = np.clip(1.0 - v * 0.8, 0, 1)
+    dist_px = np.minimum.reduce([dl, dr, Y]) * size
     rgb = np.zeros((size, size, 3))
-    rgb[..., 0] = 150 + 70 * streak + 25 * n
-    rgb[..., 1] = 175 + 60 * streak + 20 * n
-    rgb[..., 2] = 210 + 45 * streak + 15 * n
-    alpha = 34 + 30 * sky + 120 * streak + 18 * n
-    alpha = alpha + 90 * np.exp(-dist / 0.012)  # glassy rim
-    phase = (u + Y) * 190.0
-    band = np.zeros((size, size), dtype=bool)
-    inner_band = (dist >= 0.030) & (dist <= 0.040)
-    col = GOLD[None, None, :] * np.ones((size, size, 1))
-    col = col * (0.8 + 0.2 * np.sin(phase))[..., None]
-    rgb[inner_band] = col[inner_band]
-    alpha[inner_band] = 255
+    rgb[...] = (170, 195, 225)
+    alpha = np.full((size, size), 44.0)
+    alpha += 18 * (1.0 - v)  # a bit denser near the top
+    streak = ((xx * 2 + yy) % 11 == 0) | ((xx * 2 + yy) % 11 == 1)
+    streak &= (np.arange(size)[None, :] + np.arange(size)[:, None]) % 3 != 0
+    alpha[streak] = 120
+    rgb[streak] = (225, 238, 255)
+    rim = dist_px < 1.0
+    alpha[rim] = 150
+    rgb[rim] = (210, 225, 245)
+    frame = (dist_px >= 1.5) & (dist_px < 2.5)
+    rgb[frame] = (214, 170, 60)
+    alpha[frame] = 255
     return to_image(rgb, alpha)
 
 
 def powder(name, dark, light, seed):
     rng = np.random.default_rng(seed)
-    grain = rng.random((32, 32))
-    blob = fbm(32, 32, rng, ((4, 0.6), (8, 0.4)))
-    k = (0.55 * grain + 0.45 * blob)[..., None]
-    rgb = np.array(dark, dtype=float) * (1 - k) + np.array(light, dtype=float) * k
-    return to_image(rgb)
+    grain = rng.random((16, 16))
+    blob = fbm(16, 16, rng, ((4, 0.6), (8, 0.4)))
+    k = 0.6 * grain + 0.4 * blob
+    k = (k - k.min()) / (k.max() - k.min() + 1e-9)
+    levels = [tuple(np.array(dark) * (1 - t) + np.array(light) * t) for t in (0.0, 0.33, 0.66, 1.0)]
+    return to_image(posterize(k * 0.99, levels))
 
 
 def trim():
@@ -237,6 +223,40 @@ def orb():
                 rgb[j, i] = c1 + (c2 - c1) * ((h - 0.35) / 0.30)
             else:
                 rgb[j, i] = c2 + (c3 - c2) * min(1.0, (h - 0.65) / 0.30)
+    return to_image(rgb)
+
+
+def flare():
+    """Star of light (128px, grey, additive): a bright core with four long and four short spikes."""
+    size = 128
+    yy, xx = np.mgrid[0:size, 0:size]
+    x = (xx + 0.5) / size * 2 - 1
+    y = (yy + 0.5) / size * 2 - 1
+    r = np.sqrt(x * x + y * y)
+    val = np.exp(-r * 9.0) * 1.1
+    for ang, length, width in [(0, 2.2, 0.018), (np.pi / 2, 2.2, 0.018), (np.pi / 4, 3.4, 0.012), (3 * np.pi / 4, 3.4, 0.012)]:
+        along = x * np.cos(ang) + y * np.sin(ang)
+        perp = -x * np.sin(ang) + y * np.cos(ang)
+        val += 0.9 * np.exp(-(perp / width) ** 2) * np.exp(-np.abs(along) * length)
+    val *= np.clip(1.4 - r, 0, 1)
+    g = np.clip(val, 0, 1) * 255
+    return to_image(np.dstack([g, g, g]))
+
+
+def crystal():
+    """Violet crystal energy (64px, additive): black -> violet -> white veins."""
+    rng = np.random.default_rng(1810)
+    size = 64
+    n1 = fbm(size, size, rng, ((3, 0.5), (6, 0.3), (12, 0.2)))
+    n2 = fbm(size, size, rng, ((4, 0.6), (8, 0.4)))
+    vein = np.exp(-((n2 - 0.5) ** 2) / 0.003)
+    h = np.clip(n1 * 1.3, 0, 1) ** 1.2
+    rgb = np.zeros((size, size, 3))
+    rgb[..., 0] = 70 + 150 * h
+    rgb[..., 1] = 20 + 90 * h
+    rgb[..., 2] = 150 + 105 * h
+    rgb += vein[..., None] * np.array([120, 120, 90], dtype=float)
+    rgb *= (0.35 + 0.65 * h)[..., None]
     return to_image(rgb)
 
 
@@ -349,7 +369,7 @@ def main():
     save(inner(), "block", "sarkophag_inner.png")
     save(gold(), "block", "sarkophag_gold.png")
     save(glass(), "block", "sarkophag_glass.png")
-    save(powder("gun", (50, 50, 56), (150, 150, 160), 1805), "block", "sarkophag_gunpowder.png")
+    save(powder("gun", (45, 45, 50), (150, 150, 160), 1805), "block", "sarkophag_gunpowder.png")
     save(powder("blaze", (225, 130, 10), (255, 232, 90), 1806), "block", "sarkophag_blaze.png")
     save(trim(), "effect", "trim.png")
     save(orb(), "effect", "orb.png")

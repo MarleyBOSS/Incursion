@@ -766,7 +766,11 @@ public final class SiegeManager {
         core.setHealth(0);
         BlockState state = level.getBlockState(pos);
         if (state.getBlock() instanceof CoreBlock) {
-            level.setBlock(pos, state.setValue(CoreBlock.ACTIVE, false), Block.UPDATE_ALL);
+            // Back to the Sarcophagus: the Core Rune lies inside again, the powders were used up.
+            core.setGunpowder(0);
+            core.setBlazePowder(0);
+            level.setBlock(pos, state.setValue(CoreBlock.ACTIVE, false).setValue(CoreBlock.GUNPOWDER, false)
+                    .setValue(CoreBlock.BLAZE, false).setValue(CoreBlock.RUNE, true), Block.UPDATE_ALL);
         }
         level.playSound(null, pos, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.0F, 0.8F);
         level.getServer().getPlayerList().broadcastSystemMessage(Component.translatable("message.incursion.core.defused",

@@ -19,7 +19,8 @@ import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
@@ -66,6 +67,8 @@ final class SarcophagusRenderer {
 
     /** Time the activation takes (ticks). */
     private static final float OPEN_TICKS = 80.0F;
+    /** Time the closing after a defuse takes (ticks). */
+    private static final float CLOSE_TICKS = 60.0F;
     /** How far the upper half rises. */
     private static final float LIFT = 0.8F;
     /** How far the upper half is turned against the lower one (degrees). */
@@ -106,6 +109,7 @@ final class SarcophagusRenderer {
             {0, 1, 0, 0, 0.5F, 0.5F}, {0, 0.5F, 0.5F, 0, 1, 1}, {1, 1, 0, 1, 0.5F, 0.5F}, {1, 0.5F, 0.5F, 1, 1, 1}
     };
 
+    private static final DustParticleOptions SPARK = new DustParticleOptions(new Vector3f(1.0F, 0.8F, 0.25F), 0.7F);
     private static final Map<CoreBlockEntity, State> STATES = new WeakHashMap<>();
 
     private static final class State {
@@ -169,12 +173,14 @@ final class SarcophagusRenderer {
         } else if (active && !state.wasActive) {
             state.open = 0.0F;
             level.playLocalSound(px, py, pz, ModSounds.CORE_OPEN.get(), SoundSource.BLOCKS, 1.6F, 1.0F, false);
+        } else if (!active && state.wasActive) {
+            level.playLocalSound(px, py, pz, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.2F, 0.8F, false);
         }
         state.wasActive = active;
         if (active) {
             state.open = Math.min(1.0F, state.open + dt / OPEN_TICKS);
         } else {
-            state.open = 0.0F;
+            state.open = Math.max(0.0F, state.open - dt / CLOSE_TICKS); // defused: the same animation backwards
         }
         float t = state.open;
         if (active && t >= 1.0F && time >= state.nextHum) {
@@ -191,7 +197,7 @@ final class SarcophagusRenderer {
         float shake = 0.0F;
         float orb = 0.0F;
         float glow = ready ? 0.7F + 0.3F * Mth.sin(time * 0.12F) : 0.45F;
-        if (active) {
+        if (t > 0.0F) {
             float rise = ease((t - 0.2F) / 0.55F);
             lift = rise * LIFT;
             twist = rise * TWIST;
@@ -202,14 +208,15 @@ final class SarcophagusRenderer {
                 lift += 0.025F * Mth.sin(time * 0.06F);
                 twist += 3.0F * Mth.sin(time * 0.045F);
             }
-            if (t < 0.85F && time >= state.nextSpark) {
-                state.nextSpark = time + 1.0F;
+            if (active && t < 0.85F && time >= state.nextSpark) {
+                state.nextSpark = time + 1.0F; // a few small gold sparks while the Core ignites, none afterwards
                 double ang = level.random.nextDouble() * Math.PI * 2.0;
-                level.addParticle(ParticleTypes.ELECTRIC_SPARK, px + Math.cos(ang) * 0.5, py + 0.4 + level.random.nextDouble() * 0.7,
+                level.addParticle(SPARK, px + Math.cos(ang) * 0.5, py + 0.4 + level.random.nextDouble() * 0.7,
                         pz + Math.sin(ang) * 0.5, 0.0, 0.02, 0.0);
             }
         }
-        float contents = active ? 1.0F - ease(t / 0.45F) : 1.0F; // the ritual items are consumed while the Core ignites
+        // The ritual items are consumed while the Core ignites and come back (the rune) when it is defused.
+        float contents = t > 0.0F ? 1.0F - ease(t / 0.45F) : 1.0F;
 
         // 1. Solid parts.
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
@@ -244,7 +251,7 @@ final class SarcophagusRenderer {
         pose.translate(-0.5F, 0.0F, -0.5F);
         drawGlass(pose.last(), buffer, light);
         pose.popPose();
-        if (glow > 0.0F && !active) {
+        if (t <= 0.0F) {
             // A shut Sarcophagus glimmers along its gold when the ritual is ready.
             drawGlimmer(pose, buffer, ready ? glow : 0.0F);
         }
@@ -380,19 +387,24 @@ final class SarcophagusRenderer {
     /** Heaps of gunpowder (north-south valley) and blaze powder (east-west valley), filling the valleys up to a ridge. */
     private static void drawHeaps(PoseStack.Pose pose, VertexConsumer vc, int light, boolean gunpowder, boolean blaze) {
         if (gunpowder) {
-            heap(vc, pose, light, sprite(GUNPOWDER), true, 0.77F);
+            heap(vc, pose, light, sprite(GUNPOWDER), true, 0.58F);
         }
         if (blaze) {
             int bright = LightTexture.pack(Math.max(LightTexture.block(light), 13), LightTexture.sky(light));
-            heap(vc, pose, bright, sprite(BLAZE), false, 0.80F);
+            heap(vc, pose, bright, sprite(BLAZE), false, 0.60F);
         }
     }
 
+    /**
+     * Powder lies at the bottom of its V-shaped valley: it fills it up to {@code level} (the valley is as wide as the
+     * height above its bottom at 0.5, with 45 degree walls) and heaps up a little in the middle.
+     */
     private static void heap(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, boolean alongZ,
-                             float ridge) {
-        float base = 0.69F; // valley width at this height: the floor there is 0.19 from the middle line
-        float lo = 0.5F - 0.19F;
-        float hi = 0.5F + 0.19F;
+                             float level) {
+        float base = level;
+        float ridge = level + 0.03F;
+        float lo = 0.5F - (level - 0.5F);
+        float hi = 0.5F + (level - 0.5F);
         float e0 = 0.035F;
         float e1 = 0.965F;
         // Slopes, ends. Coordinates are (across, along); mapped to (x, z) or (z, x).
