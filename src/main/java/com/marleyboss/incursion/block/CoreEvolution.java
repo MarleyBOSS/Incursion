@@ -21,12 +21,12 @@ public final class CoreEvolution {
     /** Ticks the blocks in the way shake before they blow up. */
     public static final int SHAKE = 40;
     private static final float[] SCALE = {1.0F, 1.4F, 1.8F, 2.4F, 3.0F};
-    private static final int[] PLAZA = {0, 1, 4, 5, 6};
+    private static final int[] PLAZA = {0, 2, 5, 6, 7};
     private static final int[] PILLAR = {0, 0, 6, 8, 10};
     /** Radius of the plaza disc (blocks from the middle): stage 1 is a 3x3 square, then a circle that holds the pillars. */
-    private static final float[] DISC = {0.0F, 1.6F, 6.6F, 8.0F, 9.4F};
+    private static final float[] DISC = {0.0F, 4.6F, 8.0F, 9.4F, 10.8F};
     /** Where the pillars stand (diagonal offset); they do not exist before stage 2. */
-    private static final float[] PILLAR_R = {3.0F, 3.0F, 4.0F, 5.0F, 6.0F};
+    private static final float[] PILLAR_R = {4.0F, 4.0F, 5.0F, 6.0F, 7.0F};
     /** Strength of the energy beams per stage. */
     private static final float[] BEAMS = {0.0F, 0.0F, 0.5F, 0.75F, 1.0F};
 
@@ -35,7 +35,7 @@ public final class CoreEvolution {
     }
 
     /** The largest radius of the protected area (stage 4). */
-    public static final int MAX_AREA_RADIUS = 10;
+    public static final int MAX_AREA_RADIUS = 11;
 
     private CoreEvolution() {
     }
@@ -174,17 +174,12 @@ public final class CoreEvolution {
                     if (d > disc) {
                         continue;
                     }
-                    boolean isGold;
-                    if (stage == 1) {
-                        // a gold cross with dark corners: the chains are fixed on the dark stone
-                        isGold = x == 0 || z == 0;
-                    } else {
-                        int ra = Math.max(Math.abs(Math.abs(x) - anchor), Math.abs(Math.abs(z) - anchor));
-                        int rp = foot > 0 ? Math.max(Math.abs(Math.abs(x) - foot), Math.abs(Math.abs(z) - foot)) : 9;
-                        boolean pad = ra <= 1 || rp <= 1; // dark pads under the chain anchors and the pillars
-                        boolean frame = ra == 2 || rp == 2; // framed in gold
-                        isGold = !pad && (frame || Math.abs(x) == Math.abs(z) || onRing(d, stage, disc));
-                    }
+                    int ra = Math.max(Math.abs(Math.abs(x) - anchor), Math.abs(Math.abs(z) - anchor));
+                    int rp = stage >= 2 && foot > 0 ? Math.max(Math.abs(Math.abs(x) - foot), Math.abs(Math.abs(z) - foot)) : 9;
+                    boolean pad = ra <= 1 || rp <= 1; // dark pads under the chain anchors and the pillars
+                    boolean frame = ra == 2 || rp == 2; // framed in gold
+                    boolean cross = stage == 1 && (x == 0 || z == 0);
+                    boolean isGold = !pad && (frame || cross || Math.abs(x) == Math.abs(z) || onRing(d, stage, disc));
                     cells.add(new Cell(x, -1, z, isGold ? gold : floor));
                 }
             }
@@ -207,12 +202,12 @@ public final class CoreEvolution {
     /** The cell (as an offset on both axes) the chains of a stage are fixed on; the renderer uses the same position. */
     public static int anchorCell(int stage) {
         stage = clamp(stage);
-        float reach = Math.min(0.5F * SCALE[stage] + 0.9F, PLAZA[stage] + 0.4F);
+        float reach = Math.min(0.5F * SCALE[stage] + 1.5F, PLAZA[stage] + 0.4F);
         return Math.max(1, (int) Math.floor(reach + 0.5F));
     }
 
     /** Radii of the gold rings inlaid in the plaza. */
-    private static final float[] RINGS = {2.6F, 4.8F, 7.0F};
+    private static final float[] RINGS = {3.2F, 5.6F, 8.0F};
 
     private static boolean onRing(double d, int stage, float disc) {
         if (stage < 2) {

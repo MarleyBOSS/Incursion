@@ -426,7 +426,7 @@ public class CoreBlockEntity extends BlockEntity {
             }
             if (cur.is(ModBlocks.CORE_FLOOR.get()) || cur.is(ModBlocks.CORE_GOLD.get())) {
                 double dist = Math.sqrt(cell.x() * cell.x() + cell.z() * cell.z());
-                fadeQueue.add(new Fade(pos, now + 6L + (long) ((8.5 - dist) * 3.0)));
+                fadeQueue.add(new Fade(pos, now + 6L + (long) ((11.5 - dist) * 3.0)));
             } else {
                 level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
             }
