@@ -94,6 +94,8 @@ final class SarcophagusRenderer {
     /** Rise of the lower half's surface per block from the notch to the corner. */
     private static final float FLOOR_SLOPE = (TIP - 0.5F) / 0.5F;
     /** Width, along the wall, of the outer gold line of the glass frame where it meets the corner (the line is 0.010 thick across). */
+    /** Width of the corner posts: the horizontal width of the slanted gold bars at their tip, so the posts are flush with them. */
+    private static final float POST_W = GOLD_HALF * (float) Math.sqrt(1.0F + (0.5F / (TIP - 0.5F)) * (0.5F / (TIP - 0.5F)));
     private static final float CORNER_W = 0.010F * (float) Math.sqrt(1.0F + (0.5F / (TIP - 0.5F)) * (0.5F / (TIP - 0.5F)));
     private static final float ORB_RADIUS = 0.15F;
 
@@ -277,7 +279,7 @@ final class SarcophagusRenderer {
             drawBolt(pose, buffer, time, 1.0F - t / 0.18F);
         }
         if (orb > 0.0F) {
-            drawInnerGlow(pose, buffer, time, orb, lift, twist, shake);
+            drawInnerGlow(pose, buffer, time, orb);
         }
         if (orb > 0.0F) {
             float flash = t < 1.0F ? Mth.sin(Mth.clamp((t - 0.45F) / 0.2F, 0.0F, 1.0F) * (float) Math.PI) : 0.0F;
@@ -391,10 +393,11 @@ final class SarcophagusRenderer {
         box(vc, pose, bright, gold, 4, lo, lo + w, lo, lo + w, lo, hi);
         box(vc, pose, bright, gold, 4, hi - w, hi, lo, lo + w, lo, hi);
         // corner posts, up to the tips
-        box(vc, pose, bright, gold, 4, lo, lo + w, lo, TIP, lo, lo + w);
-        box(vc, pose, bright, gold, 4, hi - w, hi, lo, TIP, lo, lo + w);
-        box(vc, pose, bright, gold, 4, lo, lo + w, lo, TIP, hi - w, hi);
-        box(vc, pose, bright, gold, 4, hi - w, hi, lo, TIP, hi - w, hi);
+        float pw = POST_W;
+        box(vc, pose, bright, gold, 4, lo, pw, lo, TIP, lo, pw);
+        box(vc, pose, bright, gold, 4, hi - pw, hi, lo, TIP, lo, pw);
+        box(vc, pose, bright, gold, 4, lo, pw, lo, TIP, hi - pw, hi);
+        box(vc, pose, bright, gold, 4, hi - pw, hi, lo, TIP, hi - pw, hi);
         notches(vc, pose, bright, gold, 4, GOLD_HALF, OUT);
     }
 
@@ -416,10 +419,11 @@ final class SarcophagusRenderer {
         box(vc, pose, bright, gold, 4, 1.0F - w, hi, low, top, w, 1.0F - w);
         // A gold post on each vertical edge of the slab: it joins the tip where the frame lines of two walls meet with the
         // gold line along the top.
-        box(vc, pose, bright, gold, 4, lo, w, TIP, top, lo, w);
-        box(vc, pose, bright, gold, 4, 1.0F - w, hi, TIP, top, lo, w);
-        box(vc, pose, bright, gold, 4, lo, w, TIP, top, 1.0F - w, hi);
-        box(vc, pose, bright, gold, 4, 1.0F - w, hi, TIP, top, 1.0F - w, hi);
+        float pw = POST_W;
+        box(vc, pose, bright, gold, 4, lo, pw, TIP, top, lo, pw);
+        box(vc, pose, bright, gold, 4, 1.0F - pw, hi, TIP, top, lo, pw);
+        box(vc, pose, bright, gold, 4, lo, pw, TIP, top, 1.0F - pw, hi);
+        box(vc, pose, bright, gold, 4, 1.0F - pw, hi, TIP, top, 1.0F - pw, hi);
         glassFrames(vc, pose, bright, gold, dark);
     }
 
@@ -807,9 +811,8 @@ final class SarcophagusRenderer {
         }
     }
 
-    /** The firelight of the Core on the floor of the lower half and on the underside of the slab. */
-    private static void drawInnerGlow(PoseStack pose, MultiBufferSource buffer, float time, float scale, float lift,
-                                      float twist, float shake) {
+    /** The firelight of the Core on the floor of the lower half. */
+    private static void drawInnerGlow(PoseStack pose, MultiBufferSource buffer, float time, float scale) {
         VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
         float k = scale * (0.85F + 0.15F * Mth.sin(time * 0.19F));
         PoseStack.Pose p = pose.last();
@@ -819,18 +822,6 @@ final class SarcophagusRenderer {
             float[] c = {tri[2][0], tri[2][1] + 0.003F, tri[2][2]};
             glowTri(vc, p, a, b, c, 0.38F * k, 0.25F * k, 0.55F * k, true);
         }
-        pose.pushPose();
-        pose.translate(0.5F + shake, lift, 0.5F);
-        pose.mulPose(Axis.YP.rotationDegrees(twist));
-        pose.translate(-0.5F, 0.0F, -0.5F);
-        PoseStack.Pose q = pose.last();
-        float y = 1.0F - SLAB - 0.003F;
-        float[] m = {0.5F, y, 0.5F};
-        float[][] corners = {{INSET, y, INSET}, {1 - INSET, y, INSET}, {1 - INSET, y, 1 - INSET}, {INSET, y, 1 - INSET}};
-        for (int i = 0; i < 4; i++) {
-            glowTri(vc, q, corners[i], corners[(i + 1) % 4], m, 0.2F * k, 0.2F * k, 0.4F * k, false);
-        }
-        pose.popPose();
     }
 
     /** A triangle with a glow colour (orange) per corner, intensities ka, kb, kc; faces up or down. */
