@@ -171,17 +171,17 @@ Mit jeder Stufe stärker:
 ## Evolution des Kerns: was jedes Element in der Lore bedeutet (18.10.)
 
 - **Siegelkreis** (Runenring, der flach um den Kern dreht): die Bindrunen des Sarkophags. Sie halten das Feuer des Ankersteins im Sarkophag. Sie sind **keine** Tafeln.
-- **Tafelsteine (Steles)**: An jedem Ankerstein, an dem eine Kette endet, steht eine Stele des Kerns. Alle vier sind ab Stufe 1 da, kalt und dunkel; die Tafel jeder Stufe entzündet ihre Stele (Auge des Elder Guardian, Ohr des Warden, Spirale des Enderdrachen, drei Schädel des Withers). Ein Faden aus Licht führt von der entzündeten Stele zum Kern: der Kern „liest“, was die Wächter wussten. Die leeren Stelen zeigen, was noch kommt.
 - **Ankerketten** (Stufe 1): halten den Kern am Boden, damit die Eindringlinge ihn nicht mitnehmen können.
 - **Flammenbögen, Plasmakugeln, Funkenringe** (Kern): der Ankerstein erwacht Stufe um Stufe, das Feuer wird zur Sonnenmasse und am Ende zur Supernova (Energie wächst, bleibt aber Feuer).
 - **Deckelstufen, Sockel, Rippenkrone** (Sarkophag): der Sarkophag wächst in seinem eigenen Stil (Obsidian, Gold, Perlen) vom Grab zum Thron.
 - **Wurzelpfeiler** (Stufe 2 bis 4): sie ziehen Resonanz aus der Erde (die Energie steigt in den Rillen auf, Wellen laufen über den Boden) und füttern die roten Energiekristalle; die Strahlen der Kristalle halten den Kern im Schacht. Splitter kreisen ab Stufe 3 um die Kristalle.
 - **Resonanzwellen und Goldringe im Boden**: der Siegelkreis der Plattform, aus dem der Kern seine Kraft zieht.
 - **Riss-Siegel** (Stufe 4): das Tor, durch das die Eindringlinge kamen; der voll erwachte Anker hält es geschlossen. Die Lichtsäule ist das Leuchtfeuer, das der Anker durch den Riss schickt.
+- **Regel für die Evolution (Wunsch des Spielers, 18.10.):** Jede Stufe bringt ein **neues Objekt**, das es vorher nicht gab (nicht nur mehr vom Alten), nichts wird einfach kopiert, **kein weiterer Laser**, und weniger ist mehr: Der Kern soll Feuer bleiben, nicht überladen oder weiß ausgebrannt wirken. Alles Leuchten wird geblendet, nie addiert (sonst brennt es auf dem hellen Himmel zu Weiß aus).
+- **Siegelplatten** (Stufe 1 bis 4): Die Tafeln werden in die Wände des Sarkophags eingelassen, je eine Platte pro Seite mit Goldrahmen. Alle vier erscheinen mit Stufe 1 dunkel; die Tafel jeder Stufe entzündet das Zeichen ihres Wächters (Auge des Elder Guardian, Ohr des Warden, Spirale des Enderdrachen, drei Schädel des Withers). Leere Platten zeigen, was noch kommt.
+- **Das Ringtor** (Stufe 3): Am Rand der Plattform (Ostseite) steigt ein Ring aus Obsidian und Gold aus dem Boden. Es ist das Tor, durch das die Eindringlinge kamen; der Riss darin schläft (schwacher violetter Wirbel). Der Seelenwirker hütet ihn.
+- **Inseln der verlorenen Welt** (Stufe 4): Der Riss erwacht, aus dem Tor steigen fünf Inselstücke (Erdscheibe auf langem Fels mit einem Kristall) auf und kreisen hoch über dem Kern: die Heimatwelt der Eindringlinge, vom Anker zusammengezogen. Varkhul will heim.
 - **Bezug zu den Generälen (Vorschlag, noch nicht entschieden):** Stufe 1 Ketten ↔ Späher, Stufe 2 Pfeiler/Kristalle ↔ Brecher, Stufe 3 Tafeln/Fäden ↔ Seelenwirker, Stufe 4 Riss-Siegel ↔ Varkhul.
-- **Torbögen und Seelenlaternen** (Stufe 3): die Pillar werden zum Tempel; in den Laternen brennen die Seelen, die der Kern aus den Tafeln liest. Passt zum Seelenwirker.
-- **Schwebende Kristalle** (Stufe 4): die Energiekristalle lösen sich von den Pillarn, sobald der Anker voll erwacht ist.
-- **Stufe 4, alles wird Licht:** Der Stein der Pillar-Schäfte schmilzt weg, zurück bleibt eine Säule aus Energie, die goldene Ringe halten (schweben und drehen sich); die Torbögen werden zu Brücken aus reinem Licht. Beim Aufbau gehen die Bänder der Schäfte in die Ringe über.
 - **Stufenübergang:** Alles wird kontinuierlich animiert (`SarcophagusRenderer`, „visuelle Stufe“): Pfeiler wachsen aus dem Boden und wandern nach außen, Teile wachsen aus der vorherigen Form. Beim Entschärfen fällt die visuelle Stufe mit dem Countdown zurück (Abbruch baut sie wieder auf); danach verschwindet die Plattform Ring für Ring von außen nach innen.
 
 ## Upgrade-Fluss mit Boss-Nacht (Idee 18.10.)
