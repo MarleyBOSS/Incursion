@@ -371,6 +371,7 @@ final class SarcophagusRenderer {
             VertexConsumer fresh = buffer.getBuffer(Sheets.solidBlockSheet()); // a fresh consumer: the old one was flushed
             drawChains(pose, fresh, time, sc, vs);
             drawPillars(pose, fresh, time, vs);
+            drawArches(pose, fresh, time, vs);
             drawTablets(pose, fresh, time, sc, vs);
             flushSolid(buffer);
         }
@@ -445,6 +446,7 @@ final class SarcophagusRenderer {
         view.mul(event.getModelViewMatrix());
         RenderSystem.applyModelViewMatrix();
         alphaMode = true;
+        addK = dayDim();
         try {
             for (Late d : LATE) {
                 PoseStack pose = new PoseStack();
@@ -454,10 +456,22 @@ final class SarcophagusRenderer {
             buffer.endBatch();
         } finally {
             alphaMode = false;
+            addK = 1.0F;
             LATE.clear();
             view.popMatrix();
             RenderSystem.applyModelViewMatrix();
         }
+    }
+
+    /** 1 at night, about a quarter by day: added light on a bright sky burns out to white. */
+    private static float dayDim() {
+        net.minecraft.client.multiplayer.ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) {
+            return 1.0F;
+        }
+        float sun = Mth.cos(level.getTimeOfDay(1.0F) * (float) (Math.PI * 2.0));
+        float day = Mth.clamp(sun * 1.6F + 0.45F, 0.0F, 1.0F);
+        return Mth.lerp(day, 1.0F, 0.26F);
     }
 
     private static void drawLate(Late d, PoseStack pose, MultiBufferSource buffer) {
@@ -542,6 +556,99 @@ final class SarcophagusRenderer {
         return height - 0.75F;
     }
 
+    /** From stage 4 on the crystals leave their prongs and float above them. */
+    private static float crystalLift(float vs) {
+        return 0.9F * ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F));
+    }
+
+    private static float crystalScale(float vs) {
+        return 0.9F + 0.06F * Mth.clamp(vs - 1.0F, 0.0F, 3.0F);
+    }
+
+    /** The crystals get slimmer and longer with every stage. */
+    private static float crystalH(float vs) {
+        return (0.95F + 0.3F * Mth.clamp(vs - 2.0F, 0.0F, 2.0F)) * crystalScale(vs);
+    }
+
+    private static float crystalR(float vs) {
+        return (0.5F - 0.05F * Mth.clamp(vs - 2.0F, 0.0F, 2.0F)) * crystalScale(vs);
+    }
+
+    // --- stage 3: arches between the pillars with a hanging lantern each ---
+
+    private static final int[][] ARCHES = {{0, 1}, {1, 3}, {3, 2}, {2, 0}};
+
+    /** Spring height, rise, pillar radius and size of the arches at the animated stage. */
+    private static float[] archBase(float vs) {
+        float vr = CoreEvolution.pillarRadiusAt(vs);
+        return new float[]{CoreEvolution.pillarAt(vs) - 1.7F - 0.55F, 0.22F * 2.0F * vr, vr, pillarSize(vs)};
+    }
+
+    /** A point on the arch from pillar a to pillar b (u from 0 to 1). */
+    private static float[] archPoint(int a, int b, float[] base, float u) {
+        float vr = base[2];
+        float ax = 0.5F + (a % 2 == 0 ? -vr : vr);
+        float az = 0.5F + (a < 2 ? -vr : vr);
+        float bx = 0.5F + (b % 2 == 0 ? -vr : vr);
+        float bz = 0.5F + (b < 2 ? -vr : vr);
+        float inset = 0.27F * base[3] / (2.0F * vr);
+        float u2 = inset + (1.0F - 2.0F * inset) * u;
+        float h = base[1] * (float) Math.pow(Math.sin(Math.PI * u), 0.8);
+        return new float[]{ax + (bx - ax) * u2, base[0] + h, az + (bz - az) * u2};
+    }
+
+    /** Position of the lantern under the top of arch n and how far it has grown (x, y, z, k). */
+    private static float[] lanternAt(int n, float[] base, float vs, float time) {
+        float k = ease(Mth.clamp(vs - 2.7F, 0.0F, 1.0F));
+        float[] top = archPoint(ARCHES[n][0], ARCHES[n][1], base, 0.5F);
+        return new float[]{top[0], top[1] - 0.15F - 0.75F * k + 0.05F * Mth.sin(time * 0.07F + n * 1.6F), top[2], k};
+    }
+
+    /**
+     * From stage 3 on gold-and-obsidian arches grow out of the pillars until they meet over the middle of each side; a
+     * lantern of fire hangs under every top. They follow the pillars when these move out and grow in the next stage.
+     */
+    private static void drawArches(PoseStack pose, VertexConsumer vc, float time, float vs) {
+        float g3 = ease(Mth.clamp(vs - 2.0F, 0.0F, 1.0F));
+        if (g3 < 0.03F || CoreEvolution.pillarAt(vs) < 3.0F) {
+            return;
+        }
+        float[] base = archBase(vs);
+        PoseStack.Pose p = pose.last();
+        TextureAtlasSprite wall = sprite(WALL_AWAKE);
+        TextureAtlasSprite gold = sprite(GOLD);
+        TextureAtlasSprite crystal = sprite(block("core_crystal"));
+        int light = LightTexture.pack(13, 15);
+        final int steps = 9;
+        float gh = 0.5F * g3;
+        for (int n = 0; n < 4; n++) {
+            int a = ARCHES[n][0];
+            int b = ARCHES[n][1];
+            for (int half = 0; half < 2; half++) {
+                float[] prev = null;
+                for (int j = 0; j <= steps; j++) {
+                    float u = gh * j / steps;
+                    float[] q = archPoint(a, b, base, half == 0 ? u : 1.0F - u);
+                    if (prev != null) {
+                        beam(vc, p, light, wall, prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.11F);
+                        beam(vc, p, light, gold, prev[0], prev[1] + 0.12F, prev[2], q[0], q[1] + 0.12F, q[2], 0.032F);
+                    }
+                    if (j % 3 == 0) {
+                        box(vc, p, light, gold, 4, q[0] - 0.085F, q[0] + 0.085F, q[1] - 0.085F, q[1] + 0.085F, q[2] - 0.085F, q[2] + 0.085F);
+                    }
+                    prev = q;
+                }
+            }
+            float[] ln = lanternAt(n, base, vs, time);
+            if (ln[3] > 0.03F) {
+                float[] top = archPoint(a, b, base, 0.5F);
+                box(vc, p, light, gold, 4, top[0] - 0.12F, top[0] + 0.12F, top[1] - 0.06F, top[1] + 0.16F, top[2] - 0.12F, top[2] + 0.12F);
+                beam(vc, p, light, gold, top[0], top[1] - 0.06F, top[2], ln[0], ln[1] + 0.18F * ln[3], ln[2], 0.018F);
+                crystal(vc, p, crystal, ln[0], ln[1], ln[2], 0.13F * ln[3], 0.26F * ln[3], time * 0.07F + n);
+            }
+        }
+    }
+
     /** Four thin gold strips round the edge of a plate. */
     private static void goldFrame(VertexConsumer vc, PoseStack.Pose p, int light, TextureAtlasSprite gold, float x0, float x1,
                                   float y, float z0, float z1, float w) {
@@ -608,8 +715,8 @@ final class SarcophagusRenderer {
         TextureAtlasSprite crystal = sprite(block("core_crystal"));
         int light = LightTexture.pack(13, 15);
         float top = height - 1.7F; // top of the stone part
-        float yc = crystalY(height);
-        float cs = 0.9F + 0.12F * grade;
+        float yc = crystalY(height) + crystalLift(vs);
+        float cs = crystalScale(vs);
         for (int i = 0; i < 4; i++) {
             float cx = 0.5F + (i % 2 == 0 ? -vr : vr);
             float cz = 0.5F + (i < 2 ? -vr : vr);
@@ -659,10 +766,13 @@ final class SarcophagusRenderer {
             // the crystal, two rings and (stage 3 on) shards round it
             float rot = time * 0.045F + i * 0.8F;
             float y = yc + 0.07F * Mth.sin(time * 0.08F + i * 1.7F);
-            crystal(vc, p, crystal, cx, y, cz, 0.5F * cs, 0.95F * cs, rot);
-            ring(vc, p, light, gold, cx, y, cz, 0.85F * cs, 0.0F, time * 0.03F + i, 10, 0.016F);
-            ring(vc, p, light, gold, cx, y, cz, 1.0F * cs, 1.08F, -time * 0.025F + i, 10, 0.014F);
+            crystal(vc, p, crystal, cx, y, cz, crystalR(vs), crystalH(vs), rot);
             float shardGrow = ease(Mth.clamp(grade - 2.0F, 0.0F, 1.0F));
+            ring(vc, p, light, gold, cx, y, cz, 0.85F * cs, 0.0F, time * 0.03F + i, 10, 0.016F);
+            if (shardGrow < 0.95F) {
+                // the second ring draws in as the shards take its place
+                ring(vc, p, light, gold, cx, y, cz, 1.0F * cs * (1.0F - shardGrow), 1.08F, -time * 0.025F + i, 10, 0.014F);
+            }
             if (shardGrow > 0.05F) {
                 for (int q = 0; q < 3; q++) {
                     float a = time * 0.05F + q * 2.094F + i;
@@ -701,9 +811,12 @@ final class SarcophagusRenderer {
             if (items.isEmpty()) {
                 return;
             }
+            float keep = addK;
+            addK = 1.0F; // the strand is blended, not added: it stays in full colour
             for (float[] l : items) {
                 laser(buffer.getBuffer(fx()), p, l[0], l[1], l[2], l[3], l[4], l[5], l[6], l[7], l[8], l[9]);
             }
+            addK = keep;
             for (float[] l : items) {
                 laser(buffer.getBuffer(RenderType.eyes(TRIM)), p, l[0], l[1], l[2], l[3], l[4], l[5], l[6] * 3.0F, l[7] * 0.45F,
                         l[8] * 0.45F, l[9] * 0.45F);
@@ -844,7 +957,10 @@ final class SarcophagusRenderer {
             }
             pose.pushPose();
             pose.translate(balls[i][0], balls[i][1], balls[i][2]);
+            float keepK = addK;
+            addK = 1.0F;
             sphere(buffer.getBuffer(fxFire()), pose.last(), 0.07F * f * k * ballK[i], time * 0.01F, -time * 0.02F, 1.0F, 0.75F, 0.4F);
+            addK = keepK;
             pose.popPose();
         }
         for (int i = 0; i < loops; i++) {
@@ -1119,15 +1235,25 @@ final class SarcophagusRenderer {
 
     // --- the circle of tablets: one for every tablet the player has put into the Core ---
 
-    /** Position and facing of a tablet (x, y, z, angle of the orbit); {@code g} is how far it has grown in. */
+    /** Size of a tablet compared with the model below: slim, so that the Core stays in view. */
+    private static final float TAB = 0.42F;
+    private static final float TAB_TILT = 0.5F;
+
+    /**
+     * Position and facing of a tablet (x, y, z, facing); {@code g} is how far it has grown in. The tablets circle the Core on
+     * a tilted ring, so they pass above and below it instead of in front of it.
+     */
     private static float[] tabletAt(float time, float scale, int i, float g) {
         float ang = time * 0.010F + i * (float) (Math.PI / 2.0);
-        float rt = (0.5F * scale + 1.1F) * (0.35F + 0.65F * g);
-        return new float[]{0.5F + Mth.cos(ang) * rt, 0.5F * scale + 1.2F + 0.12F * Mth.sin(time * 0.05F + i * 1.9F),
-                0.5F + Mth.sin(ang) * rt, ang};
+        float rt = (0.4F * scale + 1.75F) * (0.35F + 0.65F * g);
+        float lx = Mth.cos(ang) * rt;
+        float lz = Mth.sin(ang) * rt;
+        float cy = ORB_Y * scale;
+        return new float[]{0.5F + lx, cy + lz * Mth.sin(TAB_TILT) + 0.06F * Mth.sin(time * 0.05F + i * 1.9F),
+                0.5F + lz * Mth.cos(TAB_TILT), (float) Math.atan2(lz * Mth.cos(TAB_TILT), lx)};
     }
 
-    /** Obsidian tablets with gold edges circle the Sarcophagus (solid); tablet i appears when the stage passes i. */
+    /** Obsidian tablets with gold edges circle the Core (solid); tablet i appears when the stage passes i. */
     private static void drawTablets(PoseStack pose, VertexConsumer vc, float time, float scale, float vs) {
         TextureAtlasSprite wall = sprite(WALL_AWAKE);
         TextureAtlasSprite gold = sprite(GOLD);
@@ -1141,13 +1267,13 @@ final class SarcophagusRenderer {
             pose.pushPose();
             pose.translate(t[0], t[1], t[2]);
             pose.mulPose(Axis.YP.rotationDegrees(90.0F - t[3] * 57.29578F));
-            pose.scale(g, g, g);
+            pose.scale(g * TAB, g * TAB, g * TAB);
             PoseStack.Pose p = pose.last();
             box(vc, p, light, wall, 4, -0.40F, 0.40F, -0.70F, 0.70F, -0.07F, 0.07F);
-            box(vc, p, light, gold, 4, -0.46F, 0.46F, 0.70F, 0.77F, -0.10F, 0.10F);
-            box(vc, p, light, gold, 4, -0.46F, 0.46F, -0.77F, -0.70F, -0.10F, 0.10F);
-            box(vc, p, light, gold, 4, -0.46F, -0.40F, -0.70F, 0.70F, -0.10F, 0.10F);
-            box(vc, p, light, gold, 4, 0.40F, 0.46F, -0.70F, 0.70F, -0.10F, 0.10F);
+            box(vc, p, light, gold, 4, -0.50F, 0.50F, 0.70F, 0.82F, -0.12F, 0.12F);
+            box(vc, p, light, gold, 4, -0.50F, 0.50F, -0.82F, -0.70F, -0.12F, 0.12F);
+            box(vc, p, light, gold, 4, -0.50F, -0.40F, -0.70F, 0.70F, -0.12F, 0.12F);
+            box(vc, p, light, gold, 4, 0.40F, 0.50F, -0.70F, 0.70F, -0.12F, 0.12F);
             pose.popPose();
         }
     }
@@ -1257,24 +1383,25 @@ final class SarcophagusRenderer {
             float[] t = tabletAt(d.time, d.scale, i, g);
             float k = (0.75F + 0.25F * Mth.sin(d.time * 0.11F + i * 1.3F)) * g;
             for (float side = -1.0F; side <= 1.0F; side += 2.0F) {
-                float lz = 0.085F * side * g;
+                float gs = g * TAB;
+                float lz = 0.085F * side * gs;
                 for (float[] seg : GLYPHS[i]) {
-                    float[] a = onTablet(t, seg[0] * side * g, seg[1] * g, lz);
-                    float[] b = onTablet(t, seg[2] * side * g, seg[3] * g, lz);
-                    lines.add(a[0], a[1], a[2], b[0], b[1], b[2], 0.012F, 1.0F * k, 0.6F * k, 0.15F * k);
+                    float[] a = onTablet(t, seg[0] * side * gs, seg[1] * gs, lz);
+                    float[] b = onTablet(t, seg[2] * side * gs, seg[3] * gs, lz);
+                    lines.add(a[0], a[1], a[2], b[0], b[1], b[2], 0.007F, 1.0F * k, 0.6F * k, 0.15F * k);
                 }
             }
             float[] heart = onTablet(t, 0.0F, 0.0F, 0.0F);
             hearts[i] = heart;
             heartK[i] = k;
-            lines.add(heart[0], heart[1], heart[2], 0.5F, ty, 0.5F, 0.008F, 0.55F * k, 0.28F * k, 0.08F * k);
+            lines.add(heart[0], heart[1], heart[2], 0.5F, ty, 0.5F, 0.005F, 0.5F * k, 0.26F * k, 0.07F * k);
         }
         lines.flush(buffer, p);
         for (int i = 0; i < 4; i++) {
             if (hearts[i] != null) {
                 float k = heartK[i];
-                billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, hearts[i][0], hearts[i][1], hearts[i][2], 0.75F, 0.0F,
-                        0.5F * k, 0.25F * k, 0.06F * k);
+                billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, hearts[i][0], hearts[i][1], hearts[i][2], 0.55F, 0.0F,
+                        0.55F * k, 0.28F * k, 0.07F * k);
             }
         }
     }
@@ -1305,8 +1432,9 @@ final class SarcophagusRenderer {
             for (int k = 0; k < 3; k++) {
                 float f = (time * 0.011F + k / 3.0F) % 1.0F;
                 float r = 0.7F + f * (disc - 0.7F);
-                float a = (float) Math.pow(1.0F - f, 1.4F) * wv;
-                circle(lines, 0.5F, 0.04F, 0.5F, r, 40, 0.035F, 1.0F * a, 0.5F * a, 0.12F * a);
+                float fin = Mth.clamp(f / 0.12F, 0.0F, 1.0F);
+                float a = fin * fin * (3.0F - 2.0F * fin) * (1.0F - f) * (1.0F - f) * wv;
+                circle(lines, 0.5F, 0.04F, 0.5F, r, 40, 0.035F, 1.0F * a, 0.55F * a, 0.14F * a);
             }
             for (int i = 0; i < 4; i++) {
                 float sx = i % 2 == 0 ? -1.0F : 1.0F;
@@ -1321,7 +1449,23 @@ final class SarcophagusRenderer {
             }
         }
         float pf = ease(Mth.clamp(vh / 3.0F, 0.0F, 1.0F));
-        float yc = crystalY(vh);
+        float yc = crystalY(vh) + crystalLift(vs);
+        float[] archB = archBase(vs);
+        float g3 = ease(Mth.clamp(vs - 2.0F, 0.0F, 1.0F));
+        if (g3 > 0.05F && vh > 3.0F) {
+            // energy runs along the arches to the lanterns
+            for (int n = 0; n < 4; n++) {
+                for (int half = 0; half < 2; half++) {
+                    for (int j = 0; j < 2; j++) {
+                        float u0 = ((time * 0.010F + j * 0.5F + n * 0.23F) % 1.0F) * 0.5F * g3;
+                        float u1 = Math.min(0.5F * g3, u0 + 0.045F);
+                        float[] a = archPoint(ARCHES[n][0], ARCHES[n][1], archB, half == 0 ? u0 : 1.0F - u0);
+                        float[] b = archPoint(ARCHES[n][0], ARCHES[n][1], archB, half == 0 ? u1 : 1.0F - u1);
+                        lines.add(a[0], a[1] + 0.2F, a[2], b[0], b[1] + 0.2F, b[2], 0.03F, 1.0F * g3, 0.6F * g3, 0.16F * g3);
+                    }
+                }
+            }
+        }
         if (vh > 0.3F) {
             // the pillars draw energy out of the ground: it climbs the four faces of the shaft, ripples run out over the floor
             float s = pillarSize(vs);
@@ -1345,9 +1489,14 @@ final class SarcophagusRenderer {
                         }
                     }
                 }
+                float lk = crystalLift(vs) / 0.9F;
+                if (lk > 0.05F) {
+                    // the crystal floats: a thread of fire holds it over the prongs
+                    lines.add(cx, vh - 1.7F + 0.5F, cz, cx, yc - crystalH(vs) * 0.95F, cz, 0.03F, 1.0F * lk * pf, 0.6F * lk * pf, 0.15F * lk * pf);
+                }
                 float u = (time * 0.02F + i * 0.25F) % 1.0F;
-                float fade = (1.0F - u) * pf;
-                circle(lines, cx, 0.03F, cz, 0.35F + u * 1.2F, 14, 0.03F, 1.0F * fade, 0.5F * fade, 0.1F * fade);
+                float fade = (1.0F - u) * (1.0F - u) * Mth.clamp(u / 0.15F, 0.0F, 1.0F) * pf;
+                circle(lines, cx, 0.03F, cz, 0.35F + u * 1.2F, 14, 0.03F, 1.0F * fade, 0.55F * fade, 0.14F * fade);
             }
         }
         float g4 = ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F));
@@ -1359,7 +1508,7 @@ final class SarcophagusRenderer {
             java.util.Random rnd = new java.util.Random(((long) (time / 2.0F)) * 104729L + 7L);
             float ty = ORB_Y * sc;
             for (int i = 0; i < 4; i++) {
-                if (rnd.nextFloat() < 0.45F) {
+                if (rnd.nextFloat() < 0.6F) {
                     continue;
                 }
                 float ax = 0.5F + (i % 2 == 0 ? -vr : vr);
@@ -1372,34 +1521,28 @@ final class SarcophagusRenderer {
                     float[] cur = {ax + (0.5F - ax) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F,
                             yc + (ty - yc) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F,
                             az + (0.5F - az) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F};
-                    lines.add(last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.03F, 1.0F * g4, 0.95F * g4, 0.85F * g4);
+                    lines.add(last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.02F, 1.0F * g4, 0.72F * g4, 0.35F * g4);
                     last = cur;
                 }
             }
             // the sealing gate high above: the Core's anchor holds the rift shut
-            circle(lines, 0.5F, gy, 0.5F, gr, 56, 0.05F, 1.0F * pulse, 0.78F * pulse, 0.3F * pulse);
-            for (int tick = 0; tick < 16; tick++) {
-                float phi = tick * (float) (Math.PI * 2.0) / 16.0F + time * 0.004F;
+            circle(lines, 0.5F, gy, 0.5F, gr, 56, 0.04F, 1.0F * pulse, 0.62F * pulse, 0.2F * pulse);
+            for (int tick = 0; tick < 12; tick++) {
+                float phi = tick * (float) (Math.PI * 2.0) / 12.0F + time * 0.004F;
                 lines.add(0.5F + Mth.cos(phi) * gr, gy, 0.5F + Mth.sin(phi) * gr, 0.5F + Mth.cos(phi) * (gr + 0.4F), gy,
-                        0.5F + Mth.sin(phi) * (gr + 0.4F), 0.04F, 1.0F * pulse, 0.7F * pulse, 0.25F * pulse);
+                        0.5F + Mth.sin(phi) * (gr + 0.4F), 0.03F, 1.0F * pulse, 0.55F * pulse, 0.18F * pulse);
             }
-            for (int arm = 0; arm < 3; arm++) {
+            for (int arm = 0; arm < 2; arm++) {
                 float[] prev = null;
                 for (int sIdx = 0; sIdx <= 36; sIdx++) {
                     float rr = 0.25F * g4 + (gr * 0.95F - 0.25F * g4) * sIdx / 36.0F;
-                    float phi = rr * 1.5F + time * 0.07F + arm * 2.094F;
+                    float phi = rr * 1.5F + time * 0.07F + arm * 3.1416F;
                     float[] cur = {0.5F + Mth.cos(phi) * rr, gy, 0.5F + Mth.sin(phi) * rr};
                     if (prev != null) {
-                        lines.add(prev[0], prev[1], prev[2], cur[0], cur[1], cur[2], 0.035F, 0.75F * pulse, 0.35F * pulse, 1.0F * pulse);
+                        lines.add(prev[0], prev[1], prev[2], cur[0], cur[1], cur[2], 0.03F, 1.0F * pulse, 0.5F * pulse, 0.2F * pulse);
                     }
                     prev = cur;
                 }
-            }
-            for (int i = 0; i < 4; i++) {
-                float sx = i % 2 == 0 ? -1.0F : 1.0F;
-                float sz = i < 2 ? -1.0F : 1.0F;
-                lines.add(0.5F + sx * vr, yc, 0.5F + sz * vr, 0.5F + sx * gr * 0.75F, gy, 0.5F + sz * gr * 0.75F, 0.03F,
-                        0.7F * pulse, 0.3F * pulse, 0.95F * pulse);
             }
         }
         lines.flush(buffer, p);
@@ -1408,20 +1551,30 @@ final class SarcophagusRenderer {
             float ax = 0.5F + (i % 2 == 0 ? -vr : vr);
             float az = 0.5F + (i < 2 ? -vr : vr);
             float k = (0.8F + 0.2F * Mth.sin(time * 0.15F + i)) * pf;
-            billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, ax, yc, az, 1.5F, time * 0.02F, 1.0F * k, 0.32F * k, 0.08F * k);
-            billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, ax, yc, az, 0.7F, 0.0F, 1.0F * k, 0.6F * k, 0.25F * k);
+            billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, ax, yc, az, 1.3F, time * 0.02F, 0.8F * k, 0.26F * k, 0.06F * k);
+            billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, ax, yc, az, 0.6F, 0.0F, 0.9F * k, 0.5F * k, 0.2F * k);
+        }
+        if (g3 > 0.05F && vh > 3.0F) {
+            for (int n = 0; n < 4; n++) {
+                float[] ln = lanternAt(n, archB, vs, time);
+                if (ln[3] > 0.05F) {
+                    float k = (0.8F + 0.2F * Mth.sin(time * 0.2F + n * 1.3F)) * ln[3];
+                    billboard(buffer.getBuffer(RenderType.eyes(HALO)), p, ln[0], ln[1], ln[2], 0.6F, 0.0F, 0.9F * k, 0.42F * k, 0.1F * k);
+                    billboard(buffer.getBuffer(RenderType.eyes(FLARE)), p, ln[0], ln[1], ln[2], 0.3F, time * 0.03F + n, 0.8F * k, 0.5F * k, 0.15F * k);
+                }
+            }
         }
         if (g4 > 0.02F) {
-            plane(buffer.getBuffer(RenderType.eyes(HALO)), p, 0.5F, gy, 0.5F, gr, 0.0F, 0.0F, 0.0F, 0.0F, gr, 0.5F * pulse, 0.15F * pulse, 0.9F * pulse);
+            plane(buffer.getBuffer(RenderType.eyes(HALO)), p, 0.5F, gy, 0.5F, gr, 0.0F, 0.0F, 0.0F, 0.0F, gr, 0.45F * pulse, 0.18F * pulse, 0.5F * pulse);
             float ty = ORB_Y * sc;
             float y0 = ty + 0.5F;
-            for (int i = 0; i < 26; i++) {
+            for (int i = 0; i < 20; i++) {
                 float yc2 = y0 + i * 6.0F + 3.0F;
-                float k = 0.55F * (float) Math.pow(1.0F - i / 26.0F, 1.6F) * (0.85F + 0.15F * Mth.sin(time * 0.12F + i * 0.3F)) * g4;
-                float w1 = 0.14F * sc;
-                float w2 = 0.34F * sc;
-                plane(buffer.getBuffer(RenderType.eyes(TRIM)), p, 0.5F, yc2, 0.5F, w1, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.8F * k, 0.45F * k);
-                plane(buffer.getBuffer(RenderType.eyes(TRIM)), p, 0.5F, yc2, 0.5F, 0.0F, 0.0F, w1, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.8F * k, 0.45F * k);
+                float k = 0.38F * (float) Math.pow(1.0F - i / 20.0F, 1.6F) * (0.85F + 0.15F * Mth.sin(time * 0.12F + i * 0.3F)) * g4;
+                float w1 = 0.07F * sc;
+                float w2 = 0.2F * sc;
+                plane(buffer.getBuffer(RenderType.eyes(TRIM)), p, 0.5F, yc2, 0.5F, w1, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.6F * k, 0.22F * k);
+                plane(buffer.getBuffer(RenderType.eyes(TRIM)), p, 0.5F, yc2, 0.5F, 0.0F, 0.0F, w1, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.6F * k, 0.22F * k);
                 plane(buffer.getBuffer(RenderType.eyes(TRIM)), p, 0.5F, yc2, 0.5F, w2, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 0.6F * k, 0.28F * k, 0.08F * k);
                 plane(buffer.getBuffer(RenderType.eyes(TRIM)), p, 0.5F, yc2, 0.5F, 0.0F, 0.0F, w2, 0.0F, 3.0F, 0.0F, 0.6F * k, 0.28F * k, 0.08F * k);
             }
@@ -1437,7 +1590,7 @@ final class SarcophagusRenderer {
         float strength = CoreEvolution.beamAt(d.vs);
         float pf = ease(Mth.clamp(vh / 3.0F, 0.0F, 1.0F));
         float vr = d.vr;
-        float top = crystalY(vh);
+        float top = crystalY(vh) + crystalLift(d.vs);
         float flick = 0.85F + 0.15F * Mth.sin(d.time * 0.7F);
         float k = strength * flick * pf;
         Lines lines = new Lines();
@@ -1448,14 +1601,14 @@ final class SarcophagusRenderer {
             for (int sz = -1; sz <= 1; sz += 2) {
                 float ax = 0.5F + sx * vr;
                 float az = 0.5F + sz * vr;
-                lines.add(ax, top, az, tx, ty, tz, 0.03F * (0.5F + strength), 1.0F * k, 0.62F * k, 0.15F * k);
+                lines.add(ax, top, az, tx, ty, tz, 0.022F * (0.5F + strength), 1.0F * k, 0.55F * k, 0.12F * k);
                 // pulses that run to the Core
                 for (int i = 0; i < 3; i++) {
                     float f = (d.time * 0.045F + i / 3.0F) % 1.0F;
                     float g = Math.min(1.0F, f + 0.08F);
                     lines.add(ax + (tx - ax) * f, top + (ty - top) * f, az + (tz - az) * f,
                             ax + (tx - ax) * g, top + (ty - top) * g, az + (tz - az) * g,
-                            0.07F * (0.5F + strength), 1.0F * k, 0.85F * k, 0.5F * k);
+                            0.04F * (0.5F + strength), 1.0F * k, 0.62F * k, 0.2F * k);
                 }
             }
         }
@@ -2029,9 +2182,7 @@ final class SarcophagusRenderer {
         for (int i = 0; i < 4; i++) {
             int j = Math.min(i, 2);
             float k = ks[j];
-            glowVertex(vc, pose, pts[j][0], pts[j][1], pts[j][2], 0.5F, 0.5F,
-                    Mth.clamp((int) (k * 255.0F), 0, 255), Mth.clamp((int) (k * 0.42F * 255.0F), 0, 255),
-                    Mth.clamp((int) (k * 0.08F * 255.0F), 0, 255));
+            glowVertex(vc, pose, pts[j][0], pts[j][1], pts[j][2], 0.5F, 0.5F, k, k * 0.42F, k * 0.08F);
         }
     }
 
@@ -2043,7 +2194,10 @@ final class SarcophagusRenderer {
         pose.pushPose();
         pose.translate(0.5F, cy, 0.5F);
         pose.mulPose(Axis.YP.rotationDegrees(time * 1.7F));
+        float keepK = addK;
+        addK = 1.0F;
         sphere(buffer.getBuffer(fxFire()), pose.last(), ORB_RADIUS * 0.98F * scale * flick, time * 0.006F, -time * 0.012F, 1.0F * pulse, 0.74F * pulse, 0.42F * pulse);
+        addK = keepK;
         pose.popPose();
         // Fire: two shells of fire texture that flow and turn against each other, and a white-hot heart.
         VertexConsumer fire = buffer.getBuffer(RenderType.eyes(ORB));
@@ -2083,8 +2237,8 @@ final class SarcophagusRenderer {
         // Star of light: two turning stars of different size.
         VertexConsumer flare = buffer.getBuffer(RenderType.eyes(FLARE));
         float fk = (0.8F + 0.2F * Mth.sin(time * 0.31F)) * s;
-        billboard(flare, p, 0.5F, cy, 0.5F, (0.6F + 0.5F * flash) * s, time * 0.012F, 0.6F * fk, 0.36F * fk, 0.12F * fk);
-        billboard(flare, p, 0.5F, cy, 0.5F, 0.4F * s, 0.4F - time * 0.02F, 0.45F * fk, 0.26F * fk, 0.08F * fk);
+        billboard(flare, p, 0.5F, cy, 0.5F, (0.55F + 0.5F * flash) * s, time * 0.012F, 0.45F * fk, 0.27F * fk, 0.09F * fk);
+        billboard(flare, p, 0.5F, cy, 0.5F, 0.35F * s, 0.4F - time * 0.02F, 0.33F * fk, 0.19F * fk, 0.06F * fk);
         // A ring of runes turning around the orb.
         VertexConsumer ring = buffer.getBuffer(RenderType.eyes(RING));
         pose.pushPose();
@@ -2149,9 +2303,6 @@ final class SarcophagusRenderer {
                                float g, float b) {
         final int seg = 20;
         final int stacks = 12;
-        int ir = Mth.clamp((int) (r * 255.0F), 0, 255);
-        int ig = Mth.clamp((int) (g * 255.0F), 0, 255);
-        int ib = Mth.clamp((int) (b * 255.0F), 0, 255);
         for (int i = 0; i < stacks; i++) {
             float phi0 = (float) Math.PI * i / stacks;
             float phi1 = (float) Math.PI * (i + 1) / stacks;
@@ -2173,7 +2324,7 @@ final class SarcophagusRenderer {
                 boolean flip = n[0] * mx + n[1] * my + n[2] * mz < 0.0F;
                 for (int v = 0; v < 4; v++) {
                     int idx = flip ? 3 - v : v;
-                    glowVertex(vc, pose, pts[idx][0], pts[idx][1], pts[idx][2], uvs[idx][0], uvs[idx][1], ir, ig, ib);
+                    glowVertex(vc, pose, pts[idx][0], pts[idx][1], pts[idx][2], uvs[idx][0], uvs[idx][1], r, g, b);
                 }
             }
         }
@@ -2291,37 +2442,50 @@ final class SarcophagusRenderer {
      */
     private static void plane(VertexConsumer vc, PoseStack.Pose pose, float cx, float cy, float cz, float ax, float ay,
                               float az, float bx, float by, float bz, float r, float g, float b) {
-        int ir = Mth.clamp((int) (r * 255.0F), 0, 255);
-        int ig = Mth.clamp((int) (g * 255.0F), 0, 255);
-        int ib = Mth.clamp((int) (b * 255.0F), 0, 255);
-        glowVertex(vc, pose, cx - ax - bx, cy - ay - by, cz - az - bz, 0, 0, ir, ig, ib);
-        glowVertex(vc, pose, cx + ax - bx, cy + ay - by, cz + az - bz, 0, 1, ir, ig, ib);
-        glowVertex(vc, pose, cx + ax + bx, cy + ay + by, cz + az + bz, 1, 1, ir, ig, ib);
-        glowVertex(vc, pose, cx - ax + bx, cy - ay + by, cz - az + bz, 1, 0, ir, ig, ib);
-        glowVertex(vc, pose, cx - ax + bx, cy - ay + by, cz - az + bz, 1, 0, ir, ig, ib);
-        glowVertex(vc, pose, cx + ax + bx, cy + ay + by, cz + az + bz, 1, 1, ir, ig, ib);
-        glowVertex(vc, pose, cx + ax - bx, cy + ay - by, cz + az - bz, 0, 1, ir, ig, ib);
-        glowVertex(vc, pose, cx - ax - bx, cy - ay - by, cz - az - bz, 0, 0, ir, ig, ib);
+        glowVertex(vc, pose, cx - ax - bx, cy - ay - by, cz - az - bz, 0, 0, r, g, b);
+        glowVertex(vc, pose, cx + ax - bx, cy + ay - by, cz + az - bz, 0, 1, r, g, b);
+        glowVertex(vc, pose, cx + ax + bx, cy + ay + by, cz + az + bz, 1, 1, r, g, b);
+        glowVertex(vc, pose, cx - ax + bx, cy - ay + by, cz - az + bz, 1, 0, r, g, b);
+        glowVertex(vc, pose, cx - ax + bx, cy - ay + by, cz - az + bz, 1, 0, r, g, b);
+        glowVertex(vc, pose, cx + ax + bx, cy + ay + by, cz + az + bz, 1, 1, r, g, b);
+        glowVertex(vc, pose, cx + ax - bx, cy + ay - by, cz + az - bz, 0, 1, r, g, b);
+        glowVertex(vc, pose, cx - ax - bx, cy - ay - by, cz - az - bz, 0, 0, r, g, b);
     }
 
     private static void glowVertex(VertexConsumer vc, PoseStack.Pose pose, float x, float y, float z, float u, float v,
-                                   int r, int g, int b) {
+                                   float r, float g, float b) {
         int a = 255;
+        int ir;
+        int ig;
+        int ib;
         if (alphaMode) {
-            // brightness becomes opacity: the same picture when added, but a solid colour when blended (see fx())
-            int m = Math.max(r, Math.max(g, b));
-            if (m <= 0) {
+            // brightness becomes opacity: the same picture when added, but a solid colour when blended (see fx()).
+            // addK dims what is added (by day it would burn out against the sky); the hue is worked out in float so
+            // that a fading effect keeps its colour to the end.
+            float m = Math.max(r, Math.max(g, b)) * addK;
+            if (m <= 0.002F) {
+                ir = 255;
+                ig = 140;
+                ib = 30;
                 a = 0;
             } else {
-                r = r * 255 / m;
-                g = g * 255 / m;
-                b = b * 255 / m;
-                a = m;
+                float mx = Math.max(r, Math.max(g, b));
+                ir = Mth.clamp((int) (r / mx * 255.0F + 0.5F), 0, 255);
+                ig = Mth.clamp((int) (g / mx * 255.0F + 0.5F), 0, 255);
+                ib = Mth.clamp((int) (b / mx * 255.0F + 0.5F), 0, 255);
+                a = Mth.clamp((int) (m * 255.0F + 0.5F), 0, 255);
             }
+        } else {
+            ir = Mth.clamp((int) (r * 255.0F), 0, 255);
+            ig = Mth.clamp((int) (g * 255.0F), 0, 255);
+            ib = Mth.clamp((int) (b * 255.0F), 0, 255);
         }
-        vc.addVertex(pose, x, y, z).setColor(r, g, b, a).setUv(u, v).setOverlay(OverlayTexture.NO_OVERLAY)
+        vc.addVertex(pose, x, y, z).setColor(ir, ig, ib, a).setUv(u, v).setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(LightTexture.FULL_BRIGHT).setNormal(pose, 0.0F, 1.0F, 0.0F);
     }
+
+    /** How much of its brightness an added effect keeps (1 at night, less by day: the sky is bright already). */
+    private static float addK = 1.0F;
 
     /** True while the late pass draws: colours are then sent as colour plus opacity (see {@link #glowVertex}). */
     private static boolean alphaMode;

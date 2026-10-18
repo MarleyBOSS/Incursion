@@ -179,6 +179,8 @@ Mit jeder Stufe stärker:
 - **Resonanzwellen und Goldringe im Boden**: der Siegelkreis der Plattform, aus dem der Kern seine Kraft zieht.
 - **Riss-Siegel** (Stufe 4): das Tor, durch das die Eindringlinge kamen; der voll erwachte Anker hält es geschlossen. Die Lichtsäule ist das Leuchtfeuer, das der Anker durch den Riss schickt.
 - **Bezug zu den Generälen (Vorschlag, noch nicht entschieden):** Stufe 1 Ketten ↔ Späher, Stufe 2 Pfeiler/Kristalle ↔ Brecher, Stufe 3 Tafeln/Fäden ↔ Seelenwirker, Stufe 4 Riss-Siegel ↔ Varkhul.
+- **Torbögen und Seelenlaternen** (Stufe 3): die Pillar werden zum Tempel; in den Laternen brennen die Seelen, die der Kern aus den Tafeln liest. Passt zum Seelenwirker.
+- **Schwebende Kristalle** (Stufe 4): die Energiekristalle lösen sich von den Pillarn, sobald der Anker voll erwacht ist.
 - **Stufenübergang:** Alles wird kontinuierlich animiert (`SarcophagusRenderer`, „visuelle Stufe“): Pfeiler wachsen aus dem Boden und wandern nach außen, Teile wachsen aus der vorherigen Form. Beim Entschärfen fällt die visuelle Stufe mit dem Countdown zurück (Abbruch baut sie wieder auf); danach verschwindet die Plattform Ring für Ring von außen nach innen.
 
 ## Upgrade-Fluss mit Boss-Nacht (Idee 18.10.)
