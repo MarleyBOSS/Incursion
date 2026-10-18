@@ -32,7 +32,10 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.client.model.HeadedModel;
+import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
@@ -403,10 +406,10 @@ final class SarcophagusRenderer {
             drawSentinels(pose, fresh, sc, vs);
             drawCages(pose, fresh, time, vs, vp);
             drawPillars(pose, fresh, time, vp);
-            drawLanterns(pose, fresh, time, vs);
             flushSolid(buffer);
             drawEnderEyes(pose, buffer, time, vp);
             drawBosses(pose, buffer, level, core, time, partialTick, vs, vp, yawCam);
+            drawSoulHeads(pose, buffer, level, time, vs);
         }
 
         // 2. Everything see-through (additive glow, orb, rays, glass) is drawn later, after the water and the other
@@ -1690,9 +1693,9 @@ final class SarcophagusRenderer {
         }
     }
 
-    // --- stage 4: soul lanterns (the Wither's souls) ---
+    // --- stage 4: the possessed villagers (the souls the Wither drained from the Order) ---
 
-    private static final int LANTERNS = 3;
+    private static final int LANTERNS = 5;
 
     /** Position of lantern i (x, y, z) and its size (0..1). */
     private static float[] lanternAt(int i, float time, float vs) {
@@ -1703,30 +1706,68 @@ final class SarcophagusRenderer {
         return new float[]{0.5F + Mth.cos(ang) * rad, y, 0.5F + Mth.sin(ang) * rad, g};
     }
 
-    private static void drawLanterns(PoseStack pose, VertexConsumer vc, float time, float vs) {
-        if (vs < 3.03F) {
+    /** Biome and profession of the villager heads (their textures are the game's own). */
+    private static final String[][] SOUL_LOOKS = {{"plains", "farmer"}, {"desert", "librarian"}, {"snow", "cleric"}, {"savanna", "shepherd"},
+            {"swamp", "fletcher"}};
+    /** One pixel of the villager model in blocks. */
+    private static final float SOUL_PX = 1.5F / 16.0F;
+    private static ModelPart soulHead;
+    private static Level soulLevel;
+    private static boolean soulFailed;
+
+    private static ResourceLocation villagerTexture(String path) {
+        return ResourceLocation.withDefaultNamespace("textures/entity/villager/" + path + ".png");
+    }
+
+    /**
+     * The souls the Wither drained from the Order: villager heads (the head of the game's own villager model with its
+     * textures: base, biome, profession) that circle the Core, looking into it. Their eyes glow violet (see drawEvolution).
+     */
+    private static void drawSoulHeads(PoseStack pose, MultiBufferSource buffer, Level level, float time, float vs) {
+        if (vs < 3.03F || soulFailed) {
             return;
         }
-        PoseStack.Pose p = pose.last();
-        TextureAtlasSprite gold = sprite(GOLD);
-        TextureAtlasSprite dark = sprite(INNER);
-        TextureAtlasSprite marble = sprite(MARBLE);
-        int light = LightTexture.pack(12, 15);
-        for (int i = 0; i < LANTERNS; i++) {
-            float[] l = lanternAt(i, time, vs);
-            float s = 0.17F * l[3];
-            if (s < 0.01F) {
-                continue;
+        try {
+            if (soulHead == null || soulLevel != level) {
+                Entity v = EntityType.VILLAGER.create(level);
+                EntityRenderer<?> r = Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(v);
+                if (r instanceof LivingEntityRenderer<?, ?> lr && lr.getModel() instanceof HeadedModel hm) {
+                    soulHead = hm.getHead();
+                    soulLevel = level;
+                } else {
+                    soulFailed = true;
+                    return;
+                }
             }
-            float h = s * 1.4F;
-            for (int c = 0; c < 4; c++) {
-                float px = l[0] + (c % 2 == 0 ? -s : s);
-                float pz = l[2] + (c < 2 ? -s : s);
-                beam(vc, p, light, gold, px, l[1] - h, pz, px, l[1] + h, pz, 0.018F * l[3]);
+            try {
+                ModelPart hat = soulHead.getChild("hat");
+                hat.visible = true;
+                hat.getChild("hat_rim").visible = true;
+            } catch (RuntimeException ignored) {
+                // a model without these parts: the plain head is fine
             }
-            fbox(vc, p, light, marble, dark, l[0] - s * 1.2F, l[0] + s * 1.2F, l[1] - h - 0.05F * l[3], l[1] - h, l[2] - s * 1.2F, l[2] + s * 1.2F);
-            fbox(vc, p, light, marble, dark, l[0] - s * 1.2F, l[0] + s * 1.2F, l[1] + h, l[1] + h + 0.05F * l[3], l[2] - s * 1.2F, l[2] + s * 1.2F);
-            beam(vc, p, light, gold, l[0], l[1] + h + 0.05F * l[3], l[2], l[0], l[1] + h + 0.3F * l[3], l[2], 0.012F * l[3]);
+            int light = LightTexture.pack(13, 15);
+            for (int i = 0; i < LANTERNS; i++) {
+                float[] l = lanternAt(i, time, vs);
+                float sc = SOUL_PX * l[3];
+                if (sc < 0.01F) {
+                    continue;
+                }
+                float phi = (float) Math.atan2(0.5F - l[0], 0.5F - l[2]);
+                String[] look = SOUL_LOOKS[i % SOUL_LOOKS.length];
+                pose.pushPose();
+                pose.translate(l[0], l[1] - 5.0F * sc, l[2]);
+                pose.mulPose(Axis.YP.rotation(phi + (float) Math.PI));
+                pose.mulPose(Axis.ZP.rotation(0.12F * Mth.sin(time * 0.05F + i * 1.3F)));
+                pose.scale(-sc, -sc, sc);
+                for (String tex : new String[]{"villager", "type/" + look[0], "profession/" + look[1]}) {
+                    soulHead.render(pose, buffer.getBuffer(RenderType.entityCutoutNoCull(villagerTexture(tex))), light, OverlayTexture.NO_OVERLAY,
+                            0xFFFFFFFF);
+                }
+                pose.popPose();
+            }
+        } catch (RuntimeException ex) {
+            soulFailed = true; // never take the game down because of a decoration
         }
     }
 
@@ -2925,15 +2966,24 @@ final class SarcophagusRenderer {
                 billboard(buffer.getBuffer(glow(HALO)), p, ey[0], ey[1], ey[2], 0.6F, 0.0F, 0.5F * ks, 0.3F * ks, 0.9F * ks);
             }
         }
-        // the lanterns themselves
+        // the eyes of the possessed villagers: violet
         for (int i = 0; gw > 0.03F && i < LANTERNS; i++) {
             float[] l = lanternAt(i, time, vs);
             float k = l[3] * (0.85F + 0.15F * Mth.sin(time * 0.12F + i));
-            pose.pushPose();
-            pose.translate(l[0], l[1], l[2]);
-            sphere(buffer.getBuffer(glow(ORB)), pose.last(), 0.12F * l[3], time * 0.004F, -time * 0.01F, 0.62F * k, 0.3F * k, 1.0F * k);
-            pose.popPose();
-            billboard(buffer.getBuffer(glow(HALO)), p, l[0], l[1], l[2], 0.5F * l[3], 0.0F, 0.42F * k, 0.2F * k, 0.7F * k);
+            float sc = SOUL_PX * l[3];
+            float phi = (float) Math.atan2(0.5F - l[0], 0.5F - l[2]);
+            float fx = Mth.sin(phi);
+            float fz = Mth.cos(phi);
+            float lx = Mth.cos(phi);
+            float lz = -Mth.sin(phi);
+            for (int sd = -1; sd <= 1; sd += 2) {
+                float ex = l[0] + fx * 4.6F * sc + lx * sd * 2.0F * sc;
+                float ez = l[2] + fz * 4.6F * sc + lz * sd * 2.0F * sc;
+                float ey = l[1] + 0.5F * sc;
+                billboard(buffer.getBuffer(glow(HALO)), p, ex, ey, ez, 1.5F * sc, 0.0F, 0.8F * k, 0.3F * k, 1.0F * k);
+                billboard(buffer.getBuffer(glow(HALO)), p, ex, ey, ez, 0.6F * sc, 0.0F, 1.0F * k, 0.85F * k, 1.0F * k);
+            }
+            billboard(buffer.getBuffer(glow(HALO)), p, l[0], l[1], l[2], 1.0F * l[3], 0.0F, 0.28F * k, 0.1F * k, 0.5F * k);
         }
     }
 
