@@ -1964,6 +1964,110 @@ final class SarcophagusRenderer {
         return which == 0 ? s.getU0() : which == 1 ? s.getU1() : which == 2 ? s.getV0() : s.getV1();
     }
 
+    // --- restored helpers ---
+
+    private static void blade(VertexConsumer vc, PoseStack.Pose q, int light, TextureAtlasSprite gold, float x0, float y0,
+                              float z0, float x1, float y1, float z1, float bulge) {
+        float px = x0;
+        float py = y0;
+        float pz = z0;
+        for (int k = 1; k <= 6; k++) {
+            float u = k / 6.0F;
+            float x = x0 + (x1 - x0) * u;
+            float y = y0 + (y1 - y0) * u;
+            float z = z0 + (z1 - z0) * u + bulge * Mth.sin(u * (float) Math.PI);
+            beam(vc, q, light, gold, px, py, pz, x, y, z, 0.03F * (1.0F - 0.75F * u) + 0.006F);
+            px = x;
+            py = y;
+            pz = z;
+        }
+    }
+
+
+    /**
+     * Stage 1, the Scout: on the dark pad at the end of every chain stands a hooded shadow sentinel (solid), a cloak that
+     * tapers up into a hood with an empty face and two curved blades crossed on the chest. They step out of the floor.
+     */
+    private static void drawSentinels(PoseStack pose, VertexConsumer vc, float scale, float vs) {
+        float g = ease(Mth.clamp((vs - 0.1F) / 0.9F, 0.0F, 1.0F));
+        if (g < 0.03F) {
+            return;
+        }
+        TextureAtlasSprite wall = sprite(WALL);
+        TextureAtlasSprite marble = sprite(MARBLE);
+        TextureAtlasSprite dark = sprite(INNER);
+        TextureAtlasSprite gold = sprite(GOLD);
+        int light = LightTexture.pack(11, 15);
+        for (int i = 0; i < 4; i++) {
+            float[] an = anchorAt(i, scale, vs);
+            float yaw = (float) Math.atan2(0.5F - an[0], 0.5F - an[1]);
+            pose.pushPose();
+            pose.translate(an[0], -2.7F * (1.0F - g), an[1]);
+            pose.mulPose(Axis.YP.rotation(yaw));
+            PoseStack.Pose q = pose.last();
+            fbox(vc, q, light, marble, wall, -0.32F, 0.32F, 0.0F, 0.10F, -0.32F, 0.32F);
+            goldFrame(vc, q, light, gold, -0.32F, 0.32F, 0.10F, -0.32F, 0.32F, 0.016F);
+            fbox(vc, q, light, wall, wall, -0.25F, 0.25F, 0.10F, 0.75F, -0.21F, 0.21F);
+            fbox(vc, q, light, wall, wall, -0.21F, 0.21F, 0.75F, 1.30F, -0.17F, 0.17F);
+            fbox(vc, q, light, wall, wall, -0.34F, 0.34F, 1.30F, 1.50F, -0.16F, 0.16F);
+            fbox(vc, q, light, wall, wall, -0.19F, 0.19F, 1.50F, 1.74F, -0.17F, 0.19F);
+            fbox(vc, q, light, wall, wall, -0.17F, 0.17F, 1.74F, 2.05F, -0.17F, 0.20F);
+            float[] tip = {0.0F, 2.42F, -0.14F};
+            float[][] bs = {{-0.17F, 2.05F, -0.17F}, {0.17F, 2.05F, -0.17F}, {0.17F, 2.05F, 0.20F}, {-0.17F, 2.05F, 0.20F}};
+            for (int e = 0; e < 4; e++) {
+                float[] a0 = bs[e];
+                float[] a1 = bs[(e + 1) % 4];
+                polyUV(vc, q, light, wall, (a0[0] + a1[0]) * 0.5F, 0.3F, (a0[2] + a1[2]) * 0.5F, new float[][]{a0, a1, tip}, FACET_UV);
+            }
+            fbox(vc, q, light, dark, dark, -0.11F, 0.11F, 1.80F, 2.0F, 0.195F, 0.215F);
+            fbox(vc, q, light, dark, wall, -0.20F, 0.20F, 0.30F, 1.28F, -0.27F, -0.17F);
+            beam(vc, q, light, wall, -0.34F, 1.38F, 0.0F, 0.12F, 1.05F, 0.24F, 0.075F);
+            beam(vc, q, light, wall, 0.34F, 1.38F, 0.0F, -0.12F, 1.05F, 0.24F, 0.075F);
+            blade(vc, q, light, gold, 0.14F, 1.0F, 0.26F, -0.34F, 1.95F, 0.30F, 0.16F);
+            blade(vc, q, light, gold, -0.14F, 1.0F, 0.26F, 0.34F, 1.95F, 0.30F, 0.16F);
+            pose.popPose();
+        }
+    }
+
+
+    /** A thin beam with energy packets running along it, from a to b. */
+    private static void beamTo(Lines lines, List<float[]> packets, float time, float ax, float ay, float az, float bx, float by,
+                               float bz, float k, float r, float g, float b, int seed) {
+        lines.add(ax, ay, az, bx, by, bz, 0.016F, r * k, g * k, b * k);
+        lines.add(ax, ay, az, bx, by, bz, 0.05F, r * k * 0.22F, g * k * 0.22F, b * k * 0.22F);
+        for (int m = 0; m < 2; m++) {
+            float u = (time * 0.014F + seed * 0.23F + m * 0.5F) % 1.0F;
+            packets.add(new float[]{ax + (bx - ax) * u, ay + (by - ay) * u, az + (bz - az) * u, k * Mth.sin(u * (float) Math.PI), r, g, b});
+        }
+    }
+
+
+    /** The glow of an energy crystal: its own shape, drawn a little larger and blended over it. */
+    private static void gemGlow(MultiBufferSource buffer, PoseStack.Pose id, float cx, float y, float cz, float r, float h, float rot, float cr,
+                                float cg, float cb) {
+        VertexConsumer vc = buffer.getBuffer(glow(TRIM));
+        float[] top = {cx, y + h, cz};
+        float[] bottom = {cx, y - h, cz};
+        float[][] eq = new float[4][];
+        for (int e = 0; e < 4; e++) {
+            float ang = rot + e * (float) (Math.PI / 2.0);
+            eq[e] = new float[]{cx + Mth.cos(ang) * r, y, cz + Mth.sin(ang) * r};
+        }
+        for (int e = 0; e < 4; e++) {
+            float[] a = eq[e];
+            float[] b = eq[(e + 1) % 4];
+            float[][] up = {a, b, top};
+            float[][] down = {b, a, bottom};
+            for (float[][] t : new float[][][]{up, down}) {
+                for (int v = 0; v < 4; v++) {
+                    float[] q = t[Math.min(v, 2)];
+                    glowVertex(vc, id, q[0], q[1], q[2], 0.5F, 0.5F, cr, cg, cb);
+                }
+            }
+        }
+    }
+
+
     // --- energy lines: arcs, flows, a woven net, a heartbeat ---
 
     /** Height of the middle of the Wither's ribs above the plaza (stage 4). */
