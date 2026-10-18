@@ -170,7 +170,7 @@ Mit jeder Stufe stärker:
 
 ## Upgrade-Fluss mit Boss-Nacht (Idee 18.10.)
 
-Spieler setzt tagsüber oder nachts die Tafel mit dem Upgrade-Werkzeug ein (Stufe 5, 10, 15). Das Upgrade startet, schließt aber erst nach der **darauffolgenden Nacht** ab (ca. 24 Ingame-Stunden). In dieser Nacht erscheint der **Boss der Stufe** (Späher, Brecher, Seelenwirker; bei Stufe 20 Varkhul). Wer die Nacht übersteht, bekommt das Upgrade und die **Evolution des Sarkophags** (`CoreEvolution`). Die Features der Evolution sollen an den Boss der Stufe erinnern. Offen: Abbruch bei zerstörtem Kern, Anzeige im GUI, Testmodus überspringt die Wartezeit.
+Spieler setzt tagsüber oder nachts die Tafel mit dem Upgrade-Werkzeug ein (Stufe 5, 10, 15). Das Upgrade startet, schließt aber erst nach der **darauffolgenden Nacht** ab (ca. 24 Ingame-Stunden). In dieser Nacht erscheint der **Boss der Stufe** (Späher, Brecher, Seelenwirker; bei Stufe 20 Varkhul). Der Boss droppt ein **Boss-Item**; erst wenn der Spieler es in den Kern einfügt, wird das Upgrade fertig und die **Evolution des Sarkophags** (`CoreEvolution`) läuft, sodass man die Animation wirklich sieht. Schafft man den Boss nicht vor Ende der Nacht, verflüchtigt er sich und kommt in der nächsten Nacht wieder, bis er besiegt ist. Die Features der Evolution sollen an den Boss der Stufe erinnern. Offen: Abbruch bei zerstörtem Kern, Anzeige im GUI, Testmodus überspringt die Wartezeit.
 
 ## Laufen auf der Route (v0.8.3.2)
 
