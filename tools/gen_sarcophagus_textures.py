@@ -86,19 +86,18 @@ def posterize(v, levels):
     return np.array(levels, dtype=float)[idx]
 
 
-MARBLE_LEVELS = [(10, 6, 20), (15, 9, 29), (22, 13, 40)]
+MARBLE_LEVELS = [(13, 9, 24), (19, 14, 33), (27, 20, 45), (42, 31, 70)]
 
 
 def marble_rgb(size, seed):
-    """Black marble in vanilla pixel style (16px): a few dark steps, sparse pale cracks, sparse gold threads."""
+    """Obsidian in vanilla pixel style (16px): per-pixel noise in four hard steps, a few lighter violet pixels."""
     rng = np.random.default_rng(seed)
-    base = fbm(size, size, rng, ((2, 0.5), (4, 0.3), (8, 0.2)))
-    base = (base - base.min()) / (base.max() - base.min() + 1e-9)
-    rgb = posterize(base * 0.95, MARBLE_LEVELS)
-    cracks = fbm(size, size, rng, ((3, 0.6), (6, 0.4)))
-    threads = fbm(size, size, rng, ((2, 0.7), (5, 0.3)))
-    rgb[np.abs(cracks - 0.5) < 0.012] = (44, 28, 78)
-    return rgb
+    smooth = fbm(size, size, rng, ((2, 0.6), (4, 0.4)))
+    smooth = (smooth - smooth.min()) / (smooth.max() - smooth.min() + 1e-9)
+    noise = rng.random((size, size))
+    v = (0.35 * smooth + 0.65 * noise) ** 1.7
+    v = v / (v.max() + 1e-9)
+    return posterize(v * 0.98, MARBLE_LEVELS)
 
 
 def gold_ring(rgb, dist_px, xx, yy):
@@ -139,20 +138,20 @@ def wall_frame(f):
     # glowing cracks: a warm wave travels through them
     crack = cracks_mask(size, 1801) & inside
     wave = 0.5 + 0.5 * np.sin(phase - (xx * 0.55 + yy * 0.35))
-    rgb[crack] = mix((34, 20, 64), (52, 120, 128), wave ** 2)[crack]
+    rgb[crack] = mix((44, 30, 20), (170, 124, 36), wave ** 2)[crack]
     # the glyph (a diamond with a heart) in the lower middle
     gx = np.abs(xx - 7.5)
     gy = np.abs(yy - 12.0)
     d = gx + gy
     glyph = (((d >= 1.9) & (d < 3.1)) | ((gx < 1.0) & (gy < 1.0))) & (yy >= 10) & (yy <= 14)
     beat = 0.5 + 0.5 * np.sin(phase)
-    rgb[glyph] = mix((30, 80, 92), (110, 230, 226), beat * np.ones_like(d))[glyph]
+    rgb[glyph] = mix((100, 70, 20), (240, 196, 80), beat * np.ones_like(d))[glyph]
     # the border: dark gold on the edge pixel (under the 3D bar), a beaded ring inside it that shimmers
     edge_row = dist_px < 1.0
     ring = (dist_px >= 1.0) & (dist_px < 2.0)
-    rgb[edge_row] = (8, 5, 16)
+    rgb[edge_row] = (8, 5, 14)
     shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.45)
-    rgb[ring] = mix((22, 60, 72), (64, 170, 178), shimmer)[ring]
+    rgb[ring] = mix((70, 50, 18), (176, 132, 40), shimmer)[ring]
     rgb[d_notch < 0] *= 0.4
     return rgb
 
@@ -169,19 +168,19 @@ def top_frame(f):
     edge_row = dist_px < 1.0
     ring_b = (dist_px >= 1.0) & (dist_px < 2.0)
     shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.45)
-    rgb[edge_row] = (8, 5, 16)
-    rgb[ring_b] = mix((22, 60, 72), (64, 170, 178), shimmer)[ring_b]
+    rgb[edge_row] = (8, 5, 14)
+    rgb[ring_b] = mix((70, 50, 18), (176, 132, 40), shimmer)[ring_b]
     dx = xx - 7.5
     dz = yy - 7.5
     r = np.sqrt(dx * dx + dz * dz)
     ang = np.arctan2(dz, dx)
     inner = (r >= 2.3) & (r < 3.5)
     lit = np.sin(3 * ang - phase) > -0.35  # three arcs that turn
-    rgb[inner & lit] = (90, 210, 210)
-    rgb[inner & ~lit] = (26, 16, 50)
+    rgb[inner & lit] = (200, 154, 52)
+    rgb[inner & ~lit] = (30, 22, 40)
     outer = (r >= 4.6) & (r < 5.6)
     lit2 = np.sin(6 * ang + phase) > 0.2
-    rgb[outer & lit2] = (56, 36, 104)
+    rgb[outer & lit2] = (60, 42, 24)
     heart = r < 1.6
     beat = 0.5 + 0.5 * np.sin(phase)
     rgb[heart] = mix((200, 130, 30), (255, 240, 170), beat * np.ones_like(r))[heart]
@@ -241,16 +240,16 @@ def glass():
     dr = ((1 - X) - Y) / np.sqrt(2.0)
     dist_px = np.minimum.reduce([dl, dr, Y]) * size
     rgb = np.zeros((size, size, 3))
-    rgb[...] = (150, 226, 236)
+    rgb[...] = (205, 215, 225)
     alpha = np.full((size, size), 34.0)
     alpha += 12 * (1.0 - v)
     streak = ((xx * 2 + yy) % 11 == 0) | ((xx * 2 + yy) % 11 == 1)
     streak &= (np.arange(size)[None, :] + np.arange(size)[:, None]) % 3 != 0
     alpha[streak] = 110
-    rgb[streak] = (225, 250, 255)
+    rgb[streak] = (240, 244, 250)
     rim = dist_px < 1.0
     alpha[rim] = 130
-    rgb[rim] = (190, 245, 250)
+    rgb[rim] = (225, 232, 240)
     return to_image(rgb, alpha)
 
 
@@ -357,12 +356,12 @@ def rune_frame(f):
     body[speck] *= 1.35
     outline = tablet & ((xx == 3) | (xx == 12) | (yy == 1) | (yy == 14))
     body[outline] = (8, 4, 16)
-    body[tablet & ~outline & ((xx == 4) | (yy == 2))] = (118, 92, 176)
+    body[tablet & ~outline & ((xx == 4) | (yy == 2))] = (96, 74, 84)
     body[tablet & ~outline & ((xx == 11) | (yy == 13))] = (12, 6, 24)
     # diamond gems in the four corners, they twinkle
     for i, (gx, gy) in enumerate([(4, 2), (11, 2), (4, 13), (11, 13)]):
         k = 0.5 + 0.5 * np.sin(phase + i * 1.6)
-        body[gy, gx] = mix((60, 190, 200), (200, 255, 252), np.array(k))
+        body[gy, gx] = mix((120, 20, 30), (255, 90, 80), np.array(k))
     cx, cy = 7.5, 7.5
     d = np.abs(xx - cx) + np.abs(yy - cy)
     ring = (d >= 2.9) & (d < 4.1)
@@ -371,7 +370,7 @@ def rune_frame(f):
     ang = np.arctan2(yy - cy, xx - cx)
     glow = 0.5 + 0.5 * np.sin(phase - ang)  # the glow runs around the ring
     ringpx = ring & tablet & ~outline
-    body[ringpx] = mix((70, 40, 150), (110, 255, 240), glow)[ringpx]
+    body[ringpx] = mix((64, 34, 120), (190, 120, 255), glow)[ringpx]
     spikepx = spikes & tablet & ~outline & ~ring
     body[spikepx] = mix((190, 140, 40), (255, 236, 150), glow)[spikepx]
     beat = np.full((16, 16), 0.5 + 0.5 * np.sin(phase))
@@ -382,7 +381,7 @@ def rune_frame(f):
     sparks = [(2, 0), (13, 0), (2, 15), (13, 15), (1, 8), (14, 7)]
     for i, (sx, sy) in enumerate(sparks):
         if (f + i * 3) % FRAMES == 0:
-            rgba[sy, sx] = (190, 250, 250, 255)
+            rgba[sy, sx] = (255, 226, 150, 255)
     return rgba
 
 
