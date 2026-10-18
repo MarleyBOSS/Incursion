@@ -85,6 +85,10 @@ final class SarcophagusRenderer {
     private static final float INSET = 0.004F;
     /** Height of the orb's centre, relative to the block. */
     private static final float ORB_Y = 1.12F;
+    /** Height of the four corner tips of the lower half: exactly where the slab begins, so the frame lines meet there. */
+    private static final float TIP = 1.0F - SLAB;
+    /** Rise of the lower half's surface per block from the notch to the corner. */
+    private static final float FLOOR_SLOPE = (TIP - 0.5F) / 0.5F;
     private static final float ORB_RADIUS = 0.15F;
 
     private static final float[] C = {0.5F, 0.5F, 0.5F};
@@ -92,10 +96,10 @@ final class SarcophagusRenderer {
     private static final float[] S = {0.5F, 0.5F, 1.0F};
     private static final float[] W = {0.0F, 0.5F, 0.5F};
     private static final float[] E = {1.0F, 0.5F, 0.5F};
-    private static final float[] NW = {0.0F, 1.0F, 0.0F};
-    private static final float[] NE = {1.0F, 1.0F, 0.0F};
-    private static final float[] SW = {0.0F, 1.0F, 1.0F};
-    private static final float[] SE = {1.0F, 1.0F, 1.0F};
+    private static final float[] NW = {0.0F, TIP, 0.0F};
+    private static final float[] NE = {1.0F, TIP, 0.0F};
+    private static final float[] SW = {0.0F, TIP, 1.0F};
+    private static final float[] SE = {1.0F, TIP, 1.0F};
 
     /** The eight triangles of the lower half's top surface: (corner, wall middle, centre). */
     private static final float[][][] FLOOR = {
@@ -105,15 +109,13 @@ final class SarcophagusRenderer {
     /** Gold bars of the lower half, as {x1, y1, z1, x2, y2, z2}: bottom, vertical edges, the V notches. */
     private static final float[][] LOWER_BARS = {
             {0, 0, 0, 1, 0, 0}, {1, 0, 0, 1, 0, 1}, {1, 0, 1, 0, 0, 1}, {0, 0, 1, 0, 0, 0},
-            {0, 0, 0, 0, 1, 0}, {1, 0, 0, 1, 1, 0}, {1, 0, 1, 1, 1, 1}, {0, 0, 1, 0, 1, 1},
-            {0, 1, 0, 0.5F, 0.5F, 0}, {0.5F, 0.5F, 0, 1, 1, 0}, {0, 1, 1, 0.5F, 0.5F, 1}, {0.5F, 0.5F, 1, 1, 1, 1},
-            {0, 1, 0, 0, 0.5F, 0.5F}, {0, 0.5F, 0.5F, 0, 1, 1}, {1, 1, 0, 1, 0.5F, 0.5F}, {1, 0.5F, 0.5F, 1, 1, 1}
+            {0, 0, 0, 0, TIP, 0}, {1, 0, 0, 1, TIP, 0}, {1, 0, 1, 1, TIP, 1}, {0, 0, 1, 0, TIP, 1},
+            {0, TIP, 0, 0.5F, 0.5F, 0}, {0.5F, 0.5F, 0, 1, TIP, 0}, {0, TIP, 1, 0.5F, 0.5F, 1}, {0.5F, 0.5F, 1, 1, TIP, 1},
+            {0, TIP, 0, 0, 0.5F, 0.5F}, {0, 0.5F, 0.5F, 0, TIP, 1}, {1, TIP, 0, 1, 0.5F, 0.5F}, {1, 0.5F, 0.5F, 1, TIP, 1}
     };
-    /** Gold bars of the upper half: the slab's top edge and the edges of the four glass triangles. */
+    /** The slab's top edges (the glimmer uses only these). */
     private static final float[][] UPPER_BARS = {
-            {0, 1, 0, 1, 1, 0}, {1, 1, 0, 1, 1, 1}, {1, 1, 1, 0, 1, 1}, {0, 1, 1, 0, 1, 0},
-            {0, 1, 0, 0.5F, 0.5F, 0}, {0.5F, 0.5F, 0, 1, 1, 0}, {0, 1, 1, 0.5F, 0.5F, 1}, {0.5F, 0.5F, 1, 1, 1, 1},
-            {0, 1, 0, 0, 0.5F, 0.5F}, {0, 0.5F, 0.5F, 0, 1, 1}, {1, 1, 0, 1, 0.5F, 0.5F}, {1, 0.5F, 0.5F, 1, 1, 1}
+            {0, 1, 0, 1, 1, 0}, {1, 1, 0, 1, 1, 1}, {1, 1, 1, 0, 1, 1}, {0, 1, 1, 0, 1, 0}
     };
 
     private static final DustParticleOptions SPARK = new DustParticleOptions(new Vector3f(1.0F, 0.8F, 0.25F), 0.7F);
@@ -325,8 +327,8 @@ final class SarcophagusRenderer {
         int mode = alongX ? 1 : 2;
         poly(vc, pose, light, sprite, mode, nx, ny, nz,
                 wp(0, 0, at, alongX), wp(1, 0, at, alongX), wp(1, 0.5F, at, alongX), wp(0, 0.5F, at, alongX));
-        poly(vc, pose, light, sprite, mode, nx, ny, nz, wp(0, 0.5F, at, alongX), wp(0.5F, 0.5F, at, alongX), wp(0, 1, at, alongX));
-        poly(vc, pose, light, sprite, mode, nx, ny, nz, wp(0.5F, 0.5F, at, alongX), wp(1, 0.5F, at, alongX), wp(1, 1, at, alongX));
+        poly(vc, pose, light, sprite, mode, nx, ny, nz, wp(0, 0.5F, at, alongX), wp(0.5F, 0.5F, at, alongX), wp(0, TIP, at, alongX));
+        poly(vc, pose, light, sprite, mode, nx, ny, nz, wp(0.5F, 0.5F, at, alongX), wp(1, 0.5F, at, alongX), wp(1, TIP, at, alongX));
     }
 
     private static float[] wp(float s, float y, float at, boolean alongX) {
@@ -368,10 +370,10 @@ final class SarcophagusRenderer {
         box(vc, pose, bright, gold, 4, lo, lo + w, lo, lo + w, lo, hi);
         box(vc, pose, bright, gold, 4, hi - w, hi, lo, lo + w, lo, hi);
         // corner posts, up to the tips
-        box(vc, pose, bright, gold, 4, lo, lo + w, lo, 1.0F, lo, lo + w);
-        box(vc, pose, bright, gold, 4, hi - w, hi, lo, 1.0F, lo, lo + w);
-        box(vc, pose, bright, gold, 4, lo, lo + w, lo, 1.0F, hi - w, hi);
-        box(vc, pose, bright, gold, 4, hi - w, hi, lo, 1.0F, hi - w, hi);
+        box(vc, pose, bright, gold, 4, lo, lo + w, lo, TIP, lo, lo + w);
+        box(vc, pose, bright, gold, 4, hi - w, hi, lo, TIP, lo, lo + w);
+        box(vc, pose, bright, gold, 4, lo, lo + w, lo, TIP, hi - w, hi);
+        box(vc, pose, bright, gold, 4, hi - w, hi, lo, TIP, hi - w, hi);
         notches(vc, pose, bright, gold, 4, GOLD_HALF, OUT);
     }
 
@@ -403,8 +405,8 @@ final class SarcophagusRenderer {
         for (int wall = 0; wall < 4; wall++) {
             boolean alongX = wall < 2;
             float at = wall % 2;
-            vStrip(vc, pose, light, sprite, mode, alongX, at, 0.0F, 1.0F, 0.5F, 0.5F, half, 0.0F, 1.0F, out);
-            vStrip(vc, pose, light, sprite, mode, alongX, at, 1.0F, 1.0F, 0.5F, 0.5F, half, 0.0F, 1.0F, out);
+            vStrip(vc, pose, light, sprite, mode, alongX, at, 0.0F, TIP, 0.5F, 0.5F, half, 0.0F, TIP, out);
+            vStrip(vc, pose, light, sprite, mode, alongX, at, 1.0F, TIP, 0.5F, 0.5F, half, 0.0F, TIP, out);
         }
     }
 
@@ -419,7 +421,9 @@ final class SarcophagusRenderer {
         float[][] layers = {{0.0F, 0.010F, 0}, {0.010F, 0.040F, 1}, {0.040F, 0.050F, 0}};
         float top = 1.0F - SLAB;
         float out = OUT * 0.5F;
-        float x0 = SLAB + 0.050F * 1.41421F; // where the inner edge of the frame meets the top edge
+        // where the inner edge of the frame meets the top edge, and how much the edge moves per unit of height
+        float slant = 0.5F / (TIP - 0.5F);
+        float x0 = 0.050F * Mth.sqrt(1.0F + slant * slant);
         for (int wall = 0; wall < 4; wall++) {
             boolean alongX = wall < 2;
             float at = wall % 2;
@@ -428,16 +432,16 @@ final class SarcophagusRenderer {
                 float shift = (layer[1] + layer[0]) * 0.5F;
                 TextureAtlasSprite sprite = layer[2] > 0.5F ? dark : gold;
                 int mode = layer[2] > 0.5F ? 3 : 4;
-                vStrip(vc, pose, light, sprite, mode, alongX, at, 0.0F, 1.0F, 0.5F, 0.5F, half, shift, top, out);
-                vStrip(vc, pose, light, sprite, mode, alongX, at, 1.0F, 1.0F, 0.5F, 0.5F, half, shift, top, out);
+                vStrip(vc, pose, light, sprite, mode, alongX, at, 0.0F, TIP, 0.5F, 0.5F, half, shift, top, out);
+                vStrip(vc, pose, light, sprite, mode, alongX, at, 1.0F, TIP, 0.5F, 0.5F, half, shift, top, out);
             }
             float sign = at < 0.5F ? -1.0F : 1.0F;
             float front = at + sign * out;
             float line = 0.010F;
             polyAt(vc, pose, light, gold, 4, 0.5F, 0.5F, alongX ? 0 : sign, 0, alongX ? sign : 0,
                     wallPoint(alongX, new float[]{x0, top}, front), wallPoint(alongX, new float[]{1.0F - x0, top}, front),
-                    wallPoint(alongX, new float[]{1.0F - x0 - line, top - line}, front),
-                    wallPoint(alongX, new float[]{x0 + line, top - line}, front));
+                    wallPoint(alongX, new float[]{1.0F - x0 - line * slant, top - line}, front),
+                    wallPoint(alongX, new float[]{x0 + line * slant, top - line}, front));
         }
     }
 
@@ -592,11 +596,11 @@ final class SarcophagusRenderer {
             float sn = (float) Math.sin(ang);
             float m = Math.min(Math.abs(c), Math.abs(sn));
             // Where the cone y = peak - slope * r meets the floor y = 0.5 + r * m, a little uneven.
-            float r = (peak - 0.5F) / (slope + m);
+            float r = (peak - 0.5F) / (slope + FLOOR_SLOPE * m);
             r = Math.min(0.46F, r * (0.9F + 0.2F * (((k * 7 + seed * 5) % 5) / 4.0F))); // never beyond the walls
             float x = 0.5F + c * r;
             float z = 0.5F + sn * r;
-            ring[k] = new float[]{x, 0.5F + Math.min(Math.abs(x - 0.5F), Math.abs(z - 0.5F)), z};
+            ring[k] = new float[]{x, 0.5F + FLOOR_SLOPE * Math.min(Math.abs(x - 0.5F), Math.abs(z - 0.5F)), z};
         }
         float[] top = {0.5F, peak, 0.5F};
         for (int k = 0; k < n; k++) {
@@ -653,8 +657,8 @@ final class SarcophagusRenderer {
         int bright = LightTexture.pack(Math.max(LightTexture.block(light), 10), LightTexture.sky(light));
         // The glass stops under the slab (its top edge is where the slab ends), so it does not cover the slab's side.
         float g = 1.0F - SLAB;
-        float a = SLAB;
-        float b = 1.0F - SLAB;
+        float a = 0.0F;
+        float b = 1.0F;
         glassTri(vc, pose, bright, a, g, 0, b, g, 0, N, 0, 0, -1);
         glassTri(vc, pose, bright, a, g, 1, b, g, 1, S, 0, 0, 1);
         glassTri(vc, pose, bright, 0, g, a, 0, g, b, W, -1, 0, 0);
