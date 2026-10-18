@@ -62,13 +62,16 @@ final class SarcophagusRenderer {
     private static final ResourceLocation ORB = effect("orb");
     private static final ResourceLocation HALO = effect("halo");
     private static final ResourceLocation FLARE = effect("flare");
-    private static final ResourceLocation CRYSTAL = effect("crystal");
+    private static final ResourceLocation RUNE_ITEM = ResourceLocation.fromNamespaceAndPath(NS, "item/core_rune");
     private static final ResourceLocation RING = effect("rune_circle");
 
     /** Time the activation takes (ticks). */
     private static final float OPEN_TICKS = 80.0F;
     /** Time the closing after a defuse takes (ticks). */
     private static final float CLOSE_TICKS = 60.0F;
+    /** Half thickness of the gold bars on the edges (chunky, like a vanilla frame). */
+    private static final float BAR_LOWER = 0.026F;
+    private static final float BAR_UPPER = 0.0285F;
     /** How far the upper half rises. */
     private static final float LIFT = 0.8F;
     /** How far the upper half is turned against the lower one (degrees). */
@@ -116,6 +119,7 @@ final class SarcophagusRenderer {
         boolean seen;
         boolean wasActive;
         float open;
+        boolean rising;
         float last;
         float nextHum;
         float nextSpark;
@@ -167,9 +171,13 @@ final class SarcophagusRenderer {
         double px = core.getBlockPos().getX() + 0.5;
         double py = core.getBlockPos().getY() + 0.5;
         double pz = core.getBlockPos().getZ() + 0.5;
+        float progress = core.getClientDefuseProgress(level.getGameTime());
+        // The Sarcophagus is open (1) while active; during a defuse countdown it closes slowly so that it is shut when the
+        // countdown ends; inactive it is shut (0).
+        float target = active ? (progress >= 0.0F ? progress : 1.0F) : 0.0F;
         if (!state.seen) {
             state.seen = true;
-            state.open = active ? 1.0F : 0.0F; // a Core that was already active when it came into view stays open
+            state.open = target; // a Core that was already active when it came into view stays open
         } else if (active && !state.wasActive) {
             state.open = 0.0F;
             level.playLocalSound(px, py, pz, ModSounds.CORE_OPEN.get(), SoundSource.BLOCKS, 1.6F, 1.0F, false);
@@ -177,11 +185,14 @@ final class SarcophagusRenderer {
             level.playLocalSound(px, py, pz, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.2F, 0.8F, false);
         }
         state.wasActive = active;
-        if (active) {
-            state.open = Math.min(1.0F, state.open + dt / OPEN_TICKS);
+        float before = state.open;
+        float step = dt / OPEN_TICKS;
+        if (target >= state.open) {
+            state.open = Math.min(target, state.open + step);
         } else {
-            state.open = Math.max(0.0F, state.open - dt / CLOSE_TICKS); // defused: the same animation backwards
+            state.open = Math.max(target, state.open - (active ? step * 1.5F : dt / CLOSE_TICKS));
         }
+        state.rising = state.open > before;
         float t = state.open;
         if (active && t >= 1.0F && time >= state.nextHum) {
             level.playLocalSound(px, py, pz, ModSounds.CORE_HUM.get(), SoundSource.BLOCKS, 0.45F, 1.0F, false);
@@ -221,22 +232,33 @@ final class SarcophagusRenderer {
         // 1. Solid parts.
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light);
-        drawBars(pose.last(), solid, LOWER_BARS, 0.011F, light);
+        drawBars(pose.last(), solid, LOWER_BARS, BAR_LOWER, light);
         if (contents > 0.0F) {
             drawHeaps(pose.last(), solid, light, hasGunpowder, hasBlaze);
+            if (hasRune) {
+                pose.pushPose();
+                pose.translate(0.5F, 0.77F + 0.025F * Mth.sin(time * 0.08F), 0.5F);
+                pose.mulPose(Axis.YP.rotationDegrees(time * 2.4F));
+                pose.scale(contents, contents, contents);
+                drawTablet(pose.last(), solid);
+                pose.popPose();
+            }
         }
         pose.pushPose();
         pose.translate(0.5F + shake, lift, 0.5F);
         pose.mulPose(Axis.YP.rotationDegrees(twist));
         pose.translate(-0.5F, 0.0F, -0.5F);
         drawSlab(pose.last(), solid, light);
-        drawBars(pose.last(), solid, UPPER_BARS, 0.0125F, light);
+        drawBars(pose.last(), solid, UPPER_BARS, BAR_UPPER, light);
         pose.popPose();
         flushSolid(buffer);
 
         // 2. Additive glow: ritual items, the orb, rays.
         if (contents > 0.0F) {
             drawItemGlow(pose, buffer, time, contents, hasRune, hasBlaze, ready);
+        }
+        if (active && state.rising && t < 0.18F) {
+            drawBolt(pose, buffer, time, 1.0F - t / 0.18F);
         }
         if (orb > 0.0F) {
             float flash = t < 1.0F ? Mth.sin(Mth.clamp((t - 0.45F) / 0.2F, 0.0F, 1.0F) * (float) Math.PI) : 0.0F;
@@ -261,9 +283,9 @@ final class SarcophagusRenderer {
     static void renderItem(PoseStack pose, MultiBufferSource buffer, int light) {
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light);
-        drawBars(pose.last(), solid, LOWER_BARS, 0.011F, light);
+        drawBars(pose.last(), solid, LOWER_BARS, BAR_LOWER, light);
         drawSlab(pose.last(), solid, light);
-        drawBars(pose.last(), solid, UPPER_BARS, 0.0125F, light);
+        drawBars(pose.last(), solid, UPPER_BARS, BAR_UPPER, light);
         flushSolid(buffer);
         drawGlass(pose.last(), buffer, light);
     }
@@ -325,7 +347,7 @@ final class SarcophagusRenderer {
     /** Gold bars (square prisms), a little brighter than the surroundings so the gold glows. */
     private static void drawBars(PoseStack.Pose pose, VertexConsumer vc, float[][] bars, float half, int light) {
         TextureAtlasSprite gold = sprite(GOLD);
-        int bright = LightTexture.pack(Math.max(LightTexture.block(light), 12), LightTexture.sky(light));
+        int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
         for (float[] e : bars) {
             bar(vc, pose, bright, gold, e[0], e[1], e[2], e[3], e[4], e[5], half);
         }
@@ -384,44 +406,86 @@ final class SarcophagusRenderer {
                 new float[]{bx + ox - wx, by + oy - wy, bz + oz - wz}, new float[]{ax + ox - wx, ay + oy - wy, az + oz - wz});
     }
 
-    /** Heaps of gunpowder (north-south valley) and blaze powder (east-west valley), filling the valleys up to a ridge. */
+    /**
+     * The powders fall to the lowest point of the cavity, the middle where the two valleys cross, and lie there as a
+     * mound that runs out along the valleys. The mound is a fan of triangles from the peak to a ring of points that lie
+     * exactly on the floor (the floor is {@code 0.5 + min(|x - 0.5|, |z - 0.5|)}), so nothing floats. Blaze powder
+     * heaps up on top of the gunpowder when both are in.
+     */
     private static void drawHeaps(PoseStack.Pose pose, VertexConsumer vc, int light, boolean gunpowder, boolean blaze) {
         if (gunpowder) {
-            heap(vc, pose, light, sprite(GUNPOWDER), true, 0.58F);
+            pile(vc, pose, light, sprite(GUNPOWDER), 0.70F, 0.5F, 1);
         }
         if (blaze) {
             int bright = LightTexture.pack(Math.max(LightTexture.block(light), 13), LightTexture.sky(light));
-            heap(vc, pose, bright, sprite(BLAZE), false, 0.60F);
+            if (gunpowder) {
+                pile(vc, pose, bright, sprite(BLAZE), 0.84F, 1.0F, 2);
+            } else {
+                pile(vc, pose, bright, sprite(BLAZE), 0.74F, 0.5F, 2);
+            }
+        }
+    }
+
+    private static void pile(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, float peak,
+                             float slope, int seed) {
+        final int n = 16;
+        float[][] ring = new float[n][];
+        for (int k = 0; k < n; k++) {
+            double ang = Math.PI * 2.0 * k / n;
+            float c = (float) Math.cos(ang);
+            float sn = (float) Math.sin(ang);
+            float m = Math.min(Math.abs(c), Math.abs(sn));
+            // Where the cone y = peak - slope * r meets the floor y = 0.5 + r * m, a little uneven.
+            float r = (peak - 0.5F) / (slope + m);
+            r *= 0.9F + 0.2F * (((k * 7 + seed * 5) % 5) / 4.0F);
+            float x = 0.5F + c * r;
+            float z = 0.5F + sn * r;
+            ring[k] = new float[]{x, 0.5F + Math.min(Math.abs(x - 0.5F), Math.abs(z - 0.5F)), z};
+        }
+        float[] top = {0.5F, peak, 0.5F};
+        for (int k = 0; k < n; k++) {
+            poly(vc, pose, light, sprite, 0, 0, 1, 0, top, ring[k], ring[(k + 1) % n]);
         }
     }
 
     /**
-     * Powder lies at the bottom of its V-shaped valley: it fills it up to {@code level} (the valley is as wide as the
-     * height above its bottom at 0.5, with 45 degree walls) and heaps up a little in the middle.
+     * The Core Rune as a golden tablet (a thin box, drawn in the pose it is given: centre at the origin). The front and
+     * back show the animated item texture.
      */
-    private static void heap(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, boolean alongZ,
-                             float level) {
-        float base = level;
-        float ridge = level + 0.03F;
-        float lo = 0.5F - (level - 0.5F);
-        float hi = 0.5F + (level - 0.5F);
-        float e0 = 0.035F;
-        float e1 = 0.965F;
-        // Slopes, ends. Coordinates are (across, along); mapped to (x, z) or (z, x).
-        float[][] left = {h(lo, e0, base, alongZ), h(0.5F, e0, ridge, alongZ), h(0.5F, e1, ridge, alongZ), h(lo, e1, base, alongZ)};
-        float[][] right = {h(hi, e0, base, alongZ), h(0.5F, e0, ridge, alongZ), h(0.5F, e1, ridge, alongZ), h(hi, e1, base, alongZ)};
-        float ux = alongZ ? 1 : 0;
-        float uz = alongZ ? 0 : 1;
-        poly(vc, pose, light, sprite, 0, -ux * 0.7F, 1, -uz * 0.7F, left[0], left[1], left[2], left[3]);
-        poly(vc, pose, light, sprite, 0, ux * 0.7F, 1, uz * 0.7F, right[0], right[1], right[2], right[3]);
-        poly(vc, pose, light, sprite, 0, alongZ ? 0 : -1, 0.3F, alongZ ? -1 : 0,
-                h(lo, e0, base, alongZ), h(hi, e0, base, alongZ), h(0.5F, e0, ridge, alongZ));
-        poly(vc, pose, light, sprite, 0, alongZ ? 0 : 1, 0.3F, alongZ ? 1 : 0,
-                h(lo, e1, base, alongZ), h(hi, e1, base, alongZ), h(0.5F, e1, ridge, alongZ));
+    private static void drawTablet(PoseStack.Pose pose, VertexConsumer vc) {
+        TextureAtlasSprite rune = sprite(RUNE_ITEM);
+        TextureAtlasSprite gold = sprite(GOLD);
+        int full = LightTexture.FULL_BRIGHT;
+        float hw = 0.115F;
+        float hh = 0.16F;
+        float hd = 0.03F;
+        // The tablet fills the texture from x = 3..13, y = 1..15 (of 16).
+        float u0 = rune.getU0() + (rune.getU1() - rune.getU0()) * (3.0F / 16.0F);
+        float u1 = rune.getU0() + (rune.getU1() - rune.getU0()) * (13.0F / 16.0F);
+        float v0 = rune.getV0() + (rune.getV1() - rune.getV0()) * (1.0F / 16.0F);
+        float v1 = rune.getV0() + (rune.getV1() - rune.getV0()) * (15.0F / 16.0F);
+        face(vc, pose, full, -hw, -hh, hd, hw, -hh, hd, hw, hh, hd, -hw, hh, hd, u0, v1, u1, v1, u1, v0, u0, v0, 0, 0, 1);
+        face(vc, pose, full, hw, -hh, -hd, -hw, -hh, -hd, -hw, hh, -hd, hw, hh, -hd, u0, v1, u1, v1, u1, v0, u0, v0, 0, 0, -1);
+        poly(vc, pose, full, gold, 3, 1, 0, 0, new float[]{hw, -hh, -hd}, new float[]{hw, hh, -hd}, new float[]{hw, hh, hd}, new float[]{hw, -hh, hd});
+        poly(vc, pose, full, gold, 3, -1, 0, 0, new float[]{-hw, -hh, -hd}, new float[]{-hw, hh, -hd}, new float[]{-hw, hh, hd}, new float[]{-hw, -hh, hd});
+        poly(vc, pose, full, gold, 3, 0, 1, 0, new float[]{-hw, hh, -hd}, new float[]{hw, hh, -hd}, new float[]{hw, hh, hd}, new float[]{-hw, hh, hd});
+        poly(vc, pose, full, gold, 3, 0, -1, 0, new float[]{-hw, -hh, -hd}, new float[]{hw, -hh, -hd}, new float[]{hw, -hh, hd}, new float[]{-hw, -hh, hd});
     }
 
-    private static float[] h(float across, float along, float y, boolean alongZ) {
-        return alongZ ? new float[]{across, y, along} : new float[]{along, y, across};
+    private static void face(VertexConsumer vc, PoseStack.Pose pose, int light, float x0, float y0, float z0, float x1,
+                             float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3, float ua,
+                             float va, float ub, float vb, float uc, float vc2, float ud, float vd, float nx, float ny,
+                             float nz) {
+        quadVertex(vc, pose, light, x0, y0, z0, ua, va, nx, ny, nz);
+        quadVertex(vc, pose, light, x1, y1, z1, ub, vb, nx, ny, nz);
+        quadVertex(vc, pose, light, x2, y2, z2, uc, vc2, nx, ny, nz);
+        quadVertex(vc, pose, light, x3, y3, z3, ud, vd, nx, ny, nz);
+    }
+
+    private static void quadVertex(VertexConsumer vc, PoseStack.Pose pose, int light, float x, float y, float z, float u,
+                                   float v, float nx, float ny, float nz) {
+        vc.addVertex(pose, x, y, z).setColor(255, 255, 255, 255).setUv(u, v).setOverlay(OverlayTexture.NO_OVERLAY)
+                .setLight(light).setNormal(pose, nx, ny, nz);
     }
 
     // ------------------------------------------------------------------
@@ -458,28 +522,51 @@ final class SarcophagusRenderer {
     // Additive glow: ritual items, orb, rays
     // ------------------------------------------------------------------
 
-    /** The Core Rune as a floating violet crystal and a flicker over the blaze powder. */
+    /** Glow around the Core Rune and a flicker over the blaze powder. */
     private static void drawItemGlow(PoseStack pose, MultiBufferSource buffer, float time, float scale, boolean rune,
                                      boolean blaze, boolean ready) {
+        VertexConsumer glow = buffer.getBuffer(RenderType.eyes(HALO));
         if (rune) {
-            float cy = 0.80F + 0.03F * Mth.sin(time * 0.08F);
-            pose.pushPose();
-            pose.translate(0.5F, cy, 0.5F);
-            pose.mulPose(Axis.YP.rotationDegrees(time * 2.4F));
-            octahedron(buffer.getBuffer(RenderType.eyes(CRYSTAL)), pose.last(), 0.09F * scale, 0.17F * scale,
-                    0.8F, 0.6F, 1.0F);
-            pose.popPose();
-            VertexConsumer glow = buffer.getBuffer(RenderType.eyes(HALO));
-            float k = (0.55F + 0.1F * Mth.sin(time * 0.15F)) * scale;
-            billboard(glow, pose.last(), 0.5F, cy, 0.5F, 0.30F * scale, 0.0F, 0.6F * k, 0.35F * k, 1.0F * k);
+            float cy = 0.77F + 0.025F * Mth.sin(time * 0.08F);
+            float k = (0.45F + 0.1F * Mth.sin(time * 0.15F)) * scale;
+            billboard(glow, pose.last(), 0.5F, cy, 0.5F, 0.30F * scale, 0.0F, 1.0F * k, 0.62F * k, 0.15F * k);
             if (ready) {
-                billboard(glow, pose.last(), 0.5F, cy, 0.5F, 0.42F * scale, 0.0F, 1.0F * k, 0.75F * k, 0.25F * k);
+                billboard(glow, pose.last(), 0.5F, cy, 0.5F, 0.45F * scale, 0.0F, 1.0F * k, 0.75F * k, 0.25F * k);
             }
         }
         if (blaze) {
-            VertexConsumer glow = buffer.getBuffer(RenderType.eyes(HALO));
             float flicker = 0.75F + 0.25F * Mth.sin(time * 0.7F) * Mth.sin(time * 0.31F + 1.0F);
-            billboard(glow, pose.last(), 0.5F, 0.84F, 0.5F, 0.36F * scale, 0.0F, 0.9F * flicker * scale, 0.45F * flicker * scale, 0.08F * scale);
+            billboard(glow, pose.last(), 0.5F, 0.80F, 0.5F, 0.34F * scale, 0.0F, 0.9F * flicker * scale, 0.45F * flicker * scale, 0.08F * scale);
+        }
+    }
+
+    /** The lightning strike on the shut Sarcophagus: a jagged bolt from high above, flickering. {@code k}: 1 .. 0 fading. */
+    private static void drawBolt(PoseStack pose, MultiBufferSource buffer, float time, float k) {
+        VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
+        PoseStack.Pose p = pose.last();
+        java.util.Random rnd = new java.util.Random(((long) (time * 0.5F)) * 7919L + 13L);
+        float flick = 0.7F + 0.3F * rnd.nextFloat();
+        float power = k * flick;
+        final int segs = 18;
+        final float topY = 60.0F;
+        float x = 0.5F;
+        float y = topY;
+        float z = 0.5F;
+        for (int i = 1; i <= segs; i++) {
+            float ny = topY + (1.0F - topY) * i / segs;
+            float spread = i == segs ? 0.0F : 1.1F * (0.4F + 0.6F * (float) i / segs);
+            float nx = i == segs ? 0.5F : 0.5F + (rnd.nextFloat() - 0.5F) * spread;
+            float nz = i == segs ? 0.5F : 0.5F + (rnd.nextFloat() - 0.5F) * spread;
+            laser(vc, p, x, y, z, nx, ny, nz, 0.045F, 1.0F * power, 0.97F * power, 0.9F * power);
+            laser(vc, p, x, y, z, nx, ny, nz, 0.16F, 0.55F * power, 0.45F * power, 0.15F * power);
+            if (i == segs - 6) { // one side branch
+                float bx = nx + (rnd.nextFloat() - 0.5F) * 3.0F;
+                float bz = nz + (rnd.nextFloat() - 0.5F) * 3.0F;
+                laser(vc, p, nx, ny, nz, bx, ny - 6.0F, bz, 0.03F, 0.9F * power, 0.85F * power, 0.7F * power);
+            }
+            x = nx;
+            y = ny;
+            z = nz;
         }
     }
 
@@ -490,7 +577,7 @@ final class SarcophagusRenderer {
         }
         VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
         PoseStack.Pose p = pose.last();
-        float k = 0.22F * glow;
+        float k = 0.12F * glow;
         for (float[] e : LOWER_BARS) {
             laser(vc, p, e[0], e[1], e[2], e[3], e[4], e[5], 0.02F, 1.0F * k, 0.7F * k, 0.15F * k);
         }
@@ -592,33 +679,6 @@ final class SarcophagusRenderer {
         plane(vc, pose, cx, cy, cz,
                 left.x() * cs + up.x() * sn, left.y() * cs + up.y() * sn, left.z() * cs + up.z() * sn,
                 -left.x() * sn + up.x() * cs, -left.y() * sn + up.y() * cs, -left.z() * sn + up.z() * cs, r, g, b);
-    }
-
-    /** An octahedron (double sided): tip up and down, four points around the middle. */
-    private static void octahedron(VertexConsumer vc, PoseStack.Pose pose, float radius, float height, float r, float g, float b) {
-        float[] top = {0, height, 0};
-        float[] bottom = {0, -height, 0};
-        float[][] ring = {{radius, 0, 0}, {0, 0, radius}, {-radius, 0, 0}, {0, 0, -radius}};
-        int ir = Mth.clamp((int) (r * 255.0F), 0, 255);
-        int ig = Mth.clamp((int) (g * 255.0F), 0, 255);
-        int ib = Mth.clamp((int) (b * 255.0F), 0, 255);
-        for (int i = 0; i < 4; i++) {
-            float[] a = ring[i];
-            float[] c = ring[(i + 1) % 4];
-            glowTri(vc, pose, top, a, c, i * 0.25F, ir, ig, ib);
-            glowTri(vc, pose, bottom, a, c, i * 0.25F, ir, ig, ib);
-        }
-    }
-
-    private static void glowTri(VertexConsumer vc, PoseStack.Pose pose, float[] a, float[] b, float[] c, float u, int r, int g, int bl) {
-        glowVertex(vc, pose, a[0], a[1], a[2], u + 0.125F, 0.0F, r, g, bl);
-        glowVertex(vc, pose, b[0], b[1], b[2], u, 1.0F, r, g, bl);
-        glowVertex(vc, pose, c[0], c[1], c[2], u + 0.25F, 1.0F, r, g, bl);
-        glowVertex(vc, pose, c[0], c[1], c[2], u + 0.25F, 1.0F, r, g, bl);
-        glowVertex(vc, pose, c[0], c[1], c[2], u + 0.25F, 1.0F, r, g, bl);
-        glowVertex(vc, pose, b[0], b[1], b[2], u, 1.0F, r, g, bl);
-        glowVertex(vc, pose, a[0], a[1], a[2], u + 0.125F, 0.0F, r, g, bl);
-        glowVertex(vc, pose, a[0], a[1], a[2], u + 0.125F, 0.0F, r, g, bl);
     }
 
     /** A sphere (outside faces only), additive; {@code uShift}/{@code vShift} move the texture over it. */

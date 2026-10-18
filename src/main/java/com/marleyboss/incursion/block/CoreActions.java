@@ -12,8 +12,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
@@ -58,13 +56,10 @@ public final class CoreActions {
         ChunkLoading.update(level, pos, core.getLoadedChunkRadius(), radius);
         core.setLoadedChunkRadius(radius);
         level.playSound(null, pos, SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 1.0F, 0.6F);
-        // The chain reaction: a bolt of lightning (harmless, only the show) strikes the Sarcophagus.
-        LightningBolt bolt = EntityType.LIGHTNING_BOLT.create(level);
-        if (bolt != null) {
-            bolt.moveTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5);
-            bolt.setVisualOnly(true);
-            level.addFreshEntity(bolt);
-        }
+        // The chain reaction: lightning strikes the Sarcophagus (drawn by the block renderer; the vanilla bolt entity
+        // would hide the block behind its depth for a moment).
+        level.playSound(null, pos, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, 6.0F, 0.9F);
+        level.playSound(null, pos, SoundEvents.LIGHTNING_BOLT_IMPACT, SoundSource.WEATHER, 2.0F, 1.0F);
         if (player != null) {
             player.displayClientMessage(Component.translatable("message.incursion.core.activated")
                     .withStyle(ChatFormatting.DARK_RED, ChatFormatting.BOLD), false);

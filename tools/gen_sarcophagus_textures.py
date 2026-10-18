@@ -110,9 +110,25 @@ def gold_ring(rgb, dist_px, xx, yy):
     rgb[ring & ~bead] = (150, 112, 32)
 
 
-def wall():
-    """Wall of the lower half (16px): x = u, y = 1 - v. Gold border along the outside and the V notch."""
+FRAMES = 8
+
+
+def mix(c0, c1, t):
+    t = np.clip(t, 0.0, 1.0)[..., None]
+    return np.array(c0, dtype=float) * (1 - t) + np.array(c1, dtype=float) * t
+
+
+def cracks_mask(size, seed):
+    rng = np.random.default_rng(seed)
+    fbm(size, size, rng)  # keep the random stream in step with marble_rgb
+    cracks = fbm(size, size, rng, ((3, 0.6), (6, 0.4)))
+    return np.abs(cracks - 0.5) < 0.026
+
+
+def wall_frame(f):
+    """Wall of the lower half (16px): x = u, y = 1 - v. Glowing golden cracks, a pulsing glyph, a shimmering bead ring."""
     size = 16
+    phase = 2 * np.pi * f / FRAMES
     rgb = marble_rgb(size, 1801)
     yy, xx = np.mgrid[0:size, 0:size]
     u = (xx + 0.5) / size
@@ -120,26 +136,86 @@ def wall():
     edge = 0.5 + np.abs(u - 0.5)
     d_notch = (edge - y) / np.sqrt(2.0)
     dist_px = np.minimum.reduce([y, u, 1 - u, d_notch]) * size
-    gold_ring(rgb, dist_px, xx, yy)
+    inside = dist_px >= 2.0
+    # glowing cracks: a warm wave travels through them
+    crack = cracks_mask(size, 1801) & inside
+    wave = 0.5 + 0.5 * np.sin(phase - (xx * 0.55 + yy * 0.35))
+    rgb[crack] = mix((50, 28, 8), (235, 170, 50), wave ** 3)[crack]
+    # the glyph (a diamond with a heart) in the lower middle
+    gx = np.abs(xx - 7.5)
+    gy = np.abs(yy - 12.0)
+    d = gx + gy
+    glyph = (((d >= 1.9) & (d < 3.1)) | ((gx < 1.0) & (gy < 1.0))) & (yy >= 10) & (yy <= 14)
+    beat = 0.5 + 0.5 * np.sin(phase)
+    rgb[glyph] = mix((100, 56, 14), (255, 214, 100), beat * np.ones_like(d))[glyph]
+    # the border: dark gold on the edge pixel (under the 3D bar), a beaded ring inside it that shimmers
+    edge_row = dist_px < 1.0
+    ring = (dist_px >= 1.0) & (dist_px < 2.0)
+    rgb[edge_row] = (96, 70, 22)
+    bead = ((xx + yy) % 2 == 0)
+    shimmer = 0.5 + 0.5 * np.sin(phase * 1.0 - (xx + yy) * 0.9)
+    rgb[ring & bead] = mix((190, 140, 40), (255, 235, 140), shimmer)[ring & bead]
+    rgb[ring & ~bead] = (120, 88, 26)
     rgb[d_notch < 0] *= 0.4
-    return to_image(rgb)
+    return rgb
 
 
-def top():
-    """Top plate (16px): x = u, z = v. Gold border, a small ring, dotted diagonals."""
+def top_frame(f):
+    """Top plate (16px): x = u, z = v. A turning rune ring, a heart that pulses, sparks running along the diagonals."""
     size = 16
+    phase = 2 * np.pi * f / FRAMES
     rgb = marble_rgb(size, 1807)
     yy, xx = np.mgrid[0:size, 0:size]
     u = (xx + 0.5) / size
     v = (yy + 0.5) / size
     dist_px = np.minimum.reduce([u, 1 - u, v, 1 - v]) * size
-    gold_ring(rgb, dist_px, xx, yy)
-    r_px = np.sqrt((u - 0.5) ** 2 + (v - 0.5) ** 2) * size
-    rgb[(r_px >= 2.4) & (r_px < 3.4)] = (170, 130, 40)
-    rgb[r_px < 0.9] = (232, 188, 70)
-    diag = np.minimum(np.abs(xx - yy), np.abs(xx + yy - (size - 1)))
-    rgb[(diag == 0) & (r_px > 4.2) & (dist_px > 4.5)] = (120, 90, 28)
-    return to_image(rgb)
+    edge_row = dist_px < 1.0
+    ring_b = (dist_px >= 1.0) & (dist_px < 2.0)
+    bead = ((xx + yy) % 2 == 0)
+    shimmer = 0.5 + 0.5 * np.sin(phase - (xx + yy) * 0.9)
+    rgb[edge_row] = (96, 70, 22)
+    rgb[ring_b & bead] = mix((190, 140, 40), (255, 235, 140), shimmer)[ring_b & bead]
+    rgb[ring_b & ~bead] = (120, 88, 26)
+    dx = xx - 7.5
+    dz = yy - 7.5
+    r = np.sqrt(dx * dx + dz * dz)
+    ang = np.arctan2(dz, dx)
+    inner = (r >= 2.3) & (r < 3.5)
+    lit = np.sin(3 * ang - phase) > -0.35  # three arcs that turn
+    rgb[inner & lit] = (230, 176, 56)
+    rgb[inner & ~lit] = (90, 62, 18)
+    outer = (r >= 4.6) & (r < 5.6)
+    lit2 = np.sin(6 * ang + phase) > 0.2
+    rgb[outer & lit2] = (190, 140, 40)
+    heart = r < 1.6
+    beat = 0.5 + 0.5 * np.sin(phase)
+    rgb[heart] = mix((200, 130, 30), (255, 240, 170), beat * np.ones_like(r))[heart]
+    diag = np.minimum(np.abs(xx - yy), np.abs(xx + yy - (size - 1))) == 0
+    along = np.maximum(np.abs(dx), np.abs(dz))
+    runner = ((along * 1.0 - f) % 4 == 0)
+    mask = diag & (r > 5.6) & (dist_px > 2.5)
+    rgb[mask] = (90, 62, 18)
+    rgb[mask & runner] = (255, 214, 100)
+    return rgb
+
+
+def wall():
+    return frames_image([wall_frame(f) for f in range(FRAMES)])
+
+
+def top():
+    return frames_image([top_frame(f) for f in range(FRAMES)])
+
+
+def frames_image(frames):
+    return to_image(np.concatenate(frames, axis=0))
+
+
+def write_mcmeta(frametime, *path):
+    full = os.path.join(ROOT, *path)
+    with open(full + ".mcmeta", "w") as fh:
+        fh.write('{\n  "animation": { "frametime": %d, "interpolate": true }\n}\n' % frametime)
+    print("wrote", os.path.normpath(full) + ".mcmeta")
 
 
 def plain_marble():
@@ -154,7 +230,7 @@ def inner():
 
 
 def gold():
-    return to_image(np.full((16, 16, 3), (214, 170, 60), dtype=float))
+    return to_image(np.full((16, 16, 3), (204, 158, 48), dtype=float))
 
 
 def glass():
@@ -243,57 +319,6 @@ def flare():
     return to_image(np.dstack([g, g, g]))
 
 
-def crystal():
-    """Violet crystal energy (64px, additive): black -> violet -> white veins."""
-    rng = np.random.default_rng(1810)
-    size = 64
-    n1 = fbm(size, size, rng, ((3, 0.5), (6, 0.3), (12, 0.2)))
-    n2 = fbm(size, size, rng, ((4, 0.6), (8, 0.4)))
-    vein = np.exp(-((n2 - 0.5) ** 2) / 0.003)
-    h = np.clip(n1 * 1.3, 0, 1) ** 1.2
-    rgb = np.zeros((size, size, 3))
-    rgb[..., 0] = 70 + 150 * h
-    rgb[..., 1] = 20 + 90 * h
-    rgb[..., 2] = 150 + 105 * h
-    rgb += vein[..., None] * np.array([120, 120, 90], dtype=float)
-    rgb *= (0.35 + 0.65 * h)[..., None]
-    return to_image(rgb)
-
-
-def flare():
-    """Star of light (128px, grey, additive): a bright core with four long and four short spikes."""
-    size = 128
-    yy, xx = np.mgrid[0:size, 0:size]
-    x = (xx + 0.5) / size * 2 - 1
-    y = (yy + 0.5) / size * 2 - 1
-    r = np.sqrt(x * x + y * y)
-    val = np.exp(-r * 9.0) * 1.1
-    for ang, length, width in [(0, 2.2, 0.018), (np.pi / 2, 2.2, 0.018), (np.pi / 4, 3.4, 0.012), (3 * np.pi / 4, 3.4, 0.012)]:
-        along = x * np.cos(ang) + y * np.sin(ang)
-        perp = -x * np.sin(ang) + y * np.cos(ang)
-        val += 0.9 * np.exp(-(perp / width) ** 2) * np.exp(-np.abs(along) * length)
-    val *= np.clip(1.4 - r, 0, 1)
-    g = np.clip(val, 0, 1) * 255
-    return to_image(np.dstack([g, g, g]))
-
-
-def crystal():
-    """Violet crystal energy (64px, additive): black -> violet -> white veins."""
-    rng = np.random.default_rng(1810)
-    size = 64
-    n1 = fbm(size, size, rng, ((3, 0.5), (6, 0.3), (12, 0.2)))
-    n2 = fbm(size, size, rng, ((4, 0.6), (8, 0.4)))
-    vein = np.exp(-((n2 - 0.5) ** 2) / 0.003)
-    h = np.clip(n1 * 1.3, 0, 1) ** 1.2
-    rgb = np.zeros((size, size, 3))
-    rgb[..., 0] = 70 + 150 * h
-    rgb[..., 1] = 20 + 90 * h
-    rgb[..., 2] = 150 + 105 * h
-    rgb += vein[..., None] * np.array([120, 120, 90], dtype=float)
-    rgb *= (0.35 + 0.65 * h)[..., None]
-    return to_image(rgb)
-
-
 PALETTE = {
     ".": None,
     "O": (22, 16, 8),      # dark outline
@@ -323,24 +348,54 @@ def from_art(rows):
     return Image.fromarray(rgba, "RGBA")
 
 
-RUNE = [
-    "................",
-    "....OOOOOOOO....",
-    "...OGGGGGGGGO...",
-    "..OGVVVVVVVVGO..",
-    "..OGVvvvvvvVGO..",
-    "..OGVvvgvvvVGO..",
-    "..OGVvgYgvvVGO..",
-    "..OGVgYYYgvVGO..",
-    "..OGVvgYgvvVGO..",
-    "..OGVvvgvvvVGO..",
-    "..OGVvgvgvvVGO..",
-    "..OGVvvvvvvVGO..",
-    "..OGVVVVVVVVGO..",
-    "...OGGGGGGGGO...",
-    "....OOOOOOOO....",
-    "................",
-]
+def rune_frame(f):
+    """The Core Rune (16px item icon, animated): a golden tablet with an engraved glyph whose glow runs around it."""
+    phase = 2 * np.pi * f / FRAMES
+    rgba = np.zeros((16, 16, 4), dtype=float)
+    yy, xx = np.mgrid[0:16, 0:16]
+    tablet = (xx >= 3) & (xx <= 12) & (yy >= 1) & (yy <= 14)
+    # cut the corners
+    corner = ((xx == 3) | (xx == 12)) & ((yy == 1) | (yy == 14))
+    tablet &= ~corner
+    body = np.zeros((16, 16, 3))
+    t = (xx - 3 + (yy - 1) * 0.6) / 17.0  # lighter top-left, darker bottom-right
+    body[:] = mix((255, 214, 96), (186, 112, 24), t)
+    body *= 0.95 + 0.05 * np.sin(phase)
+    # outline and bevel
+    outline = tablet & ((xx == 3) | (xx == 12) | (yy == 1) | (yy == 14))
+    body[outline] = (84, 52, 12)
+    inner_light = tablet & ~outline & ((xx == 4) | (yy == 2))
+    body[inner_light] = (255, 236, 150)
+    inner_dark = tablet & ~outline & ((xx == 11) | (yy == 13))
+    body[inner_dark] = (150, 88, 18)
+    # glyph: diamond ring, heart, four spikes
+    cx, cy = 7.5, 7.5
+    d = np.abs(xx - cx) + np.abs(yy - cy)
+    ring = (d >= 2.9) & (d < 4.1)
+    heart = (np.abs(xx - cx) < 1.0) & (np.abs(yy - cy) < 1.0)
+    spikes = ((np.abs(xx - cx) < 1.0) & ((yy == 3) | (yy == 4) | (yy == 11) | (yy == 12))) | \
+             ((np.abs(yy - cy) < 1.0) & ((xx == 5) | (xx == 6) | (xx == 9) | (xx == 10)) & False)
+    spikes2 = ((np.abs(yy - cy) < 1.0) & ((xx == 4) | (xx == 5) | (xx == 10) | (xx == 11)))
+    glyph = (ring | heart | spikes | spikes2) & tablet & ~outline
+    ang = np.arctan2(yy - cy, xx - cx)
+    glow = 0.5 + 0.5 * np.sin(phase - ang)  # the glow runs around the glyph
+    glow = np.where(heart, 0.5 + 0.5 * np.sin(phase), glow)
+    body[glyph] = mix((120, 52, 8), (255, 244, 180), glow)[glyph]
+    rgba[..., :3] = body
+    rgba[..., 3] = np.where(tablet, 255, 0)
+    # twinkling sparks on the corners
+    sparks = [(2, 0), (13, 0), (2, 15), (13, 15), (1, 8), (14, 7)]
+    for i, (sx, sy) in enumerate(sparks):
+        if (f + i * 3) % FRAMES == 0:
+            rgba[sy, sx] = (255, 245, 190, 255)
+    return rgba
+
+
+def rune_image():
+    frames = [rune_frame(f) for f in range(FRAMES)]
+    arr = np.clip(np.concatenate(frames, axis=0), 0, 255).astype(np.uint8)
+    return Image.fromarray(arr, "RGBA")
+
 
 POTION = [
     "................",
@@ -374,8 +429,10 @@ def main():
     save(trim(), "effect", "trim.png")
     save(orb(), "effect", "orb.png")
     save(flare(), "effect", "flare.png")
-    save(crystal(), "effect", "crystal.png")
-    save(from_art(RUNE), "item", "core_rune.png")
+    save(rune_image(), "item", "core_rune.png")
+    write_mcmeta(3, "item", "core_rune.png")
+    write_mcmeta(5, "block", "sarkophag_wall.png")
+    write_mcmeta(5, "block", "sarkophag_top.png")
     save(from_art(POTION), "item", "mythic_potion.png")
 
 

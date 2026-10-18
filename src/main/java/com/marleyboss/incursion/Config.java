@@ -29,7 +29,7 @@ public final class Config {
     public static final ModConfigSpec.IntValue SARCOPHAGUS_POWDER = BUILDER
             .comment("How much gunpowder and how much blaze powder the Sarcophagus takes before the ritual is ready.",
                     "The Core is then activated by throwing the Mythic Potion onto it (starts the siege at level 1).")
-            .defineInRange("sarcophagusPowder", 24, 1, 64);
+            .defineInRange("sarcophagusPowder", 64, 1, 64);
 
     public static final ModConfigSpec.ConfigValue<String> UPGRADE_ITEM = BUILDER
             .comment("Item used to pay for Core upgrades.")

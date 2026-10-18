@@ -90,6 +90,11 @@ public class CoreBlockEntity extends BlockEntity {
     private long lastWarningTick = Long.MIN_VALUE / 2;
     private int siegeMobCount = 0;
     /** Remaining ticks of a running defusal (0 = not defusing). */
+    /** Client side: when the running defuse ends (game time, 0 = none) and how long it takes. See {@link #getClientDefuseProgress}. */
+    private long clientDefuseEnd = 0L;
+    private int clientDefuseTotal = 0;
+    /** Client side: how long this Core has been active (ticks), for the fading particles. */
+    private int clientActiveTicks = 0;
     private int defuseTicksLeft = 0;
     private int defuseTicksTotal = 0;
     @Nullable
@@ -135,8 +140,19 @@ public class CoreBlockEntity extends BlockEntity {
     /** Client: the particles of an active Core (see CoreEffects). */
     public static void clientTick(Level level, BlockPos pos, BlockState state, CoreBlockEntity core) {
         if (state.getValue(CoreBlock.ACTIVE)) {
-            CoreEffects.spawn(level, pos);
+            core.clientActiveTicks++;
+            CoreEffects.spawn(level, pos, core.clientActiveTicks);
+        } else {
+            core.clientActiveTicks = 0;
         }
+    }
+
+    /** Client side: how far the running defuse has come, 1 (just started) .. 0 (done); -1 when none is running. */
+    public float getClientDefuseProgress(long gameTime) {
+        if (clientDefuseEnd <= 0L || clientDefuseTotal <= 0) {
+            return -1.0F;
+        }
+        return Math.max(0.0F, Math.min(1.0F, (clientDefuseEnd - gameTime) / (float) clientDefuseTotal));
     }
 
     public boolean isActive() {
@@ -183,6 +199,10 @@ public class CoreBlockEntity extends BlockEntity {
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         CompoundTag tag = saveWithoutMetadata(registries);
         tag.putLongArray(TAG_WARDS, syncedWards);
+        if (defuseTicksLeft > 0 && level != null) {
+            tag.putLong("DefuseEnd", level.getGameTime() + defuseTicksLeft);
+            tag.putInt("DefuseTotal", defuseTicksTotal);
+        }
         return tag;
     }
 
@@ -336,6 +356,7 @@ public class CoreBlockEntity extends BlockEntity {
         }
         defuseTicksTotal = Math.max(1, Config.defuseTicks(coreLevel));
         defuseTicksLeft = defuseTicksTotal;
+        forceSync(); // the clients close the Sarcophagus slowly while the countdown runs
         defuser = player.getUUID();
         BlockPos pos = getBlockPos();
         level.playSound(null, pos, SoundEvents.BEACON_AMBIENT, SoundSource.BLOCKS, 1.0F, 0.5F);
@@ -347,6 +368,7 @@ public class CoreBlockEntity extends BlockEntity {
         defuseTicksLeft = 0;
         defuseTicksTotal = 0;
         defuser = null;
+        forceSync();
     }
 
     private void tickDefuse(ServerLevel level) {
@@ -492,6 +514,8 @@ public class CoreBlockEntity extends BlockEntity {
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         coreLevel = tag.getInt(TAG_LEVEL);
+        clientDefuseEnd = tag.contains("DefuseEnd") ? tag.getLong("DefuseEnd") : 0L;
+        clientDefuseTotal = tag.getInt("DefuseTotal");
         // Cores from v0.1 have no health yet: start them at full health.
         health = tag.contains(TAG_HEALTH) ? tag.getFloat(TAG_HEALTH) : -1;
         loadedChunkRadius = tag.contains(TAG_LOADED_RADIUS) ? tag.getInt(TAG_LOADED_RADIUS) : -1;
