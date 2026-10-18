@@ -86,7 +86,7 @@ def posterize(v, levels):
     return np.array(levels, dtype=float)[idx]
 
 
-MARBLE_LEVELS = [(10, 8, 16), (17, 12, 30), (26, 18, 42), (38, 27, 64), (56, 40, 92)]
+MARBLE_LEVELS = [(6, 5, 10), (11, 8, 19), (18, 13, 31), (28, 20, 48), (46, 33, 78)]
 
 
 def marble_v(size, seed):
@@ -94,7 +94,7 @@ def marble_v(size, seed):
     smooth = fbm(size, size, rng, ((2, 0.6), (4, 0.4)))
     smooth = (smooth - smooth.min()) / (smooth.max() - smooth.min() + 1e-9)
     noise = rng.random((size, size))
-    v = (0.35 * smooth + 0.65 * noise) ** 1.6
+    v = (0.35 * smooth + 0.65 * noise) ** 2.0
     return v / (v.max() + 1e-9)
 
 
@@ -187,9 +187,23 @@ def inner():
     return to_image(posterize(base * 0.9, [(7, 6, 11), (11, 10, 17), (17, 15, 25)]))
 
 
+GOLD_FRAMES = 16
+
+
+def gold_frame(f):
+    """Gold for the frame (16 wide, the renderer maps the position along the bar to x): dark and bright gold in a soft
+    pattern, and a pale glint that runs along the bars (it moves one column per frame)."""
+    xs = np.arange(16)
+    base = 0.5 + 0.5 * np.sin(2 * np.pi * xs / 8.0 + 0.6)
+    rgb = mix((150, 100, 24), (230, 176, 50), base)
+    d = np.abs(((xs - f + 8) % 16) - 8)  # distance to the glint, wrapping
+    glint = np.exp(-(d * d) / (2 * 1.3 * 1.3))
+    rgb = rgb * (1 - glint[:, None]) + np.array([255, 240, 170]) * glint[:, None]
+    return np.repeat(rgb[None, :, :], 16, axis=0)
+
+
 def gold():
-    """Plain gold (the frame bars show a single pixel of it)."""
-    return to_image(np.full((16, 16, 3), (232, 184, 52), dtype=float))
+    return frames_image([gold_frame(f) for f in range(GOLD_FRAMES)])
 
 
 def glass():
@@ -391,6 +405,7 @@ def main():
     write_mcmeta(3, "item", "core_rune.png")
     write_mcmeta(5, "block", "sarkophag_wall.png")
     write_mcmeta(5, "block", "sarkophag_top.png")
+    write_mcmeta(2, "block", "sarkophag_gold.png")
     save(from_art(POTION), "item", "mythic_potion.png")
 
 

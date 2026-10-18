@@ -69,10 +69,9 @@ final class SarcophagusRenderer {
     private static final float OPEN_TICKS = 80.0F;
     /** Time the closing after a defuse takes (ticks). */
     private static final float CLOSE_TICKS = 60.0F;
-    /** Half width of the gold frame of the lower half, of the gold outline of the slab and of the obsidian frame round the glass. */
+    /** Half width of the gold frame of the lower half and of the gold outline of the slab. */
     private static final float GOLD_HALF = 0.022F;
     private static final float OUTLINE_HALF = 0.013F;
-    private static final float GLASS_FRAME_HALF = 0.03F;
     /** How far the frame stands out of the surface (so that it wins against the wall behind it). */
     private static final float OUT = 0.004F;
     /** How deep the frame reaches into the block. */
@@ -270,6 +269,9 @@ final class SarcophagusRenderer {
             drawBolt(pose, buffer, time, 1.0F - t / 0.18F);
         }
         if (orb > 0.0F) {
+            drawInnerGlow(pose, buffer, time, orb, lift, twist, shake);
+        }
+        if (orb > 0.0F) {
             float flash = t < 1.0F ? Mth.sin(Mth.clamp((t - 0.45F) / 0.2F, 0.0F, 1.0F) * (float) Math.PI) : 0.0F;
             drawOrb(pose, buffer, time, orb, flash);
             drawRays(pose, buffer, time, orb, lift, twist);
@@ -361,16 +363,16 @@ final class SarcophagusRenderer {
         float lo = -OUT;
         float hi = 1.0F + OUT;
         // bottom edges
-        box(vc, pose, bright, gold, lo, hi, lo, lo + w, lo, lo + w);
-        box(vc, pose, bright, gold, lo, hi, lo, lo + w, hi - w, hi);
-        box(vc, pose, bright, gold, lo, lo + w, lo, lo + w, lo, hi);
-        box(vc, pose, bright, gold, hi - w, hi, lo, lo + w, lo, hi);
+        box(vc, pose, bright, gold, 4, lo, hi, lo, lo + w, lo, lo + w);
+        box(vc, pose, bright, gold, 4, lo, hi, lo, lo + w, hi - w, hi);
+        box(vc, pose, bright, gold, 4, lo, lo + w, lo, lo + w, lo, hi);
+        box(vc, pose, bright, gold, 4, hi - w, hi, lo, lo + w, lo, hi);
         // corner posts, up to the tips
-        box(vc, pose, bright, gold, lo, lo + w, lo, 1.0F, lo, lo + w);
-        box(vc, pose, bright, gold, hi - w, hi, lo, 1.0F, lo, lo + w);
-        box(vc, pose, bright, gold, lo, lo + w, lo, 1.0F, hi - w, hi);
-        box(vc, pose, bright, gold, hi - w, hi, lo, 1.0F, hi - w, hi);
-        notches(vc, pose, bright, gold, GOLD_HALF, OUT);
+        box(vc, pose, bright, gold, 4, lo, lo + w, lo, 1.0F, lo, lo + w);
+        box(vc, pose, bright, gold, 4, hi - w, hi, lo, 1.0F, lo, lo + w);
+        box(vc, pose, bright, gold, 4, lo, lo + w, lo, 1.0F, hi - w, hi);
+        box(vc, pose, bright, gold, 4, hi - w, hi, lo, 1.0F, hi - w, hi);
+        notches(vc, pose, bright, gold, 4, GOLD_HALF, OUT);
     }
 
     /** The frame of the upper half: a thin gold outline round the slab, an obsidian frame round the glass. */
@@ -381,52 +383,80 @@ final class SarcophagusRenderer {
         float w = OUTLINE_HALF * 2.0F;
         float lo = -OUT;
         float hi = 1.0F + OUT;
-        box(vc, pose, bright, gold, lo, hi, hi - w, hi, lo, lo + w);
-        box(vc, pose, bright, gold, lo, hi, hi - w, hi, hi - w, hi);
-        box(vc, pose, bright, gold, lo, lo + w, hi - w, hi, lo, hi);
-        box(vc, pose, bright, gold, hi - w, hi, hi - w, hi, lo, hi);
-        // a hair less proud than the gold of the lower half, so that the gold wins while the block is shut
-        notches(vc, pose, light, dark, GLASS_FRAME_HALF, OUT * 0.5F);
+        box(vc, pose, bright, gold, 4, lo, hi, hi - w, hi, lo, lo + w);
+        box(vc, pose, bright, gold, 4, lo, hi, hi - w, hi, hi - w, hi);
+        box(vc, pose, bright, gold, 4, lo, lo + w, hi - w, hi, lo, hi);
+        box(vc, pose, bright, gold, 4, hi - w, hi, hi - w, hi, lo, hi);
+        glassFrames(vc, pose, bright, gold, dark);
     }
 
-    /** The two V strips on each of the four walls. */
-    private static void notches(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, float half, float out) {
+    /** The two V strips on each of the four walls, centred on the edge of the notch. */
+    private static void notches(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, int mode,
+                                float half, float out) {
         for (int wall = 0; wall < 4; wall++) {
             boolean alongX = wall < 2;
             float at = wall % 2;
-            vStrip(vc, pose, light, sprite, alongX, at, 0.0F, 1.0F, 0.5F, 0.5F, half, out);
-            vStrip(vc, pose, light, sprite, alongX, at, 1.0F, 1.0F, 0.5F, 0.5F, half, out);
+            vStrip(vc, pose, light, sprite, mode, alongX, at, 0.0F, 1.0F, 0.5F, 0.5F, half, 0.0F, 1.0F, out);
+            vStrip(vc, pose, light, sprite, mode, alongX, at, 1.0F, 1.0F, 0.5F, 0.5F, half, 0.0F, 1.0F, out);
+        }
+    }
+
+    /**
+     * The frame round each glass triangle, as in the artwork, from the outside in: gold line, obsidian, gold line, glass.
+     * The layers lie inside the triangle, next to its edge; they stop at the slab above.
+     */
+    private static void glassFrames(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite gold,
+                                    TextureAtlasSprite dark) {
+        float[][] layers = {{0.0F, 0.010F, 0}, {0.010F, 0.040F, 1}, {0.040F, 0.050F, 0}};
+        float top = 1.0F - SLAB;
+        float out = OUT * 0.5F;
+        for (int wall = 0; wall < 4; wall++) {
+            boolean alongX = wall < 2;
+            float at = wall % 2;
+            for (float[] layer : layers) {
+                float half = (layer[1] - layer[0]) * 0.5F;
+                float shift = (layer[1] + layer[0]) * 0.5F;
+                TextureAtlasSprite sprite = layer[2] > 0.5F ? dark : gold;
+                int mode = layer[2] > 0.5F ? 3 : 4;
+                vStrip(vc, pose, light, sprite, mode, alongX, at, 0.0F, 1.0F, 0.5F, 0.5F, half, shift, top, out);
+                vStrip(vc, pose, light, sprite, mode, alongX, at, 1.0F, 1.0F, 0.5F, 0.5F, half, shift, top, out);
+            }
         }
     }
 
     /**
      * A flat strip along one side of a V notch, lying on the wall at {@code at} (alongX: the wall z = at, else x = at).
-     * Its ends are cut clean: at the block's edge, at the top and in the middle of the notch, so nothing sticks out.
-     * (sa, ya) is the end at the corner, (sb, yb) the end in the middle.
+     * Its ends are cut clean: at the block's edge, at the top ({@code ymax}) and in the middle of the notch, so nothing
+     * sticks out. (sa, ya) is the end at the corner, (sb, yb) the end in the middle. {@code shift} moves the strip from
+     * the edge into the triangle above it.
      */
-    private static void vStrip(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, boolean alongX,
-                               float at, float sa, float ya, float sb, float yb, float half, float out) {
+    private static void vStrip(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, int mode,
+                               boolean alongX, float at, float sa, float ya, float sb, float yb, float half, float shift,
+                               float ymax, float out) {
         float dx = sb - sa;
         float dy = yb - ya;
         float len = Mth.sqrt(dx * dx + dy * dy);
         dx /= len;
         dy /= len;
+        boolean left = sa < sb;
+        float inward = left ? 1.0F : -1.0F;
+        float ox = -dy * shift * inward;
+        float oy = dx * shift * inward;
         float px = -dy * half;
         float py = dx * half;
-        float ext = half * 3.0F;
-        float ax = sa - dx * ext;
-        float ay = ya - dy * ext;
-        float bx = sb + dx * ext;
-        float by = yb + dy * ext;
+        float ext = half * 3.0F + shift;
+        float ax = sa - dx * ext + ox;
+        float ay = ya - dy * ext + oy;
+        float bx = sb + dx * ext + ox;
+        float by = yb + dy * ext + oy;
         java.util.List<float[]> poly = new java.util.ArrayList<>();
         poly.add(new float[]{ax + px, ay + py});
         poly.add(new float[]{bx + px, by + py});
         poly.add(new float[]{bx - px, by - py});
         poly.add(new float[]{ax - px, ay - py});
-        boolean left = sa < sb;
         poly = clip(poly, -1.0F, 0.0F, left ? 0.0F : -0.5F); // s >= 0 (left half) or s >= 0.5
         poly = clip(poly, 1.0F, 0.0F, left ? 0.5F : 1.0F);   // s <= 0.5 or s <= 1
-        poly = clip(poly, 0.0F, 1.0F, 1.0F);                 // y <= 1
+        poly = clip(poly, 0.0F, 1.0F, ymax);                 // y <= top
         if (poly.size() < 3) {
             return;
         }
@@ -442,7 +472,7 @@ final class SarcophagusRenderer {
         float[] nrm = alongX ? new float[]{0, 0, sign} : new float[]{sign, 0, 0};
         // front face: a fan of triangles
         for (int i = 1; i + 1 < poly.size(); i++) {
-            polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, nrm[0], nrm[1], nrm[2],
+            polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, nrm[0], nrm[1], nrm[2],
                     wallPoint(alongX, poly.get(0), front), wallPoint(alongX, poly.get(i), front),
                     wallPoint(alongX, poly.get(i + 1), front));
         }
@@ -450,23 +480,23 @@ final class SarcophagusRenderer {
         for (int i = 0; i < poly.size(); i++) {
             float[] a = poly.get(i);
             float[] b = poly.get((i + 1) % poly.size());
-            if (onBoundary(a, b)) {
+            if (onBoundary(a, b, ymax)) {
                 continue;
             }
             float mx = (a[0] + b[0]) * 0.5F - cs;
             float my = (a[1] + b[1]) * 0.5F - cy;
             float hx = alongX ? mx : 0.0F;
             float hz = alongX ? 0.0F : mx;
-            polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, hx, my, hz,
+            polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, hx, my, hz,
                     wallPoint(alongX, a, front), wallPoint(alongX, b, front), wallPoint(alongX, b, back), wallPoint(alongX, a, back));
         }
     }
 
-    private static boolean onBoundary(float[] a, float[] b) {
+    private static boolean onBoundary(float[] a, float[] b, float ymax) {
         float e = 1.0E-4F;
         return (a[0] < e && b[0] < e) || (a[0] > 1.0F - e && b[0] > 1.0F - e)
                 || (Math.abs(a[0] - 0.5F) < e && Math.abs(b[0] - 0.5F) < e)
-                || (a[1] > 1.0F - e && b[1] > 1.0F - e);
+                || (a[1] > ymax - e && b[1] > ymax - e);
     }
 
     private static float[] wallPoint(boolean alongX, float[] q, float depth) {
@@ -492,20 +522,20 @@ final class SarcophagusRenderer {
         return out;
     }
 
-    /** An axis-aligned box showing one flat colour (the middle of the sprite). */
-    private static void box(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, float x0, float x1,
+    /** An axis-aligned box (uv mode as in polyAt). */
+    private static void box(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, int mode, float x0, float x1,
                             float y0, float y1, float z0, float z1) {
-        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 0, 0, -1,
+        polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, 0, 0, -1,
                 new float[]{x0, y0, z0}, new float[]{x1, y0, z0}, new float[]{x1, y1, z0}, new float[]{x0, y1, z0});
-        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 0, 0, 1,
+        polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, 0, 0, 1,
                 new float[]{x0, y0, z1}, new float[]{x1, y0, z1}, new float[]{x1, y1, z1}, new float[]{x0, y1, z1});
-        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, -1, 0, 0,
+        polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, -1, 0, 0,
                 new float[]{x0, y0, z0}, new float[]{x0, y0, z1}, new float[]{x0, y1, z1}, new float[]{x0, y1, z0});
-        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 1, 0, 0,
+        polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, 1, 0, 0,
                 new float[]{x1, y0, z0}, new float[]{x1, y0, z1}, new float[]{x1, y1, z1}, new float[]{x1, y1, z0});
-        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 0, -1, 0,
+        polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, 0, -1, 0,
                 new float[]{x0, y0, z0}, new float[]{x1, y0, z0}, new float[]{x1, y0, z1}, new float[]{x0, y0, z1});
-        polyAt(vc, pose, light, sprite, 3, 0.5F, 0.5F, 0, 1, 0,
+        polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, 0, 1, 0,
                 new float[]{x0, y1, z0}, new float[]{x1, y1, z0}, new float[]{x1, y1, z1}, new float[]{x0, y1, z1});
     }
 
@@ -690,6 +720,48 @@ final class SarcophagusRenderer {
         }
     }
 
+    /** The firelight of the Core on the floor of the lower half and on the underside of the slab. */
+    private static void drawInnerGlow(PoseStack pose, MultiBufferSource buffer, float time, float scale, float lift,
+                                      float twist, float shake) {
+        VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
+        float k = scale * (0.85F + 0.15F * Mth.sin(time * 0.19F));
+        PoseStack.Pose p = pose.last();
+        for (float[][] tri : FLOOR) {
+            float[] a = {tri[0][0], tri[0][1] + 0.003F, tri[0][2]};
+            float[] b = {tri[1][0], tri[1][1] + 0.003F, tri[1][2]};
+            float[] c = {tri[2][0], tri[2][1] + 0.003F, tri[2][2]};
+            glowTri(vc, p, a, b, c, 0.38F * k, 0.25F * k, 0.55F * k, true);
+        }
+        pose.pushPose();
+        pose.translate(0.5F + shake, lift, 0.5F);
+        pose.mulPose(Axis.YP.rotationDegrees(twist));
+        pose.translate(-0.5F, 0.0F, -0.5F);
+        PoseStack.Pose q = pose.last();
+        float y = 1.0F - SLAB - 0.003F;
+        float[] m = {0.5F, y, 0.5F};
+        float[][] corners = {{INSET, y, INSET}, {1 - INSET, y, INSET}, {1 - INSET, y, 1 - INSET}, {INSET, y, 1 - INSET}};
+        for (int i = 0; i < 4; i++) {
+            glowTri(vc, q, corners[i], corners[(i + 1) % 4], m, 0.2F * k, 0.2F * k, 0.4F * k, false);
+        }
+        pose.popPose();
+    }
+
+    /** A triangle with a glow colour (orange) per corner, intensities ka, kb, kc; faces up or down. */
+    private static void glowTri(VertexConsumer vc, PoseStack.Pose pose, float[] a, float[] b, float[] c, float ka, float kb,
+                                float kc, boolean up) {
+        float[] n = normal(a, b, c);
+        boolean swap = (n[1] > 0.0F) != up;
+        float[][] pts = swap ? new float[][]{a, c, b} : new float[][]{a, b, c};
+        float[] ks = swap ? new float[]{ka, kc, kb} : new float[]{ka, kb, kc};
+        for (int i = 0; i < 4; i++) {
+            int j = Math.min(i, 2);
+            float k = ks[j];
+            glowVertex(vc, pose, pts[j][0], pts[j][1], pts[j][2], 0.5F, 0.5F,
+                    Mth.clamp((int) (k * 255.0F), 0, 255), Mth.clamp((int) (k * 0.42F * 255.0F), 0, 255),
+                    Mth.clamp((int) (k * 0.08F * 255.0F), 0, 255));
+        }
+    }
+
     private static void drawOrb(PoseStack pose, MultiBufferSource buffer, float time, float scale, float flash) {
         float pulse = 0.88F + 0.12F * Mth.sin(time * 0.19F);
         float cy = ORB_Y + 0.02F * Mth.sin(time * 0.08F);
@@ -855,7 +927,7 @@ final class SarcophagusRenderer {
         polyAt(vc, pose, light, sprite, uvMode, 0.5F, 0.5F, hx, hy, hz, pts);
     }
 
-    /** Like {@link #poly}; with {@code uvMode} 3 the polygon shows the point (fixedU, fixedV) of the sprite. */
+    /** Like {@link #poly}; with {@code uvMode} 3 the polygon shows the point (fixedU, fixedV) of the sprite; with 4 the sprite column follows the position (x + y + z) and the row is fixedV. */
     private static void polyAt(VertexConsumer vc, PoseStack.Pose pose, int light, TextureAtlasSprite sprite, int uvMode,
                                float fixedU, float fixedV, float hx, float hy, float hz, float[]... pts) {
         float[] n = normal(pts[0], pts[1], pts[2]);
@@ -881,6 +953,10 @@ final class SarcophagusRenderer {
             float fv;
             if (uvMode == 3) {
                 fu = fixedU;
+                fv = fixedV;
+            } else if (uvMode == 4) {
+                // position along the diagonal of the block: lets a glint run over the frame
+                fu = Mth.clamp((p[0] + p[1] + p[2]) / 3.1F, 0.03F, 0.97F);
                 fv = fixedV;
             } else {
                 fu = uvMode == 2 ? p[2] : p[0];
