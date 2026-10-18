@@ -195,10 +195,10 @@ def gold_frame(f):
     pattern, and a pale glint that runs along the bars (it moves one column per frame)."""
     xs = np.arange(16)
     base = 0.5 + 0.5 * np.sin(2 * np.pi * xs / 8.0 + 0.6)
-    rgb = mix((150, 100, 24), (230, 176, 50), base)
+    rgb = mix((168, 118, 30), (226, 174, 52), base)
     d = np.abs(((xs - f + 8) % 16) - 8)  # distance to the glint, wrapping
-    glint = np.exp(-(d * d) / (2 * 1.3 * 1.3))
-    rgb = rgb * (1 - glint[:, None]) + np.array([255, 240, 170]) * glint[:, None]
+    glint = 0.55 * np.exp(-(d * d) / (2 * 2.2 * 2.2))
+    rgb = rgb * (1 - glint[:, None]) + np.array([252, 230, 150]) * glint[:, None]
     return np.repeat(rgb[None, :, :], 16, axis=0)
 
 
@@ -405,7 +405,7 @@ def main():
     write_mcmeta(3, "item", "core_rune.png")
     write_mcmeta(5, "block", "sarkophag_wall.png")
     write_mcmeta(5, "block", "sarkophag_top.png")
-    write_mcmeta(2, "block", "sarkophag_gold.png")
+    write_mcmeta(7, "block", "sarkophag_gold.png")
     save(from_art(POTION), "item", "mythic_potion.png")
 
 

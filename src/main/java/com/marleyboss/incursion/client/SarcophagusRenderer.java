@@ -380,13 +380,20 @@ final class SarcophagusRenderer {
         TextureAtlasSprite gold = sprite(GOLD);
         TextureAtlasSprite dark = sprite(INNER);
         int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
-        float w = OUTLINE_HALF * 2.0F;
-        float lo = -OUT;
-        float hi = 1.0F + OUT;
-        box(vc, pose, bright, gold, 4, lo, hi, hi - w, hi, lo, lo + w);
-        box(vc, pose, bright, gold, 4, lo, hi, hi - w, hi, hi - w, hi);
-        box(vc, pose, bright, gold, 4, lo, lo + w, hi - w, hi, lo, hi);
-        box(vc, pose, bright, gold, 4, hi - w, hi, hi - w, hi, lo, hi);
+        // The outline on the slab's top, as in the artwork from the outside in: gold line, obsidian, gold line.
+        float top = 1.0F + OUT;
+        float low = 1.0F - 0.012F;
+        float[][] layers = {{0.0F, 0.010F, 0}, {0.010F, 0.040F, 1}, {0.040F, 0.050F, 0}};
+        for (float[] layer : layers) {
+            float o0 = layer[0];
+            float o1 = layer[1];
+            TextureAtlasSprite sprite = layer[2] > 0.5F ? dark : gold;
+            int mode = layer[2] > 0.5F ? 3 : 4;
+            box(vc, pose, bright, sprite, mode, o0, 1.0F - o0, low, top, o0, o1);
+            box(vc, pose, bright, sprite, mode, o0, 1.0F - o0, low, top, 1.0F - o1, 1.0F - o0);
+            box(vc, pose, bright, sprite, mode, o0, o1, low, top, o1, 1.0F - o1);
+            box(vc, pose, bright, sprite, mode, 1.0F - o1, 1.0F - o0, low, top, o1, 1.0F - o1);
+        }
         glassFrames(vc, pose, bright, gold, dark);
     }
 
@@ -628,10 +635,14 @@ final class SarcophagusRenderer {
     private static void drawGlass(PoseStack.Pose pose, MultiBufferSource buffer, int light) {
         VertexConsumer vc = buffer.getBuffer(RenderType.entityTranslucent(GLASS_TEXTURE));
         int bright = LightTexture.pack(Math.max(LightTexture.block(light), 10), LightTexture.sky(light));
-        glassTri(vc, pose, bright, 0, 1, 0, 1, 1, 0, N, 0, 0, -1);
-        glassTri(vc, pose, bright, 0, 1, 1, 1, 1, 1, S, 0, 0, 1);
-        glassTri(vc, pose, bright, 0, 1, 0, 0, 1, 1, W, -1, 0, 0);
-        glassTri(vc, pose, bright, 1, 1, 0, 1, 1, 1, E, 1, 0, 0);
+        // The glass stops under the slab (its top edge is where the slab ends), so it does not cover the slab's side.
+        float g = 1.0F - SLAB;
+        float a = SLAB;
+        float b = 1.0F - SLAB;
+        glassTri(vc, pose, bright, a, g, 0, b, g, 0, N, 0, 0, -1);
+        glassTri(vc, pose, bright, a, g, 1, b, g, 1, S, 0, 0, 1);
+        glassTri(vc, pose, bright, 0, g, a, 0, g, b, W, -1, 0, 0);
+        glassTri(vc, pose, bright, 1, g, a, 1, g, b, E, 1, 0, 0);
     }
 
     /** A glass triangle: the top edge from (ax, ay, az) to (bx, by, bz), the tip c. u runs along the top edge, v down to the tip. */
