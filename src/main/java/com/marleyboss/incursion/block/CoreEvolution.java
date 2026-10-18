@@ -11,9 +11,9 @@ import net.minecraft.world.level.block.state.BlockState;
  * <ul>
  *     <li>stage 0 (level 1-4): the Sarcophagus, 1x2 blocks;</li>
  *     <li>stage 1 (level 5-9): bigger, on a 3x3 plaza of obsidian with gold lines;</li>
- *     <li>stage 2 (level 10-14): bigger, 7x7 plaza, four small pillars with red energy crystals;</li>
- *     <li>stage 3 (level 15-19): bigger, 9x9 plaza, taller pillars, energy beams from the crystals to the Core;</li>
- *     <li>stage 4 (level 20): the full size: 11x11 plaza, tall pillars, strong beams.</li>
+ *     <li>stage 2 (level 10-14): bigger, a round plaza with gold rings, four pillars with red energy crystals;</li>
+ *     <li>stage 3 (level 15-19): bigger, wider plaza, taller pillars, energy beams from the crystals to the Core;</li>
+ *     <li>stage 4 (level 20): the full size: the widest plaza, the tallest pillars, strong beams.</li>
  * </ul>
  */
 public final class CoreEvolution {
@@ -22,7 +22,11 @@ public final class CoreEvolution {
     public static final int SHAKE = 40;
     private static final float[] SCALE = {1.0F, 1.4F, 1.8F, 2.4F, 3.0F};
     private static final int[] PLAZA = {0, 1, 3, 4, 5};
-    private static final int[] PILLAR = {0, 0, 3, 5, 7};
+    private static final int[] PILLAR = {0, 0, 4, 6, 8};
+    /** Radius of the plaza disc (blocks from the middle): stage 1 is a 3x3 square, then a circle that holds the pillars. */
+    private static final float[] DISC = {0.0F, 1.5F, 5.04F, 6.46F, 7.87F};
+    /** Where the pillars stand (diagonal offset); they do not exist before stage 2. */
+    private static final float[] PILLAR_R = {3.0F, 3.0F, 3.0F, 4.0F, 5.0F};
     /** Strength of the energy beams per stage. */
     private static final float[] BEAMS = {0.0F, 0.0F, 0.5F, 0.75F, 1.0F};
 
@@ -31,7 +35,7 @@ public final class CoreEvolution {
     }
 
     /** The largest radius of the protected area (stage 4). */
-    public static final int MAX_AREA_RADIUS = 5;
+    public static final int MAX_AREA_RADIUS = 8;
 
     private CoreEvolution() {
     }
@@ -42,11 +46,58 @@ public final class CoreEvolution {
     }
 
     public static int areaRadius(int stage) {
-        return stage >= 1 ? Math.max(1, PLAZA[clamp(stage)]) : 0;
+        return stage >= 1 ? (int) Math.ceil(DISC[clamp(stage)]) : 0;
     }
 
     public static int areaHeight(int stage) {
-        return Math.max(regionHeight(stage), PILLAR[clamp(stage)]);
+        return Math.max(regionHeight(stage), PILLAR[clamp(stage)] + 1);
+    }
+
+    public static float discRadius(int stage) {
+        return DISC[clamp(stage)];
+    }
+
+    /** Linear blend between the values of two stages, for a stage that is on its way (0..4). */
+    private static float blend(float[] values, float stage) {
+        float v = Math.max(0.0F, Math.min(MAX_STAGE, stage));
+        int i = Math.min(MAX_STAGE - 1, (int) Math.floor(v));
+        return values[i] + (values[i + 1] - values[i]) * (v - i);
+    }
+
+    private static float[] floats(int[] values) {
+        float[] out = new float[values.length];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = values[i];
+        }
+        return out;
+    }
+
+    private static final float[] PLAZA_F = floats(PLAZA);
+    private static final float[] PILLAR_F = floats(PILLAR);
+
+    /** The values below are for the client: the animation runs through the stages continuously. */
+    public static float scaleAt(float stage) {
+        return blend(SCALE, stage);
+    }
+
+    public static float radiusAt(float stage) {
+        return blend(PLAZA_F, stage);
+    }
+
+    public static float pillarAt(float stage) {
+        return blend(PILLAR_F, stage);
+    }
+
+    public static float pillarRadiusAt(float stage) {
+        return blend(PILLAR_R, stage);
+    }
+
+    public static float discAt(float stage) {
+        return blend(DISC, stage);
+    }
+
+    public static float beamAt(float stage) {
+        return blend(BEAMS, stage);
     }
 
     /**
@@ -57,8 +108,8 @@ public final class CoreEvolution {
         if (stage < 1) {
             return false;
         }
-        int r = areaRadius(stage);
-        return Math.abs(dx) <= r && Math.abs(dz) <= r && dy >= 0 && dy < areaHeight(stage);
+        float disc = DISC[clamp(stage)] + 0.5F;
+        return dx * dx + dz * dz <= disc * disc && dy >= 0 && dy < areaHeight(stage);
     }
 
     public static int stageFor(int level) {
@@ -110,29 +161,50 @@ public final class CoreEvolution {
                 }
             }
         }
-        int radius = PLAZA[stage];
-        if (radius > 0) {
+        float disc = DISC[stage];
+        if (stage >= 1) {
             BlockState floor = ModBlocks.CORE_FLOOR.get().defaultBlockState();
             BlockState gold = ModBlocks.CORE_GOLD.get().defaultBlockState();
-            for (int x = -radius; x <= radius; x++) {
-                for (int z = -radius; z <= radius; z++) {
-                    cells.add(new Cell(x, -1, z, Math.abs(x) == Math.abs(z) ? gold : floor));
+            int r = (int) Math.ceil(disc);
+            for (int x = -r; x <= r; x++) {
+                for (int z = -r; z <= r; z++) {
+                    double d = Math.sqrt(x * x + z * z);
+                    if (d > disc) {
+                        continue;
+                    }
+                    boolean line = Math.abs(x) == Math.abs(z) || onRing(d, stage, disc);
+                    cells.add(new Cell(x, -1, z, line ? gold : floor));
                 }
             }
         }
         int pillar = PILLAR[stage];
         if (pillar > 0) {
-            BlockState gold = ModBlocks.CORE_GOLD.get().defaultBlockState();
-            BlockState crystal = ModBlocks.CORE_CRYSTAL.get().defaultBlockState();
+            int radius = PLAZA[stage];
+            BlockState column = ModBlocks.CORE_CRYSTAL.get().defaultBlockState(); // invisible; the pillar is drawn by the renderer
             for (int sx = -1; sx <= 1; sx += 2) {
                 for (int sz = -1; sz <= 1; sz += 2) {
                     for (int y = 0; y < pillar; y++) {
-                        cells.add(new Cell(sx * radius, y, sz * radius, y >= pillar - 2 ? crystal : gold));
+                        cells.add(new Cell(sx * radius, y, sz * radius, column));
                     }
                 }
             }
         }
         return cells;
+    }
+
+    /** Radii of the gold rings inlaid in the plaza. */
+    private static final float[] RINGS = {2.2F, 4.0F, 5.8F};
+
+    private static boolean onRing(double d, int stage, float disc) {
+        if (stage < 2) {
+            return false;
+        }
+        for (float ring : RINGS) {
+            if (ring <= disc - 0.9F && Math.abs(d - ring) < 0.52) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** All cells any stage can contain (to tear the whole thing down). */

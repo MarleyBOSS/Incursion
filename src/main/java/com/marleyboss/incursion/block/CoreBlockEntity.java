@@ -116,6 +116,13 @@ public class CoreBlockEntity extends BlockEntity {
             new java.util.PriorityQueue<>(java.util.Comparator.comparingLong(Step::due));
 
     /** A block that was in the way: shown at {@code pos} shaking until game time {@code boom}. */
+    /** The plaza blocks that vanish one after the other after a defuse (not saved; see {@code fading}). */
+    private final java.util.PriorityQueue<Fade> fadeQueue = new java.util.PriorityQueue<>(java.util.Comparator.comparingLong(Fade::due));
+    private boolean fading = false;
+
+    private record Fade(BlockPos pos, long due) {
+    }
+
     public record Ghost(BlockPos pos, BlockState state, long boom) {
     }
 
@@ -134,7 +141,12 @@ public class CoreBlockEntity extends BlockEntity {
         LOADED.add(core);
         if (!state.getValue(CoreBlock.ACTIVE)) {
             if (core.built != -1 || core.stage != 0) {
-                core.dismantle(serverLevel);
+                core.beginFade(serverLevel);
+            }
+            if (!core.fadeQueue.isEmpty()) {
+                core.tickFade(serverLevel);
+            } else if (core.fading) {
+                core.dismantle(serverLevel); // a fade that was cut short by a reload: remove what is left
             }
             // An inactive Core can show the borders too (switch in the GUI): the totems around it are synced.
             if (core.showBorders && ++core.idleCounter % 20 == 0) {
@@ -211,6 +223,8 @@ public class CoreBlockEntity extends BlockEntity {
         built = -1;
         evoStart = now;
         steps.clear();
+        fadeQueue.clear();
+        fading = false;
         ghosts.clear();
         java.util.List<CoreEvolution.Cell> plan = CoreEvolution.plan(newStage);
         java.util.Set<Long> wanted = new java.util.HashSet<>();
@@ -244,7 +258,7 @@ public class CoreBlockEntity extends BlockEntity {
                 due = now + CoreEvolution.SHAKE + (long) (dist * 3.0) + cell.y();
             } else if (cell.y() >= 0 && pillar > 0) {
                 due = now + CoreEvolution.SHAKE + 20 + radius * 3L + cell.y() * 4L; // the pillars rise last
-                kind = cell.state().is(ModBlocks.CORE_CRYSTAL.get()) ? 2 : 1;
+                kind = cell.y() == pillar - 1 ? 2 : 1;
             } else {
                 due = now + CoreEvolution.SHAKE + 4 + (long) (dist * 3.0); // plaza: a wave from the middle
             }
@@ -275,6 +289,9 @@ public class CoreBlockEntity extends BlockEntity {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
                     for (int dy = 0; dy < h; dy++) {
+                        if (!CoreEvolution.inArea(newStage, dx, dy, dz)) {
+                            continue;
+                        }
                         BlockPos pos = worldPosition.offset(dx, dy, dz);
                         if (wanted.contains(pos.asLong())) {
                             continue;
@@ -316,6 +333,9 @@ public class CoreBlockEntity extends BlockEntity {
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {
                 for (int dy = 0; dy < h; dy++) {
+                    if (!CoreEvolution.inArea(stage, dx, dy, dz)) {
+                        continue;
+                    }
                     BlockPos pos = worldPosition.offset(dx, dy, dz);
                     BlockState cur = level.getBlockState(pos);
                     if (cur.isAir() || CoreEvolution.isStructure(cur) || CoreAreaGuard.isExempt(cur)
@@ -385,10 +405,67 @@ public class CoreBlockEntity extends BlockEntity {
         }
     }
 
-    /** Removes the whole structure at once (the Core was defused or is gone). */
+    /**
+     * The Core was defused: the invisible parts go at once, the plaza vanishes ring by ring from the outside in (the
+     * visible parts have already folded away on the client, driven by the countdown).
+     */
+    private void beginFade(ServerLevel level) {
+        steps.clear();
+        ghosts.clear();
+        fadeQueue.clear();
+        long now = level.getGameTime();
+        java.util.Set<Long> seen = new java.util.HashSet<>();
+        for (CoreEvolution.Cell cell : CoreEvolution.everything()) {
+            BlockPos pos = worldPosition.offset(cell.x(), cell.y(), cell.z());
+            if (!seen.add(pos.asLong())) {
+                continue;
+            }
+            BlockState cur = level.getBlockState(pos);
+            if (!CoreEvolution.isStructure(cur)) {
+                continue;
+            }
+            if (cur.is(ModBlocks.CORE_FLOOR.get()) || cur.is(ModBlocks.CORE_GOLD.get())) {
+                double dist = Math.sqrt(cell.x() * cell.x() + cell.z() * cell.z());
+                fadeQueue.add(new Fade(pos, now + 6L + (long) ((8.5 - dist) * 3.0)));
+            } else {
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+            }
+        }
+        stage = 0;
+        built = -1;
+        fading = !fadeQueue.isEmpty();
+        setChanged();
+        forceSync();
+    }
+
+    private void tickFade(ServerLevel level) {
+        long now = level.getGameTime();
+        int count = 0;
+        while (!fadeQueue.isEmpty() && fadeQueue.peek().due() <= now) {
+            Fade fade = fadeQueue.poll();
+            BlockState cur = level.getBlockState(fade.pos());
+            if (!CoreEvolution.isStructure(cur)) {
+                continue;
+            }
+            level.setBlock(fade.pos(), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+            level.sendParticles(new net.minecraft.core.particles.BlockParticleOption(ParticleTypes.BLOCK, cur),
+                    fade.pos().getX() + 0.5, fade.pos().getY() + 0.9, fade.pos().getZ() + 0.5, 4, 0.3, 0.1, 0.3, 0.02);
+            if (count++ % 6 == 0) {
+                level.playSound(null, fade.pos(), SoundEvents.AMETHYST_BLOCK_BREAK, SoundSource.BLOCKS, 0.7F, 0.7F);
+            }
+        }
+        if (fadeQueue.isEmpty()) {
+            fading = false;
+            setChanged();
+        }
+    }
+
+    /** Removes the whole structure at once (the Core is gone). */
     public void dismantle(ServerLevel level) {
         steps.clear();
         ghosts.clear();
+        fadeQueue.clear();
+        fading = false;
         for (CoreEvolution.Cell cell : CoreEvolution.everything()) {
             BlockPos pos = worldPosition.offset(cell.x(), cell.y(), cell.z());
             if (CoreEvolution.isStructure(level.getBlockState(pos))) {
@@ -440,7 +517,7 @@ public class CoreBlockEntity extends BlockEntity {
                 for (int sz = -1; sz <= 1; sz += 2) {
                     double x = pos.getX() + 0.5 + sx * radius + (level.random.nextDouble() - 0.5) * 0.6;
                     double z = pos.getZ() + 0.5 + sz * radius + (level.random.nextDouble() - 0.5) * 0.6;
-                    double y = pos.getY() + height - 0.6 + level.random.nextDouble();
+                    double y = pos.getY() + height - 0.75 + level.random.nextDouble() * 0.9;
                     level.addParticle(ParticleTypes.FLAME, x, y, z, 0.0, 0.05, 0.0);
                     if (built >= 3 && level.random.nextInt(3) == 0) {
                         level.addParticle(ParticleTypes.ELECTRIC_SPARK, x, y, z, (level.random.nextDouble() - 0.5) * 0.3,
@@ -818,6 +895,7 @@ public class CoreBlockEntity extends BlockEntity {
         tag.putInt(TAG_LEVEL, coreLevel);
         tag.putInt("Stage", stage);
         tag.putInt("Built", built);
+        tag.putBoolean("Fading", fading);
         tag.putFloat(TAG_HEALTH, health);
         tag.putInt(TAG_LOADED_RADIUS, loadedChunkRadius);
         tag.putBoolean(TAG_SHOW_BORDERS, showBorders);
@@ -837,6 +915,7 @@ public class CoreBlockEntity extends BlockEntity {
         coreLevel = tag.getInt(TAG_LEVEL);
         stage = tag.getInt("Stage");
         built = tag.contains("Built") ? tag.getInt("Built") : -1;
+        fading = tag.getBoolean("Fading");
         evoStart = tag.getLong("EvoStart");
         ghosts.clear();
         if (tag.contains("Ghosts")) {
