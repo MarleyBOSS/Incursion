@@ -118,6 +118,14 @@ public class CoreBlockEntity extends BlockEntity {
             return;
         }
         core.tickCounter++;
+        if (core.tickCounter % 4 == 0) {
+            // The open Sarcophagus lifts its upper half into the block above: no water or lava may stand there (it would
+            // flood the Core). The heat of the Core drives it out; neighbouring sources just flow in again and get removed again.
+            BlockPos above = pos.above();
+            if (level.getBlockState(above).getBlock() instanceof net.minecraft.world.level.block.LiquidBlock) {
+                level.setBlock(above, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
+            }
+        }
         if (core.defuseTicksLeft > 0) {
             core.tickDefuse(serverLevel);
             if (!core.isActive()) {
