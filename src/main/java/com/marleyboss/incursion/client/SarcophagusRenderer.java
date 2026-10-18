@@ -21,6 +21,7 @@ import net.minecraft.client.renderer.Sheets;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.texture.TextureAtlas;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import com.marleyboss.incursion.block.CoreEvolution;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.particles.DustParticleOptions;
@@ -143,7 +144,11 @@ final class SarcophagusRenderer {
         float last;
         float nextHum;
         float nextSpark;
-        long ghostDone = Long.MIN_VALUE;
+        float scale = -1.0F;
+        float scaleFrom = 1.0F;
+        float scaleTo = 1.0F;
+        float scaleStart = 0.0F;
+        final java.util.Set<Long> booms = new java.util.HashSet<>();
     }
 
     private SarcophagusRenderer() {
@@ -252,35 +257,61 @@ final class SarcophagusRenderer {
         // The powders are destroyed by a defuse: while the countdown runs (and the block closes) only the rune comes back.
         boolean showHeaps = !(active && progress >= 0.0F);
 
-        // The block that stood above the Sarcophagus shakes while it opens and blows up when the upper half rises.
-        BlockState ghost = core.getGhostState();
-        long ghostTime = core.getGhostTime();
-        if (ghost != null && ghostTime != state.ghostDone) {
-            float age = level.getGameTime() - ghostTime;
-            if (age > 100.0F) {
-                state.ghostDone = ghostTime; // long ago (the player came near later): nothing to show
-            } else if (state.open < 0.42F) {
-                float amp = 0.008F + 0.03F * (state.open / 0.42F);
-                if (ghost.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL) {
-                    pose.pushPose();
-                    pose.translate(Mth.sin(time * 3.1F) * amp, 1.0F + Mth.sin(time * 2.3F + 1.0F) * amp * 0.5F,
-                            Mth.sin(time * 2.7F + 2.0F) * amp);
-                    Minecraft.getInstance().getBlockRenderer().renderSingleBlock(ghost, pose, buffer, light,
-                            OverlayTexture.NO_OVERLAY);
-                    pose.popPose();
-                }
-            } else {
-                state.ghostDone = ghostTime;
-                BlockPos ghostPos = core.getBlockPos().above();
-                Minecraft.getInstance().particleEngine.destroy(ghostPos, ghost);
-                level.addParticle(ParticleTypes.EXPLOSION_EMITTER, ghostPos.getX() + 0.5, ghostPos.getY() + 0.5, ghostPos.getZ() + 0.5,
-                        0.0, 0.0, 0.0);
-                level.playLocalSound(ghostPos.getX() + 0.5, ghostPos.getY() + 0.5, ghostPos.getZ() + 0.5,
-                        SoundEvents.GENERIC_EXPLODE.value(), SoundSource.BLOCKS, 2.0F, 1.0F, false);
+        // Size: grows with the evolution stage, after the blocks in the way have blown up.
+        float targetScale = active ? CoreEvolution.scaleFor(core.getStage()) : 1.0F;
+        if (state.scale < 0.0F) {
+            state.scale = targetScale;
+            state.scaleFrom = targetScale;
+            state.scaleTo = targetScale;
+        }
+        if (targetScale != state.scaleTo) {
+            state.scaleFrom = state.scale;
+            state.scaleTo = targetScale;
+            long evo = core.getEvoStart();
+            state.scaleStart = evo > 0L && level.getGameTime() - evo < 200L ? evo + CoreEvolution.SHAKE : time;
+        }
+        state.scale = Mth.lerp(ease((time - state.scaleStart) / 70.0F), state.scaleFrom, state.scaleTo);
+        float sc = state.scale;
+        // The blocks that stood in the way shake and blow up.
+        BlockPos corePos = core.getBlockPos();
+        for (CoreBlockEntity.Ghost ghost : core.getGhosts()) {
+            long key = ghost.pos().asLong() * 31L + ghost.boom();
+            if (state.booms.contains(key)) {
+                continue;
             }
+            if (time >= ghost.boom()) {
+                state.booms.add(key);
+                if (time - ghost.boom() < 40.0F) {
+                    Minecraft.getInstance().particleEngine.destroy(ghost.pos(), ghost.state());
+                    level.addParticle(ParticleTypes.EXPLOSION, ghost.pos().getX() + 0.5, ghost.pos().getY() + 0.5,
+                            ghost.pos().getZ() + 0.5, 0.0, 0.0, 0.0);
+                }
+                continue;
+            }
+            if (ghost.state().getRenderShape() != net.minecraft.world.level.block.RenderShape.MODEL) {
+                continue;
+            }
+            float left = ghost.boom() - time;
+            float amp = 0.006F + 0.03F * Mth.clamp(1.0F - left / CoreEvolution.SHAKE, 0.0F, 1.0F);
+            long seed = ghost.pos().asLong();
+            float ph = (seed & 15L) * 0.7F;
+            pose.pushPose();
+            pose.translate(ghost.pos().getX() - corePos.getX() + Mth.sin(time * 3.1F + ph) * amp,
+                    ghost.pos().getY() - corePos.getY() + Mth.sin(time * 2.3F + ph * 1.3F) * amp * 0.5F,
+                    ghost.pos().getZ() - corePos.getZ() + Mth.sin(time * 2.7F + ph * 0.6F) * amp);
+            Minecraft.getInstance().getBlockRenderer().renderSingleBlock(ghost.state(), pose, buffer, light,
+                    OverlayTexture.NO_OVERLAY);
+            pose.popPose();
+        }
+        if (state.booms.size() > 3000) {
+            state.booms.clear();
         }
 
         // 1. Solid parts.
+        pose.pushPose();
+        pose.translate(0.5F, 0.0F, 0.5F);
+        pose.scale(sc, sc, sc);
+        pose.translate(-0.5F, 0.0F, -0.5F);
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light);
         drawLowerFrame(pose.last(), solid, light);
@@ -305,6 +336,7 @@ final class SarcophagusRenderer {
         drawUpperFrame(pose.last(), solid, light);
         pose.popPose();
         flushSolid(buffer);
+        pose.popPose();
 
         // 2. Everything see-through (additive glow, orb, rays, glass) is drawn later, after the water and the other
         // translucent blocks: drawn before them, it would be painted over by water behind it and its depth would cut holes in it.
@@ -324,6 +356,8 @@ final class SarcophagusRenderer {
         late.hasRune = hasRune;
         late.blazeHeap = hasBlaze && showHeaps;
         late.ready = ready;
+        late.scale = sc;
+        late.built = active ? core.getBuiltStage() : -1;
         late.bolt = active && state.rising && t < 0.18F ? 1.0F - t / 0.18F : 0.0F;
         LATE.add(late);
     }
@@ -345,6 +379,8 @@ final class SarcophagusRenderer {
         boolean blazeHeap;
         boolean ready;
         float bolt;
+        float scale;
+        int built;
     }
 
     private static final List<Late> LATE = new ArrayList<>();
@@ -368,6 +404,11 @@ final class SarcophagusRenderer {
     private static void drawLate(Late d, PoseStack pose, MultiBufferSource buffer) {
         float t = d.t;
         float time = d.time;
+        drawBeams(pose, buffer, d);
+        pose.pushPose();
+        pose.translate(0.5F, 0.0F, 0.5F);
+        pose.scale(d.scale, d.scale, d.scale);
+        pose.translate(-0.5F, 0.0F, -0.5F);
         if (d.contents > 0.0F) {
             drawItemGlow(pose, buffer, time, d.contents, d.hasRune, d.blazeHeap, d.ready);
         }
@@ -390,6 +431,40 @@ final class SarcophagusRenderer {
         if (t <= 0.0F) {
             // A shut Sarcophagus glimmers along its gold when the ritual is ready.
             drawGlimmer(pose, buffer, d.ready ? d.glow : 0.0F);
+        }
+        pose.popPose();
+    }
+
+    /** Energy beams from the red crystals on the pillars to the Core (from stage 2 on), with bright pulses running along them. */
+    private static void drawBeams(PoseStack pose, MultiBufferSource buffer, Late d) {
+        if (d.built < 2) {
+            return;
+        }
+        float strength = CoreEvolution.beamStrength(d.built);
+        int radius = CoreEvolution.plazaRadius(d.built);
+        float top = CoreEvolution.pillarHeight(d.built) - 1.0F;
+        float flick = 0.85F + 0.15F * Mth.sin(d.time * 0.7F);
+        float k = strength * flick;
+        VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
+        PoseStack.Pose p = pose.last();
+        float tx = 0.5F;
+        float ty = ORB_Y * d.scale;
+        float tz = 0.5F;
+        for (int sx = -1; sx <= 1; sx += 2) {
+            for (int sz = -1; sz <= 1; sz += 2) {
+                float ax = 0.5F + sx * radius;
+                float az = 0.5F + sz * radius;
+                laser(vc, p, ax, top, az, tx, ty, tz, 0.03F * (0.5F + strength), 1.0F * k, 0.35F * k, 0.12F * k);
+                laser(vc, p, ax, top, az, tx, ty, tz, 0.11F * (0.5F + strength), 0.5F * k, 0.1F * k, 0.03F * k);
+                // pulses that run to the Core
+                for (int i = 0; i < 3; i++) {
+                    float f = (d.time * 0.045F + i / 3.0F) % 1.0F;
+                    float g = Math.min(1.0F, f + 0.08F);
+                    laser(vc, p, ax + (tx - ax) * f, top + (ty - top) * f, az + (tz - az) * f,
+                            ax + (tx - ax) * g, top + (ty - top) * g, az + (tz - az) * g,
+                            0.09F * (0.5F + strength), 1.0F * k, 0.85F * k, 0.5F * k);
+                }
+            }
         }
     }
 

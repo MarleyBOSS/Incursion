@@ -52,7 +52,7 @@ public final class CoreActions {
         core.setNightDay(-1);
         core.setHealth(core.getMaxHealth());
         level.setBlock(pos, state.setValue(CoreBlock.ACTIVE, true), Block.UPDATE_ALL);
-        core.raiseTop(level);
+        core.evolve(level, CoreEvolution.stageFor(1));
         int radius = Config.siegeChunkRadius(1);
         ChunkLoading.update(level, pos, core.getLoadedChunkRadius(), radius);
         core.setLoadedChunkRadius(radius);
@@ -104,14 +104,41 @@ public final class CoreActions {
         }
 
         removeItems(player, upgradeItem, cost);
+        levelUp(level, pos, core, player, currentLevel, targetLevel);
+    }
+
+    /** What a real upgrade does once it is paid: the new level, health, sound, message, shields (and the evolution follows from the level). */
+    private static void levelUp(ServerLevel level, BlockPos pos, CoreBlockEntity core, Player player, int currentLevel,
+                                int targetLevel) {
         int oldMax = core.getMaxHealth();
         core.setCoreLevel(targetLevel);
         // The extra max health of the new level is added on top of the current health.
         core.setHealth(core.getHealth() + (core.getMaxHealth() - oldMax));
         level.playSound(null, pos, SoundEvents.BEACON_POWER_SELECT, SoundSource.BLOCKS, 1.0F, 0.8F);
-        player.displayClientMessage(Component.translatable("message.incursion.core.upgraded", targetLevel, maxLevel)
-                .withStyle(ChatFormatting.LIGHT_PURPLE), false);
+        player.displayClientMessage(Component.translatable("message.incursion.core.upgraded", targetLevel,
+                Config.MAX_LEVEL.get()).withStyle(ChatFormatting.LIGHT_PURPLE), false);
         Shields.onLevelUp(level, pos, core, currentLevel, targetLevel, player);
+    }
+
+    /**
+     * TEST TAB: raises the Core to {@code target} one level at a time through exactly the same code as a real upgrade, only
+     * without the costs and the tool. Only for operators and creative players.
+     */
+    public static void testUpgradeTo(ServerLevel level, BlockPos pos, Player player, int target) {
+        if (!(player.hasPermissions(2) || player.getAbilities().instabuild)) {
+            return;
+        }
+        BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof CoreBlock) || !state.getValue(CoreBlock.ACTIVE)
+                || !(level.getBlockEntity(pos) instanceof CoreBlockEntity core)) {
+            return;
+        }
+        int max = Config.MAX_LEVEL.get();
+        target = Math.min(target, max);
+        while (core.getCoreLevel() < target) {
+            int current = core.getCoreLevel();
+            levelUp(level, pos, core, player, current, current + 1);
+        }
     }
 
     // ------------------------------------------------------------------

@@ -34,6 +34,9 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int BUTTON_AI_VIEW = 4;
     public static final int BUTTON_REPAIR_SHIELD = 5;
     public static final int BUTTON_WITHDRAW = 6;
+    /** Test tab: level +1, +5 or up to level 5, 10, 15, 20 (ids 10..15). */
+    public static final int BUTTON_TEST_FIRST = 10;
+    public static final int BUTTON_TEST_LAST = 15;
 
     public static final int DATA_ACTIVE = 0;
     public static final int DATA_LEVEL = 1;
@@ -208,6 +211,13 @@ public class CoreMenu extends AbstractContainerMenu {
         }
         if (id == BUTTON_WITHDRAW) {
             Rewards.withdraw(player, core);
+            return true;
+        }
+        if (id >= BUTTON_TEST_FIRST && id <= BUTTON_TEST_LAST) {
+            int[] targets = {-1, -2, 5, 10, 15, 20}; // -1: +1 level, -2: +5 levels
+            int t = targets[id - BUTTON_TEST_FIRST];
+            int now = core.getCoreLevel();
+            CoreActions.testUpgradeTo(level, pos, player, t == -1 ? now + 1 : t == -2 ? now + 5 : t);
             return true;
         }
         return false;

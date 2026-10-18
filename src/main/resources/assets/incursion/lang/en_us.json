@@ -1,5 +1,9 @@
 {
   "block.incursion.core": "Sarcophagus",
+  "block.incursion.core_part": "Sarcophagus (space)",
+  "block.incursion.core_floor": "Core Plaza",
+  "block.incursion.core_gold": "Core Gold",
+  "block.incursion.core_crystal": "Energy Crystal",
   "block.incursion.core_top": "Sarcophagus (upper half)",
   "message.incursion.core.state.active": "ACTIVE",
   "message.incursion.core.state.inactive": "inactive",

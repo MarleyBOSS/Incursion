@@ -1,5 +1,9 @@
 {
   "block.incursion.core": "Sarkophag",
+  "block.incursion.core_part": "Sarkophag (Raum)",
+  "block.incursion.core_floor": "Kernplattform",
+  "block.incursion.core_gold": "Kerngold",
+  "block.incursion.core_crystal": "Energiekristall",
   "block.incursion.core_top": "Sarkophag (Oberteil)",
   "message.incursion.core.state.active": "AKTIV",
   "message.incursion.core.state.inactive": "inaktiv",

@@ -55,7 +55,8 @@ public final class SiegeAim {
 
     private static boolean reaches(Level level, Vec3 from, Vec3 to, BlockPos core, Entity viewer) {
         BlockHitResult hit = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, viewer));
-        return hit.getType() == HitResult.Type.BLOCK && hit.getBlockPos().equals(core);
+        return hit.getType() == HitResult.Type.BLOCK && (hit.getBlockPos().equals(core)
+                || com.marleyboss.incursion.block.CoreEvolution.isStructure(level.getBlockState(hit.getBlockPos())));
     }
 
     /** Distance from a point to the closest point of the Core block. */
@@ -71,7 +72,8 @@ public final class SiegeAim {
     public static boolean canSeeBlock(Level level, Vec3 eyes, BlockPos pos, Entity viewer) {
         BlockHitResult hit = level.clip(new ClipContext(eyes, Vec3.atCenterOf(pos), ClipContext.Block.COLLIDER,
                 ClipContext.Fluid.NONE, viewer));
-        return hit.getType() == HitResult.Type.MISS || hit.getBlockPos().equals(pos);
+        return hit.getType() == HitResult.Type.MISS || hit.getBlockPos().equals(pos)
+                || com.marleyboss.incursion.block.CoreEvolution.isStructure(level.getBlockState(hit.getBlockPos()));
     }
 
     // ------------------------------------------------------------------

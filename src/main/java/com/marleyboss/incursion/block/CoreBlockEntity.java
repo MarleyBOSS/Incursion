@@ -25,6 +25,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -102,10 +103,25 @@ public class CoreBlockEntity extends BlockEntity {
     private int defuseTicksTotal = 0;
     @Nullable
     private UUID defuser;
-    /** The block that stood above the Sarcophagus when it was activated (shown shaking until it blows up) and when (game time). Synced to clients only. */
-    @Nullable
-    private BlockState ghost;
-    private long ghostTime = 0L;
+    /** Evolution stage the visuals show (see CoreEvolution); saved and synced. */
+    private int stage = 0;
+    /** The stage whose structure is completely built (-1 = nothing built); saved and synced. */
+    private int built = -1;
+    /** Game time the last evolution started (synced, not saved). */
+    private long evoStart = 0L;
+    /** Blocks that were in the way, shown shaking until they blow up (client side copy, synced, not saved). */
+    private final List<Ghost> ghosts = new ArrayList<>();
+    /** Blocks still to place (server side). */
+    private final java.util.PriorityQueue<Step> steps =
+            new java.util.PriorityQueue<>(java.util.Comparator.comparingLong(Step::due));
+
+    /** A block that was in the way: shown at {@code pos} shaking until game time {@code boom}. */
+    public record Ghost(BlockPos pos, BlockState state, long boom) {
+    }
+
+    /** A block to place (or only to blow up) at game time {@code due}. */
+    private record Step(BlockPos pos, @Nullable BlockState target, @Nullable BlockState old, long due, int kind) {
+    }
 
     public CoreBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.CORE.get(), pos, state);
@@ -117,6 +133,9 @@ public class CoreBlockEntity extends BlockEntity {
         }
         LOADED.add(core);
         if (!state.getValue(CoreBlock.ACTIVE)) {
+            if (core.built != -1 || core.stage != 0) {
+                core.dismantle(serverLevel);
+            }
             // An inactive Core can show the borders too (switch in the GUI): the totems around it are synced.
             if (core.showBorders && ++core.idleCounter % 20 == 0) {
                 core.syncToClient(WardBlockEntity.wardsNear(level, pos,
@@ -125,9 +144,7 @@ public class CoreBlockEntity extends BlockEntity {
             return;
         }
         core.tickCounter++;
-        if (core.tickCounter % 10 == 0 && !level.getBlockState(pos.above()).is(ModBlocks.CORE_TOP.get())) {
-            core.raiseTop(serverLevel); // a Core from an older version, or the upper half was removed by a command
-        }
+        core.tickEvolution(serverLevel);
         if (core.defuseTicksLeft > 0) {
             core.tickDefuse(serverLevel);
             if (!core.isActive()) {
@@ -147,33 +164,178 @@ public class CoreBlockEntity extends BlockEntity {
     // Getters / setters
     // ------------------------------------------------------------------
 
+    // ------------------------------------------------------------------
+    // Evolution (see CoreEvolution)
+    // ------------------------------------------------------------------
+
+    private static final int MAX_GHOSTS = 300;
+
+    /** Server: starts the evolution when the stage the level asks for is not the stage that is built. */
+    private void tickEvolution(ServerLevel level) {
+        long now = level.getGameTime();
+        int desired = CoreEvolution.stageFor(coreLevel);
+        boolean topMissing = built == stage && built >= 0 && tickCounter % 20 == 0
+                && !level.getBlockState(worldPosition.above()).is(ModBlocks.CORE_TOP.get());
+        if (desired != stage || (built != stage && steps.isEmpty()) || topMissing) {
+            evolve(level, desired);
+        }
+        boolean worked = false;
+        while (!steps.isEmpty() && steps.peek().due() <= now) {
+            place(level, steps.poll());
+            worked = true;
+        }
+        if (worked && steps.isEmpty() && built != stage) {
+            built = stage;
+            setChanged();
+            forceSync();
+            if (stage >= 1) {
+                finale(level);
+            }
+        }
+        if (!ghosts.isEmpty() && steps.isEmpty()) {
+            ghosts.removeIf(g -> g.boom() + 40 < now);
+        }
+    }
+
     /**
-     * The open Sarcophagus is two blocks high: puts the invisible upper half above it. Whatever stood there is removed
-     * without a drop (the client shows it shaking and blowing up, see {@link #getGhostState}).
+     * Plans the structure of a stage: whatever stands in its place is removed without a drop (visible blocks are sent to
+     * the clients as {@link Ghost}s that shake and then blow up), then it is built up from the middle outwards, the
+     * pillars last.
      */
-    public void raiseTop(ServerLevel serverLevel) {
-        BlockPos above = worldPosition.above();
-        BlockState old = serverLevel.getBlockState(above);
-        if (old.is(ModBlocks.CORE_TOP.get())) {
-            return;
+    public void evolve(ServerLevel level, int newStage) {
+        long now = level.getGameTime();
+        stage = newStage;
+        built = -1;
+        evoStart = now;
+        steps.clear();
+        ghosts.clear();
+        java.util.List<CoreEvolution.Cell> plan = CoreEvolution.plan(newStage);
+        java.util.Set<Long> wanted = new java.util.HashSet<>();
+        for (CoreEvolution.Cell cell : plan) {
+            wanted.add(worldPosition.offset(cell.x(), cell.y(), cell.z()).asLong());
         }
-        if (!old.isAir() && old.getFluidState().isEmpty()
-                && old.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL) {
-            ghost = old;
-            ghostTime = serverLevel.getGameTime();
+        // what an earlier stage built and this one does not have
+        for (CoreEvolution.Cell cell : CoreEvolution.everything()) {
+            BlockPos pos = worldPosition.offset(cell.x(), cell.y(), cell.z());
+            if (!wanted.contains(pos.asLong()) && CoreEvolution.isStructure(level.getBlockState(pos))) {
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+            }
         }
-        serverLevel.removeBlockEntity(above); // no contents fall out
-        serverLevel.setBlock(above, ModBlocks.CORE_TOP.get().defaultBlockState(), Block.UPDATE_ALL);
+        level.playSound(null, worldPosition, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 4.0F, 0.55F);
+        int pillar = CoreEvolution.pillarHeight(newStage);
+        int radius = CoreEvolution.plazaRadius(newStage);
+        for (CoreEvolution.Cell cell : plan) {
+            BlockPos pos = worldPosition.offset(cell.x(), cell.y(), cell.z());
+            BlockState cur = level.getBlockState(pos);
+            if (cur == cell.state()) {
+                continue;
+            }
+            if (!CoreEvolution.isStructure(cur) && cur.getDestroySpeed(level, pos) < 0.0F) {
+                continue; // bedrock and the like stay
+            }
+            boolean reserved = cell.state().is(ModBlocks.CORE_PART.get()) || cell.state().is(ModBlocks.CORE_TOP.get());
+            double dist = Math.sqrt(cell.x() * cell.x() + cell.z() * cell.z());
+            long due;
+            int kind = 0;
+            if (reserved) {
+                due = now + CoreEvolution.SHAKE + (long) (dist * 3.0) + cell.y();
+            } else if (cell.y() >= 0 && pillar > 0) {
+                due = now + CoreEvolution.SHAKE + 20 + radius * 3L + cell.y() * 4L; // the pillars rise last
+                kind = cell.state().is(ModBlocks.CORE_CRYSTAL.get()) ? 2 : 1;
+            } else {
+                due = now + CoreEvolution.SHAKE + 4 + (long) (dist * 3.0); // plaza: a wave from the middle
+            }
+            boolean visible = !cur.isAir() && cur.getFluidState().isEmpty() && !CoreEvolution.isStructure(cur)
+                    && cur.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL;
+            BlockState old = null;
+            if (visible && ghosts.size() < MAX_GHOSTS) {
+                ghosts.add(new Ghost(pos, cur, due));
+                old = cur;
+            }
+            level.removeBlockEntity(pos); // no contents fall out
+            if (reserved) {
+                level.setBlock(pos, cell.state(), Block.UPDATE_ALL);
+                if (old != null) {
+                    steps.add(new Step(pos, null, old, due, 0));
+                }
+            } else {
+                if (!cur.isAir()) {
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                }
+                steps.add(new Step(pos, cell.state(), old, due, kind));
+            }
+        }
+        if (steps.isEmpty()) {
+            built = stage;
+        }
+        setChanged();
         forceSync();
     }
 
-    @Nullable
-    public BlockState getGhostState() {
-        return ghost;
+    private void place(ServerLevel level, Step step) {
+        BlockPos pos = step.pos();
+        double x = pos.getX() + 0.5;
+        double y = pos.getY() + 0.5;
+        double z = pos.getZ() + 0.5;
+        if (step.old() != null && (pos.getX() + pos.getZ() + pos.getY()) % 5 == 0) {
+            level.playSound(null, pos, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.BLOCKS, 1.4F, 0.9F);
+        }
+        if (step.target() != null) {
+            level.setBlock(pos, step.target(), Block.UPDATE_ALL);
+            if (step.kind() == 2) {
+                level.sendParticles(ParticleTypes.END_ROD, x, y, z, 6, 0.3, 0.3, 0.3, 0.05);
+                level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.BLOCKS, 1.0F, 0.6F + level.random.nextFloat() * 0.8F);
+            } else if (step.kind() == 1) {
+                level.sendParticles(ParticleTypes.WAX_ON, x, y, z, 4, 0.3, 0.3, 0.3, 0.0);
+                level.playSound(null, pos, SoundEvents.ANVIL_PLACE, SoundSource.BLOCKS, 0.5F, 1.4F);
+            } else if ((pos.getX() + pos.getZ()) % 2 == 0) {
+                level.sendParticles(ParticleTypes.POOF, x, y + 0.5, z, 2, 0.3, 0.1, 0.3, 0.01);
+            }
+        }
     }
 
-    public long getGhostTime() {
-        return ghostTime;
+    /** A new stage stands: a strike of lightning and a shower of sparks. */
+    private void finale(ServerLevel level) {
+        double x = worldPosition.getX() + 0.5;
+        double y = worldPosition.getY() + 1.0;
+        double z = worldPosition.getZ() + 0.5;
+        level.playSound(null, worldPosition, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, 6.0F, 0.8F);
+        level.playSound(null, worldPosition, SoundEvents.END_PORTAL_SPAWN, SoundSource.BLOCKS, 1.2F, 1.4F);
+        level.sendParticles(ParticleTypes.FLASH, x, y + 0.5, z, 1, 0.0, 0.0, 0.0, 0.0);
+        level.sendParticles(ParticleTypes.END_ROD, x, y + 0.5, z, 120, 1.5, 1.5, 1.5, 0.25);
+        level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
+    }
+
+    /** Removes the whole structure at once (the Core was defused or is gone). */
+    public void dismantle(ServerLevel level) {
+        steps.clear();
+        ghosts.clear();
+        for (CoreEvolution.Cell cell : CoreEvolution.everything()) {
+            BlockPos pos = worldPosition.offset(cell.x(), cell.y(), cell.z());
+            if (CoreEvolution.isStructure(level.getBlockState(pos))) {
+                level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+            }
+        }
+        stage = 0;
+        built = -1;
+        setChanged();
+        forceSync();
+    }
+
+    public int getStage() {
+        return stage;
+    }
+
+    public int getBuiltStage() {
+        return built;
+    }
+
+    public long getEvoStart() {
+        return evoStart;
+    }
+
+    public List<Ghost> getGhosts() {
+        return ghosts;
     }
 
     /** Client: the particles of an active Core (see CoreEffects). */
@@ -238,10 +400,16 @@ public class CoreBlockEntity extends BlockEntity {
     public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
         CompoundTag tag = saveWithoutMetadata(registries);
         tag.putLongArray(TAG_WARDS, syncedWards);
-        if (ghost != null) {
-            tag.put("Ghost", NbtUtils.writeBlockState(ghost));
-            tag.putLong("GhostTime", ghostTime);
+        tag.putLong("EvoStart", evoStart);
+        net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
+        for (Ghost g : ghosts) {
+            CompoundTag entry = new CompoundTag();
+            entry.putLong("P", g.pos().asLong());
+            entry.putLong("B", g.boom());
+            entry.put("S", NbtUtils.writeBlockState(g.state()));
+            list.add(entry);
         }
+        tag.put("Ghosts", list);
         if (defuseTicksLeft > 0 && level != null) {
             tag.putLong("DefuseEnd", level.getGameTime() + defuseTicksLeft);
             tag.putInt("DefuseTotal", defuseTicksTotal);
@@ -540,6 +708,8 @@ public class CoreBlockEntity extends BlockEntity {
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
         tag.putInt(TAG_LEVEL, coreLevel);
+        tag.putInt("Stage", stage);
+        tag.putInt("Built", built);
         tag.putFloat(TAG_HEALTH, health);
         tag.putInt(TAG_LOADED_RADIUS, loadedChunkRadius);
         tag.putBoolean(TAG_SHOW_BORDERS, showBorders);
@@ -557,9 +727,19 @@ public class CoreBlockEntity extends BlockEntity {
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
         coreLevel = tag.getInt(TAG_LEVEL);
-        ghost = tag.contains("Ghost") && registries != null
-                ? NbtUtils.readBlockState(registries.lookupOrThrow(Registries.BLOCK), tag.getCompound("Ghost")) : null;
-        ghostTime = tag.getLong("GhostTime");
+        stage = tag.getInt("Stage");
+        built = tag.contains("Built") ? tag.getInt("Built") : -1;
+        evoStart = tag.getLong("EvoStart");
+        ghosts.clear();
+        if (tag.contains("Ghosts")) {
+            net.minecraft.nbt.ListTag list = tag.getList("Ghosts", 10);
+            for (int i = 0; i < list.size(); i++) {
+                CompoundTag entry = list.getCompound(i);
+                ghosts.add(new Ghost(BlockPos.of(entry.getLong("P")),
+                        NbtUtils.readBlockState(registries.lookupOrThrow(Registries.BLOCK), entry.getCompound("S")),
+                        entry.getLong("B")));
+            }
+        }
         clientDefuseEnd = tag.contains("DefuseEnd") ? tag.getLong("DefuseEnd") : 0L;
         clientDefuseTotal = tag.getInt("DefuseTotal");
         // Cores from v0.1 have no health yet: start them at full health.

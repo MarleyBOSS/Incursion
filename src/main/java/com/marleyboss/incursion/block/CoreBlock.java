@@ -179,6 +179,10 @@ public class CoreBlock extends BaseEntityBlock {
 
     @Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
+        if (!state.is(newState.getBlock()) && !level.isClientSide && level instanceof ServerLevel structureLevel
+                && level.getBlockEntity(pos) instanceof CoreBlockEntity grown) {
+            grown.dismantle(structureLevel); // the grown Sarcophagus, plaza and pillars go with the Core
+        }
         if (!state.is(newState.getBlock()) && !level.isClientSide && state.getValue(ACTIVE)
                 && level instanceof ServerLevel serverLevel) {
             // An active core that is removed in any way explodes.

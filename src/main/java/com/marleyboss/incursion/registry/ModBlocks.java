@@ -2,6 +2,7 @@ package com.marleyboss.incursion.registry;
 
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlock;
+import com.marleyboss.incursion.block.CorePartBlock;
 import com.marleyboss.incursion.block.CoreTopBlock;
 import com.marleyboss.incursion.block.LootChestBlock;
 import com.marleyboss.incursion.block.WardBlock;
@@ -37,6 +38,32 @@ public final class ModBlocks {
                     .noOcclusion()
                     .noLootTable()
                     .pushReaction(PushReaction.BLOCK)));
+
+    /** Invisible space of the grown Sarcophagus. */
+    public static final DeferredBlock<CorePartBlock> CORE_PART = BLOCKS.register("core_part", () -> new CorePartBlock(
+            BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_PURPLE)
+                    .strength(-1.0F, 3600000.0F)
+                    .sound(SoundType.NETHERITE_BLOCK)
+                    .lightLevel(state -> 12)
+                    .noOcclusion()
+                    .noLootTable()
+                    .pushReaction(PushReaction.BLOCK)));
+
+    /** The evolution of the Core: plaza floor, gold lines and pillars, crystals (unbreakable, no drops). */
+    public static final DeferredBlock<Block> CORE_FLOOR = BLOCKS.registerSimpleBlock("core_floor", structure(MapColor.COLOR_BLACK, 0));
+    public static final DeferredBlock<Block> CORE_GOLD = BLOCKS.registerSimpleBlock("core_gold", structure(MapColor.GOLD, 6));
+    public static final DeferredBlock<Block> CORE_CRYSTAL = BLOCKS.registerSimpleBlock("core_crystal", structure(MapColor.COLOR_RED, 15));
+
+    private static BlockBehaviour.Properties structure(MapColor color, int light) {
+        return BlockBehaviour.Properties.of()
+                .mapColor(color)
+                .strength(-1.0F, 3600000.0F)
+                .sound(SoundType.NETHERITE_BLOCK)
+                .lightLevel(state -> light)
+                .noLootTable()
+                .pushReaction(PushReaction.BLOCK);
+    }
 
     public static final DeferredBlock<WardBlock> WARD = BLOCKS.register("ward", () -> new WardBlock(
             BlockBehaviour.Properties.of()

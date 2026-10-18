@@ -45,6 +45,12 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     private Button aiButton;
     private Button repairButton;
     private Button withdrawButton;
+    /** TEST TAB (temporary): shows the test buttons instead of the normal ones. */
+    private Button testTab;
+    private boolean testMode = false;
+    private final Button[] testButtons = new Button[6];
+    private static final String[] TEST_LABELS = {"Level +1", "Level +5", "Auf Level 5", "Auf Level 10", "Auf Level 15",
+            "Auf Level 20"};
 
     public CoreScreen(CoreMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -70,6 +76,19 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
         withdrawButton = addRenderableWidget(Button.builder(Component.empty(), button -> click(CoreMenu.BUTTON_WITHDRAW))
                 .bounds(leftPos + RIGHT_X, topPos + ROW_Y[2], RIGHT_WIDTH, BUTTON_HEIGHT)
                 .tooltip(Tooltip.create(Component.translatable("gui.incursion.core.withdraw_tooltip"))).build());
+        for (int i = 0; i < testButtons.length; i++) {
+            final int id = CoreMenu.BUTTON_TEST_FIRST + i;
+            boolean left = i % 2 == 0;
+            testButtons[i] = addRenderableWidget(Button.builder(Component.literal(TEST_LABELS[i]), button -> click(id))
+                    .bounds(leftPos + (left ? LEFT_X : RIGHT_X), topPos + ROW_Y[i / 2], left ? LEFT_WIDTH : RIGHT_WIDTH,
+                            BUTTON_HEIGHT)
+                    .tooltip(Tooltip.create(Component.literal("Wie ein echtes Upgrade, nur ohne Kosten und Werkzeug"))).build());
+        }
+        testTab = addRenderableWidget(Button.builder(Component.literal("Test"), button -> {
+            testMode = !testMode;
+            updateButton();
+        }).bounds(leftPos + WIDTH - 50, topPos - 18, 50, 16)
+                .tooltip(Tooltip.create(Component.literal("Funktionstest (temporär): Upgrades ohne Kosten"))).build());
         updateButton();
     }
 
@@ -102,6 +121,20 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
             return;
         }
         boolean active = menu.isActive();
+        if (testMode) {
+            for (Button b : new Button[]{actionButton, defuseButton, bordersButton, aiButton, repairButton, withdrawButton}) {
+                b.visible = false;
+            }
+        }
+        for (Button b : testButtons) {
+            if (b != null) {
+                b.visible = testMode;
+                b.active = active;
+            }
+        }
+        if (testMode) {
+            return;
+        }
         int shards = menu.get(CoreMenu.DATA_SHARDS);
         int fullWidth = RIGHT_X + RIGHT_WIDTH - LEFT_X;
         int repairState = menu.get(CoreMenu.DATA_REPAIR_STATE);
