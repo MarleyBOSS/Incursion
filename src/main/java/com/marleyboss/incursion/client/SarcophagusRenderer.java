@@ -145,6 +145,7 @@ final class SarcophagusRenderer {
         float nextHum;
         float nextSpark;
         float scale = -1.0F;
+        float window = 0.0F;
         float scaleFrom = 1.0F;
         float scaleTo = 1.0F;
         float scaleStart = 0.0F;
@@ -272,6 +273,9 @@ final class SarcophagusRenderer {
         }
         state.scale = Mth.lerp(ease((time - state.scaleStart) / 70.0F), state.scaleFrom, state.scaleTo);
         float sc = state.scale;
+        // From stage 2 on the glass windows swing open (slowly, and they breathe a little afterwards).
+        float windowTarget = active && core.getBuiltStage() >= 2 ? 62.0F : 0.0F;
+        state.window += (windowTarget - state.window) * Math.min(1.0F, 0.035F * dt);
         // The blocks that stood in the way shake and blow up.
         BlockPos corePos = core.getBlockPos();
         for (CoreBlockEntity.Ghost ghost : core.getGhosts()) {
@@ -315,6 +319,9 @@ final class SarcophagusRenderer {
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light);
         drawLowerFrame(pose.last(), solid, light);
+        if (active && core.getStage() >= 1) {
+            drawHorns(pose.last(), solid, light, core.getStage());
+        }
         if (contents > 0.0F) {
             if (showHeaps) {
                 drawHeaps(pose.last(), solid, light, hasGunpowder, hasBlaze);
@@ -337,6 +344,10 @@ final class SarcophagusRenderer {
         pose.popPose();
         flushSolid(buffer);
         pose.popPose();
+        if (active && core.getBuiltStage() >= 2) {
+            drawCrystals(pose, solid, time, core.getBuiltStage());
+            flushSolid(buffer);
+        }
 
         // 2. Everything see-through (additive glow, orb, rays, glass) is drawn later, after the water and the other
         // translucent blocks: drawn before them, it would be painted over by water behind it and its depth would cut holes in it.
@@ -357,6 +368,7 @@ final class SarcophagusRenderer {
         late.blazeHeap = hasBlaze && showHeaps;
         late.ready = ready;
         late.scale = sc;
+        late.window = state.window > 1.0F ? state.window + 2.5F * Mth.sin(time * 0.05F) : state.window;
         late.built = active ? core.getBuiltStage() : -1;
         late.bolt = active && state.rising && t < 0.18F ? 1.0F - t / 0.18F : 0.0F;
         LATE.add(late);
@@ -381,6 +393,7 @@ final class SarcophagusRenderer {
         float bolt;
         float scale;
         int built;
+        float window;
     }
 
     private static final List<Late> LATE = new ArrayList<>();
@@ -419,20 +432,219 @@ final class SarcophagusRenderer {
             drawInnerGlow(pose, buffer, time, d.orb, d.lift, d.twist, d.shake);
             drawOrb(pose, buffer, time, d.orb, d.flash);
             drawRays(pose, buffer, time, d.orb, d.lift, d.twist);
+            drawGyroscope(pose, buffer, d);
         }
+        pose.popPose();
+        drawEvolution(pose, buffer, d);
+
+        // All glowing parts are drawn now, before the glass: the glass writes depth, and drawn earlier it would hide
+        // whatever glows behind it (the order the buffers are drawn in is not fixed unless it is done by hand).
+        flushAdditive(buffer);
 
         // Glass, last.
+        pose.pushPose();
+        pose.translate(0.5F, 0.0F, 0.5F);
+        pose.scale(d.scale, d.scale, d.scale);
+        pose.translate(-0.5F, 0.0F, -0.5F);
         pose.pushPose();
         pose.translate(0.5F + d.shake, d.lift, 0.5F);
         pose.mulPose(Axis.YP.rotationDegrees(d.twist));
         pose.translate(-0.5F, 0.0F, -0.5F);
-        drawGlass(pose.last(), buffer, d.light);
+        drawGlass(pose.last(), buffer, d.light, d.window);
         pose.popPose();
+        if (buffer instanceof MultiBufferSource.BufferSource source) {
+            source.endBatch(RenderType.entityTranslucent(GLASS_TEXTURE));
+        }
         if (t <= 0.0F) {
             // A shut Sarcophagus glimmers along its gold when the ritual is ready.
             drawGlimmer(pose, buffer, d.ready ? d.glow : 0.0F);
         }
         pose.popPose();
+    }
+
+    private static void flushAdditive(MultiBufferSource buffer) {
+        if (buffer instanceof MultiBufferSource.BufferSource source) {
+            source.endBatch(RenderType.eyes(TRIM));
+            source.endBatch(RenderType.eyes(ORB));
+            source.endBatch(RenderType.eyes(HALO));
+            source.endBatch(RenderType.eyes(FLARE));
+            source.endBatch(RenderType.eyes(RING));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // The evolution: a feature of its own for every stage
+    // ------------------------------------------------------------------
+
+    /** Stage 1: four gold horns on the corners of the lower half (they grow a little with every stage). */
+    private static void drawHorns(PoseStack.Pose pose, VertexConsumer vc, int light, int stage) {
+        TextureAtlasSprite gold = sprite(GOLD);
+        int bright = LightTexture.pack(Math.max(LightTexture.block(light), 9), LightTexture.sky(light));
+        float height = 0.42F + 0.08F * stage;
+        for (int i = 0; i < 4; i++) {
+            float cx = i % 2 == 0 ? 0.012F : 0.988F;
+            float cz = i < 2 ? 0.012F : 0.988F;
+            float h = 0.032F;
+            float y0 = TIP;
+            float y1 = TIP + height;
+            float[][] base = {{cx - h, cz - h}, {cx + h, cz - h}, {cx + h, cz + h}, {cx - h, cz + h}};
+            float[] apex = {cx, y1, cz};
+            for (int e = 0; e < 4; e++) {
+                float[] a = base[e];
+                float[] b = base[(e + 1) % 4];
+                polyAt(vc, pose, bright, gold, 4, 0.5F, 0.5F, (a[0] + b[0]) * 0.5F - cx, 0.3F, (a[1] + b[1]) * 0.5F - cz,
+                        new float[]{a[0], y0, a[1]}, new float[]{b[0], y0, b[1]}, apex);
+            }
+        }
+    }
+
+    /** Stage 2: the red energy crystals float above the pillars, turning and bobbing (solid, textured). */
+    private static void drawCrystals(PoseStack pose, VertexConsumer vc, float time, int stage) {
+        TextureAtlasSprite sprite = sprite(block("core_crystal"));
+        int radius = CoreEvolution.plazaRadius(stage);
+        float cy = CoreEvolution.pillarHeight(stage) - 1.0F;
+        PoseStack.Pose p = pose.last();
+        for (int i = 0; i < 4; i++) {
+            float cx = 0.5F + (i % 2 == 0 ? -radius : radius);
+            float cz = 0.5F + (i < 2 ? -radius : radius);
+            float rot = time * 0.045F + i * 0.8F;
+            float y = cy + 0.08F * Mth.sin(time * 0.08F + i * 1.7F);
+            float h = 0.95F;
+            float r = 0.5F;
+            float[] top = {cx, y + h, cz};
+            float[] bottom = {cx, y - h, cz};
+            float[][] eq = new float[4][];
+            for (int e = 0; e < 4; e++) {
+                float ang = rot + e * (float) (Math.PI / 2.0);
+                eq[e] = new float[]{cx + Mth.cos(ang) * r, y, cz + Mth.sin(ang) * r};
+            }
+            for (int e = 0; e < 4; e++) {
+                float[] a = eq[e];
+                float[] b = eq[(e + 1) % 4];
+                float mx = (a[0] + b[0]) * 0.5F - cx;
+                float mz = (a[2] + b[2]) * 0.5F - cz;
+                polyAt(vc, p, LightTexture.FULL_BRIGHT, sprite, 4, 0.5F, 0.5F, mx, 0.6F, mz, a, b, top);
+                polyAt(vc, p, LightTexture.FULL_BRIGHT, sprite, 4, 0.5F, 0.5F, mx, -0.6F, mz, b, a, bottom);
+            }
+        }
+    }
+
+    /** Stage 3: three rings of light circle the Sarcophagus like an armillary sphere. */
+    private static void drawGyroscope(PoseStack pose, MultiBufferSource buffer, Late d) {
+        if (d.built < 3) {
+            return;
+        }
+        VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
+        PoseStack.Pose p = pose.last();
+        float radius = 0.92F;
+        float k = 0.85F + 0.15F * Mth.sin(d.time * 0.2F);
+        final int segs = 56;
+        for (int ring = 0; ring < 3; ring++) {
+            float tilt = (float) Math.toRadians(ring * 60.0F + 20.0F * Mth.sin(d.time * 0.01F + ring));
+            float spin = d.time * (0.018F + 0.011F * ring) * (ring % 2 == 0 ? 1.0F : -1.0F);
+            float[] last = null;
+            for (int i = 0; i <= segs; i++) {
+                float phi = i * (float) (Math.PI * 2.0) / segs;
+                float x = Mth.cos(phi) * radius;
+                float y = 0.0F;
+                float z = Mth.sin(phi) * radius;
+                float y2 = y * Mth.cos(tilt) - z * Mth.sin(tilt);
+                float z2 = y * Mth.sin(tilt) + z * Mth.cos(tilt);
+                float x3 = x * Mth.cos(spin) + z2 * Mth.sin(spin);
+                float z3 = -x * Mth.sin(spin) + z2 * Mth.cos(spin);
+                float[] cur = {0.5F + x3, ORB_Y + y2, 0.5F + z3};
+                if (last != null) {
+                    laser(vc, p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.012F, 1.0F * k, 0.72F * k, 0.25F * k);
+                    laser(vc, p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.03F, 0.45F * k, 0.25F * k, 0.05F * k);
+                }
+                last = cur;
+            }
+        }
+    }
+
+    /**
+     * Features outside the Sarcophagus: rune circles on the plaza (stage 1), glowing crystals (stage 2), the shock waves, the
+     * lightning from the crystals and the column of light into the sky (stage 4).
+     */
+    private static void drawEvolution(PoseStack pose, MultiBufferSource buffer, Late d) {
+        int stage = d.built;
+        if (stage < 1) {
+            return;
+        }
+        float time = d.time;
+        float sc = d.scale;
+        PoseStack.Pose p = pose.last();
+        int radius = CoreEvolution.plazaRadius(stage);
+        float pulse = 0.75F + 0.25F * Mth.sin(time * 0.1F);
+        VertexConsumer ring = buffer.getBuffer(RenderType.eyes(RING));
+        runeCircle(ring, p, radius + 0.5F, time * 0.012F, 0.9F * pulse, 0.55F * pulse, 0.12F * pulse);
+        if (stage >= 3) {
+            runeCircle(ring, p, radius * 0.55F + 0.5F, -time * 0.02F, 0.9F * pulse, 0.3F * pulse, 0.1F * pulse);
+        }
+        if (stage >= 4) {
+            float f = (time % 80.0F) / 80.0F;
+            float k = (1.0F - f) * (1.0F - f);
+            runeCircle(ring, p, 1.0F + f * (radius + 4.0F), 0.0F, 1.0F * k, 0.75F * k, 0.35F * k);
+        }
+        if (stage < 2) {
+            return;
+        }
+        float top = CoreEvolution.pillarHeight(stage) - 1.0F;
+        VertexConsumer halo = buffer.getBuffer(RenderType.eyes(HALO));
+        VertexConsumer solid = buffer.getBuffer(RenderType.eyes(TRIM));
+        for (int i = 0; i < 4; i++) {
+            float ax = 0.5F + (i % 2 == 0 ? -radius : radius);
+            float az = 0.5F + (i < 2 ? -radius : radius);
+            float k = 0.8F + 0.2F * Mth.sin(time * 0.15F + i);
+            billboard(halo, p, ax, top, az, 1.5F, time * 0.02F, 1.0F * k, 0.32F * k, 0.08F * k);
+            billboard(halo, p, ax, top, az, 0.7F, 0.0F, 1.0F * k, 0.6F * k, 0.25F * k);
+        }
+        if (stage < 4) {
+            return;
+        }
+        // lightning from the crystals into the Core
+        java.util.Random rnd = new java.util.Random(((long) (time / 2.0F)) * 104729L + 7L);
+        float tx = 0.5F;
+        float ty = ORB_Y * sc;
+        float tz = 0.5F;
+        for (int i = 0; i < 4; i++) {
+            if (rnd.nextFloat() < 0.45F) {
+                continue;
+            }
+            float ax = 0.5F + (i % 2 == 0 ? -radius : radius);
+            float az = 0.5F + (i < 2 ? -radius : radius);
+            float[] last = {ax, top, az};
+            final int segs = 8;
+            for (int sIdx = 1; sIdx <= segs; sIdx++) {
+                float f = (float) sIdx / segs;
+                float spread = sIdx == segs ? 0.0F : 0.5F * Mth.sin(f * (float) Math.PI);
+                float[] cur = {ax + (tx - ax) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F,
+                        top + (ty - top) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F,
+                        az + (tz - az) * f + (rnd.nextFloat() - 0.5F) * spread * 2.0F};
+                laser(solid, p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.025F, 1.0F, 0.95F, 0.85F);
+                laser(solid, p, last[0], last[1], last[2], cur[0], cur[1], cur[2], 0.09F, 0.6F, 0.35F, 0.12F);
+                last = cur;
+            }
+        }
+        // the column of light into the sky
+        float y0 = ty + 0.5F;
+        for (int i = 0; i < 26; i++) {
+            float yc = y0 + i * 6.0F + 3.0F;
+            float k = 0.55F * (float) Math.pow(1.0F - i / 26.0F, 1.6F) * (0.85F + 0.15F * Mth.sin(time * 0.12F + i * 0.3F));
+            float w1 = 0.14F * sc;
+            float w2 = 0.34F * sc;
+            plane(solid, p, 0.5F, yc, 0.5F, w1, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.8F * k, 0.45F * k);
+            plane(solid, p, 0.5F, yc, 0.5F, 0.0F, 0.0F, w1, 0.0F, 3.0F, 0.0F, 1.0F * k, 0.8F * k, 0.45F * k);
+            plane(solid, p, 0.5F, yc, 0.5F, w2, 0.0F, 0.0F, 0.0F, 3.0F, 0.0F, 0.6F * k, 0.28F * k, 0.08F * k);
+            plane(solid, p, 0.5F, yc, 0.5F, 0.0F, 0.0F, w2, 0.0F, 3.0F, 0.0F, 0.6F * k, 0.28F * k, 0.08F * k);
+        }
+    }
+
+    /** A flat glowing rune circle on the plaza (half = half the side of the square it is drawn on). */
+    private static void runeCircle(VertexConsumer vc, PoseStack.Pose p, float half, float rot, float r, float g, float b) {
+        float c = Mth.cos(rot) * half;
+        float sn = Mth.sin(rot) * half;
+        plane(vc, p, 0.5F, 0.02F, 0.5F, c, 0.0F, sn, -sn, 0.0F, c, r, g, b);
     }
 
     /** Energy beams from the red crystals on the pillars to the Core (from stage 2 on), with bright pulses running along them. */
@@ -454,8 +666,8 @@ final class SarcophagusRenderer {
             for (int sz = -1; sz <= 1; sz += 2) {
                 float ax = 0.5F + sx * radius;
                 float az = 0.5F + sz * radius;
-                laser(vc, p, ax, top, az, tx, ty, tz, 0.03F * (0.5F + strength), 1.0F * k, 0.35F * k, 0.12F * k);
-                laser(vc, p, ax, top, az, tx, ty, tz, 0.11F * (0.5F + strength), 0.5F * k, 0.1F * k, 0.03F * k);
+                laser(vc, p, ax, top, az, tx, ty, tz, 0.03F * (0.5F + strength), 1.0F * k, 0.62F * k, 0.15F * k);
+                laser(vc, p, ax, top, az, tx, ty, tz, 0.11F * (0.5F + strength), 0.45F * k, 0.2F * k, 0.04F * k);
                 // pulses that run to the Core
                 for (int i = 0; i < 3; i++) {
                     float f = (d.time * 0.045F + i / 3.0F) % 1.0F;
@@ -476,7 +688,7 @@ final class SarcophagusRenderer {
         drawSlab(pose.last(), solid, light);
         drawUpperFrame(pose.last(), solid, light);
         flushSolid(buffer);
-        drawGlass(pose.last(), buffer, light);
+        drawGlass(pose.last(), buffer, light, 0.0F);
     }
 
     // ------------------------------------------------------------------
@@ -855,17 +1067,34 @@ final class SarcophagusRenderer {
     // Glass (drawn last)
     // ------------------------------------------------------------------
 
-    private static void drawGlass(PoseStack.Pose pose, MultiBufferSource buffer, int light) {
+    private static void drawGlass(PoseStack.Pose pose, MultiBufferSource buffer, int light, float windowDeg) {
         VertexConsumer vc = buffer.getBuffer(RenderType.entityTranslucent(GLASS_TEXTURE));
         int bright = LightTexture.pack(Math.max(LightTexture.block(light), 10), LightTexture.sky(light));
         // The glass stops under the slab (its top edge is where the slab ends), so it does not cover the slab's side.
         float g = 1.0F - SLAB;
         float a = 0.0F;
         float b = 1.0F;
-        glassTri(vc, pose, bright, a, g, 0, b, g, 0, N, 0, 0, -1);
-        glassTri(vc, pose, bright, a, g, 1, b, g, 1, S, 0, 0, 1);
-        glassTri(vc, pose, bright, 0, g, a, 0, g, b, W, -1, 0, 0);
-        glassTri(vc, pose, bright, 1, g, a, 1, g, b, E, 1, 0, 0);
+        if (windowDeg < 0.5F) {
+            glassTri(vc, pose, bright, a, g, 0, b, g, 0, N, 0, 0, -1);
+            glassTri(vc, pose, bright, a, g, 1, b, g, 1, S, 0, 0, 1);
+            glassTri(vc, pose, bright, 0, g, a, 0, g, b, W, -1, 0, 0);
+            glassTri(vc, pose, bright, 1, g, a, 1, g, b, E, 1, 0, 0);
+            return;
+        }
+        // The windows hinge open at the slab, the bottom tip swings outwards.
+        float th = (float) Math.toRadians(windowDeg);
+        float cs = Mth.cos(th);
+        float sn = Mth.sin(th);
+        glassTri(vc, pose, bright, a, g, 0, b, g, 0, petal(N, g, 0, 0, -1, cs, sn), 0, sn, -cs);
+        glassTri(vc, pose, bright, a, g, 1, b, g, 1, petal(S, g, 0, 0, 1, cs, sn), 0, sn, cs);
+        glassTri(vc, pose, bright, 0, g, a, 0, g, b, petal(W, g, -1, 0, 0, cs, sn), -cs, sn, 0);
+        glassTri(vc, pose, bright, 1, g, a, 1, g, b, petal(E, g, 1, 0, 0, cs, sn), cs, sn, 0);
+    }
+
+    /** The tip of a window turned out about the hinge: normal (nx, 0, nz) points out of the block. */
+    private static float[] petal(float[] tip, float hingeY, float nx, float ny, float nz, float cs, float sn) {
+        float len = hingeY - tip[1];
+        return new float[]{tip[0] + nx * len * sn, hingeY - len * cs, tip[2] + nz * len * sn};
     }
 
     /** Thickness of the glass (into the block). */

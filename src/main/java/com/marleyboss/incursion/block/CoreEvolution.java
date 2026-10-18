@@ -30,7 +30,35 @@ public final class CoreEvolution {
     public record Cell(int x, int y, int z, BlockState state) {
     }
 
+    /** The largest radius of the protected area (stage 4). */
+    public static final int MAX_AREA_RADIUS = 4;
+
     private CoreEvolution() {
+    }
+
+    /** Height of the invisible space of the Sarcophagus in blocks. */
+    public static int regionHeight(int stage) {
+        return (int) Math.ceil(1.9 * SCALE[clamp(stage)] - 0.001);
+    }
+
+    public static int areaRadius(int stage) {
+        return stage >= 1 ? Math.max(1, PLAZA[clamp(stage)]) : 0;
+    }
+
+    public static int areaHeight(int stage) {
+        return Math.max(regionHeight(stage), PILLAR[clamp(stage)]);
+    }
+
+    /**
+     * The protected area of a stage (relative to the Core): the whole square of the plaza up to the top of the pillars.
+     * Nothing but the structure and the blocks of the Core itself may stand there.
+     */
+    public static boolean inArea(int stage, int dx, int dy, int dz) {
+        if (stage < 1) {
+            return false;
+        }
+        int r = areaRadius(stage);
+        return Math.abs(dx) <= r && Math.abs(dz) <= r && dy >= 0 && dy < areaHeight(stage);
     }
 
     public static int stageFor(int level) {

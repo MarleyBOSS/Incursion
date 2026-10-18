@@ -192,6 +192,9 @@ public class CoreBlockEntity extends BlockEntity {
                 finale(level);
             }
         }
+        if (built == stage && stage >= 1 && tickCounter % 10 == 0) {
+            clearStrays(level);
+        }
         if (!ghosts.isEmpty() && steps.isEmpty()) {
             ghosts.removeIf(g -> g.boom() + 40 < now);
         }
@@ -265,11 +268,67 @@ public class CoreBlockEntity extends BlockEntity {
                 steps.add(new Step(pos, cell.state(), old, due, kind));
             }
         }
+        // Everything else in the area goes too (the area stays free), whatever it is.
+        int r = CoreEvolution.areaRadius(newStage);
+        int h = CoreEvolution.areaHeight(newStage);
+        if (newStage >= 1) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    for (int dy = 0; dy < h; dy++) {
+                        BlockPos pos = worldPosition.offset(dx, dy, dz);
+                        if (wanted.contains(pos.asLong())) {
+                            continue;
+                        }
+                        BlockState cur = level.getBlockState(pos);
+                        if (cur.isAir() || CoreEvolution.isStructure(cur) || CoreAreaGuard.isExempt(cur)
+                                || cur.getDestroySpeed(level, pos) < 0.0F) {
+                            continue;
+                        }
+                        boolean visible = cur.getFluidState().isEmpty()
+                                && cur.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL;
+                        long due = now + CoreEvolution.SHAKE + (long) (Math.sqrt(dx * dx + dz * dz) * 3.0) + dy;
+                        BlockState old = null;
+                        if (visible && ghosts.size() < MAX_GHOSTS) {
+                            ghosts.add(new Ghost(pos, cur, due));
+                            old = cur;
+                        }
+                        level.removeBlockEntity(pos);
+                        level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                        if (old != null) {
+                            steps.add(new Step(pos, null, old, due, 0));
+                        }
+                    }
+                }
+            }
+        }
         if (steps.isEmpty()) {
             built = stage;
         }
         setChanged();
         forceSync();
+    }
+
+    /** Removes whatever got into the protected area (flowing water, a piston, ...) without a drop. */
+    private void clearStrays(ServerLevel level) {
+        int r = CoreEvolution.areaRadius(stage);
+        int h = CoreEvolution.areaHeight(stage);
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                for (int dy = 0; dy < h; dy++) {
+                    BlockPos pos = worldPosition.offset(dx, dy, dz);
+                    BlockState cur = level.getBlockState(pos);
+                    if (cur.isAir() || CoreEvolution.isStructure(cur) || CoreAreaGuard.isExempt(cur)
+                            || cur.getDestroySpeed(level, pos) < 0.0F) {
+                        continue;
+                    }
+                    level.removeBlockEntity(pos);
+                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+                    level.levelEvent(2001, pos, Block.getId(cur));
+                    level.sendParticles(ParticleTypes.EXPLOSION, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 1,
+                            0.0, 0.0, 0.0, 0.0);
+                }
+            }
+        }
     }
 
     private void place(ServerLevel level, Step step) {
@@ -304,6 +363,12 @@ public class CoreBlockEntity extends BlockEntity {
         level.sendParticles(ParticleTypes.FLASH, x, y + 0.5, z, 1, 0.0, 0.0, 0.0, 0.0);
         level.sendParticles(ParticleTypes.END_ROD, x, y + 0.5, z, 120, 1.5, 1.5, 1.5, 0.25);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
+        for (ServerPlayer near : level.players()) {
+            if (near.distanceToSqr(x, y, z) < 80.0 * 80.0) {
+                near.displayClientMessage(Component.translatable("message.incursion.core.stage." + stage)
+                        .withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
+            }
+        }
     }
 
     /** Removes the whole structure at once (the Core was defused or is gone). */
@@ -343,8 +408,37 @@ public class CoreBlockEntity extends BlockEntity {
         if (state.getValue(CoreBlock.ACTIVE)) {
             core.clientActiveTicks++;
             CoreEffects.spawn(level, pos, core.clientActiveTicks);
+            core.evolutionParticles(level, pos);
         } else {
             core.clientActiveTicks = 0;
+        }
+    }
+
+    /** Client: embers from the energy crystals, sparks at stage 3, a rising stream of light at stage 4. */
+    private void evolutionParticles(Level level, BlockPos pos) {
+        if (built < 2) {
+            return;
+        }
+        int radius = CoreEvolution.plazaRadius(built);
+        int height = CoreEvolution.pillarHeight(built);
+        if (level.getGameTime() % 3 == 0) {
+            for (int sx = -1; sx <= 1; sx += 2) {
+                for (int sz = -1; sz <= 1; sz += 2) {
+                    double x = pos.getX() + 0.5 + sx * radius + (level.random.nextDouble() - 0.5) * 0.6;
+                    double z = pos.getZ() + 0.5 + sz * radius + (level.random.nextDouble() - 0.5) * 0.6;
+                    double y = pos.getY() + height - 0.6 + level.random.nextDouble();
+                    level.addParticle(ParticleTypes.FLAME, x, y, z, 0.0, 0.05, 0.0);
+                    if (built >= 3 && level.random.nextInt(3) == 0) {
+                        level.addParticle(ParticleTypes.ELECTRIC_SPARK, x, y, z, (level.random.nextDouble() - 0.5) * 0.3,
+                                (level.random.nextDouble() - 0.5) * 0.3, (level.random.nextDouble() - 0.5) * 0.3);
+                    }
+                }
+            }
+        }
+        if (built >= 4) {
+            double x = pos.getX() + 0.5 + (level.random.nextDouble() - 0.5) * 0.8;
+            double z = pos.getZ() + 0.5 + (level.random.nextDouble() - 0.5) * 0.8;
+            level.addParticle(ParticleTypes.END_ROD, x, pos.getY() + 2.0 + level.random.nextDouble() * 2.0, z, 0.0, 0.18, 0.0);
         }
     }
 
