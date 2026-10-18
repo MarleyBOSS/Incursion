@@ -1791,7 +1791,7 @@ final class SarcophagusRenderer {
      * scale is already multiplied by how far it has appeared. {@code appear} runs 0..1 while the stage rises to the stage of
      * the boss, {@code settle} 0..1 while the next stage rises (the boss shrinks and is lifted up between two pillars).
      * The Elder Guardian is held prisoner in a cage of rings and turned about the Core; the Warden climbs out of the plaza to
-     * the side of the ways; the Dragon circles; the Wither hangs over the Core and turns slowly.
+     * the side of the ways; the Dragon circles; the Wither circles above the Core in a cage of lasers.
      */
     private static float[] bossAt(int b, float time, float vs, float vr, float height) {
         float ap = ease(Mth.clamp(vs - b, 0.0F, 1.0F));
@@ -1819,10 +1819,11 @@ final class SarcophagusRenderer {
             ay = 12.5F + 1.2F * Mth.sin(a * 2.0F + 1.0F);
             ayaw = -a;
         } else {
-            ax = 0.5F;
-            az = 0.5F;
-            ay = WITHER_Y - 1.8F + witherBob(time);
-            ayaw = time * 0.01F;
+            float a = time * 0.006F + 2.0F;
+            ax = 0.5F + 3.4F * Mth.cos(a);
+            az = 0.5F + 3.4F * Mth.sin(a);
+            ay = 11.6F + witherBob(time);
+            ayaw = (float) Math.atan2(0.5F - ax, 0.5F - az);
         }
         float[] g = gapAt(b, vr);
         float tsc = TROPHY_SCALE[b];
@@ -1830,6 +1831,41 @@ final class SarcophagusRenderer {
         float tyaw = (float) Math.atan2(0.5F - g[0], 0.5F - g[1]);
         float scale = Mth.lerp(st, s, tsc) * Mth.clamp(ap * 2.0F, 0.0F, 1.0F);
         return new float[]{Mth.lerp(st, ax, g[0]), Mth.lerp(st, ay, ty), Mth.lerp(st, az, g[1]), lerpAngle(st, ayaw, tyaw), scale, ap, st};
+    }
+
+    /** A point of a boss that faces along its yaw (own frame: x to the side, y up, z forwards) in the world. */
+    private static float[] bossPoint(float[] a, float lx, float ly, float lz) {
+        float cs = Mth.cos(a[3]);
+        float sn = Mth.sin(a[3]);
+        float sc = a[4];
+        return new float[]{a[0] + (lx * cs + lz * sn) * sc, a[1] + ly * sc, a[2] + (-lx * sn + lz * cs) * sc};
+    }
+
+    /** A curly ribbon of energy from a to b (as the ribbons of the soul lanterns), with packets running along it. */
+    private static void curl(Lines lines, List<float[]> packets, float time, float[] a, float[] b, float k, int seed, float r, float g, float bl) {
+        if (k < 0.02F) {
+            return;
+        }
+        final int n = 18;
+        float[][] pts = new float[n + 1][];
+        for (int m = 0; m <= n; m++) {
+            float u = m / (float) n;
+            float wob = Mth.sin(u * (float) Math.PI) * 0.55F;
+            pts[m] = new float[]{a[0] + (b[0] - a[0]) * u + Mth.sin(time * 0.11F + u * 7.0F + seed * 1.7F) * wob,
+                    a[1] + (b[1] - a[1]) * u + Mth.cos(time * 0.09F + u * 6.0F + seed) * wob * 0.8F,
+                    a[2] + (b[2] - a[2]) * u + Mth.sin(time * 0.1F + u * 6.5F + seed * 2.3F + 1.0F) * wob};
+        }
+        for (int m = 0; m < n; m++) {
+            float u = (m + 0.5F) / n;
+            float kk = k * (0.45F + 0.55F * u);
+            lines.add(pts[m][0], pts[m][1], pts[m][2], pts[m + 1][0], pts[m + 1][1], pts[m + 1][2], 0.08F, r * kk * 0.22F, g * kk * 0.22F, bl * kk * 0.22F);
+            lines.add(pts[m][0], pts[m][1], pts[m][2], pts[m + 1][0], pts[m + 1][1], pts[m + 1][2], 0.024F + 0.012F * u, r * kk, g * kk, bl * kk);
+        }
+        for (int q = 0; q < 3; q++) {
+            float u = (time * 0.012F + seed * 0.2F + q / 3.0F) % 1.0F;
+            float[] at = pointAt(pts, u);
+            packets.add(new float[]{at[0], at[1], at[2], k * Mth.sin(u * (float) Math.PI), r, g, bl, 0.2F});
+        }
     }
 
     /** A point of the Ender Dragon (given in its own frame: x to its right, y up, z backwards) in the world. */
@@ -2534,10 +2570,9 @@ final class SarcophagusRenderer {
         }
     }
 
-    /** The Wither's souls: they rise from the plaza towards it, and a funnel of them spirals down from it into the Core. */
-    private static void witherEnergy(Lines lines, List<float[]> packets, Late d, float tipY, float g) {
+    /** The Wither's souls: they rise from the plaza to the Wither, which circles above the Core. */
+    private static void witherEnergy(Lines lines, List<float[]> packets, Late d, float[] w, float g) {
         float time = d.time;
-        float feet = WITHER_Y - 1.8F + witherBob(time);
         for (int i = 0; i < 10; i++) {
             float period = 210.0F + (i % 4) * 23.0F;
             float q = time / period + i * 0.173F;
@@ -2548,34 +2583,13 @@ final class SarcophagusRenderer {
             for (int tail = 0; tail < 3; tail++) {
                 float uu = Math.max(0.0F, u - tail * 0.018F);
                 float e = ease(uu);
-                float rad = rr * (float) Math.pow(1.0F - e, 1.2) + 0.45F * e;
+                float rad = rr * (float) Math.pow(1.0F - e, 1.2);
                 float ang = a + uu * 4.5F;
                 float k = g * (float) Math.pow(Mth.sin(uu * (float) Math.PI), 0.6) * (1.0F - 0.3F * tail);
-                packets.add(new float[]{0.5F + Mth.cos(ang) * rad, 0.4F + (feet + 1.5F - 0.4F) * e, 0.5F + Mth.sin(ang) * rad, k, 0.78F, 0.6F, 1.0F,
+                float px = 0.5F + Mth.cos(ang) * rad;
+                float pz = 0.5F + Mth.sin(ang) * rad;
+                packets.add(new float[]{px * (1.0F - e) + w[0] * e, 0.4F + (w[1] + 1.5F * w[4] - 0.4F) * e, pz * (1.0F - e) + w[2] * e, k, 0.78F, 0.6F, 1.0F,
                         0.2F - 0.04F * tail});
-            }
-        }
-        float yTop = feet - 0.1F;
-        float yBot = tipY;
-        for (int s = 0; s < 3; s++) {
-            float[] prev = null;
-            for (int m = 0; m <= 30; m++) {
-                float u = m / 30.0F;
-                float r = 0.2F + 1.25F * (float) Math.pow(1.0F - u, 2.0);
-                float th = time * 0.22F + s * 2.094F + u * 9.0F;
-                float[] q = {0.5F + Mth.cos(th) * r, yTop + (yBot - yTop) * u, 0.5F + Mth.sin(th) * r};
-                if (prev != null) {
-                    float k = g * (0.35F + 0.65F * u);
-                    strandSeg(lines, prev, q, 0.02F + 0.01F * u, k, 0.62F + 0.3F * u, 0.32F + 0.4F * u, 1.0F);
-                }
-                prev = q;
-            }
-            for (int m = 0; m < 5; m++) {
-                float u = (time * 0.014F + s * 0.33F + m * 0.2F) % 1.0F;
-                float r = 0.2F + 1.25F * (float) Math.pow(1.0F - u, 2.0);
-                float th = time * 0.22F + s * 2.094F + u * 9.0F;
-                packets.add(new float[]{0.5F + Mth.cos(th) * r, yTop + (yBot - yTop) * u, 0.5F + Mth.sin(th) * r,
-                        g * Mth.sin(u * (float) Math.PI), 0.85F, 0.6F, 1.0F, 0.15F + 0.1F * u});
             }
         }
     }
@@ -2789,8 +2803,66 @@ final class SarcophagusRenderer {
                 float[] pk = ribbonPoint(l, coreY, time, i, u);
                 packets.add(new float[]{pk[0], pk[1], pk[2], Mth.sin(u * (float) Math.PI) * l[3], 0.75F, 0.5F, 1.0F, 0.2F});
             }
-            witherEnergy(lines, packets, d, tipY, gw);
+            float[] wb = boss[3];
+            witherEnergy(lines, packets, d, wb, gw);
+            // all three heads send a curly ribbon (as the soul lanterns do) into the antenna while it circles the Core
+            float[][] heads = {bossPoint(wb, 0.0F, 2.95F, 0.15F), bossPoint(wb, -1.25F, 2.45F, 0.15F), bossPoint(wb, 1.25F, 2.45F, 0.15F)};
+            for (int h = 0; h < 3; h++) {
+                curl(lines, packets, time, heads[h], tip, gw, h + 60, 0.7F, 0.45F, 1.0F);
+            }
             feed += gw * 0.9F;
+            // the laser cage that holds it: the violet crystals of the pillars steer it, so that it cannot get away
+            float cyaw = time * 0.02F;
+            float ccs = Mth.cos(cyaw);
+            float csn = Mth.sin(cyaw);
+            float chx = 1.7F * wb[4];
+            float chy = 2.1F * wb[4];
+            float[] cm = {wb[0], wb[1] + BOSS_MID[3] * wb[4], wb[2]};
+            float[][] cc = new float[8][];
+            for (int v = 0; v < 8; v++) {
+                float lx = (v & 1) == 0 ? -chx : chx;
+                float ly = (v & 2) == 0 ? -chy : chy;
+                float lz = (v & 4) == 0 ? -chx : chx;
+                cc[v] = new float[]{cm[0] + lx * ccs + lz * csn, cm[1] + ly, cm[2] - lx * csn + lz * ccs};
+            }
+            float cp = gw * (0.8F + 0.2F * Mth.sin(time * 0.2F));
+            for (int v = 0; v < 8; v++) {
+                for (int bit = 1; bit <= 4; bit <<= 1) {
+                    if ((v & bit) != 0) {
+                        continue;
+                    }
+                    float[] ca = cc[v];
+                    float[] cb = cc[v | bit];
+                    lines.add(ca[0], ca[1], ca[2], cb[0], cb[1], cb[2], 0.14F, 0.35F * cp * 0.3F, 0.1F * cp * 0.3F, 0.7F * cp * 0.3F);
+                    lines.add(ca[0], ca[1], ca[2], cb[0], cb[1], cb[2], 0.04F, 0.8F * cp, 0.5F * cp, 1.0F * cp);
+                }
+                packets.add(new float[]{cc[v][0], cc[v][1], cc[v][2], 0.5F * cp, 0.7F, 0.4F, 1.0F, 0.3F});
+            }
+            boolean[] taken = new boolean[8];
+            for (int i = 0; i < 4; i++) {
+                if (gems[i] == null) {
+                    continue;
+                }
+                int pick = -1;
+                float bestD = Float.MAX_VALUE;
+                for (int v = 0; v < 8; v++) {
+                    float dd = dist3(gems[i], cc[v]);
+                    if (!taken[v] && dd < bestD) {
+                        bestD = dd;
+                        pick = v;
+                    }
+                }
+                taken[pick] = true;
+                float[] cv = cc[pick];
+                float flick = cp * (0.75F + 0.25F * Mth.sin(time * 0.37F + i * 1.9F));
+                lines.add(gems[i][0], gems[i][1], gems[i][2], cv[0], cv[1], cv[2], 0.12F, 0.35F * flick * 0.3F, 0.1F * flick * 0.3F, 0.7F * flick * 0.3F);
+                lines.add(gems[i][0], gems[i][1], gems[i][2], cv[0], cv[1], cv[2], 0.035F, 0.85F * flick, 0.55F * flick, 1.0F * flick);
+                for (int q = 0; q < 2; q++) {
+                    float u = (time * 0.025F + i * 0.25F + q * 0.5F) % 1.0F;
+                    packets.add(new float[]{gems[i][0] + (cv[0] - gems[i][0]) * u, gems[i][1] + (cv[1] - gems[i][1]) * u,
+                            gems[i][2] + (cv[2] - gems[i][2]) * u, 0.8F * cp * Mth.sin(u * (float) Math.PI), 0.75F, 0.5F, 1.0F, 0.18F});
+                }
+            }
             for (int i = 0; i < 4; i++) {
                 float[] sk = eyeAt(i, vp);
                 hose(lines, packets, time, sk, tip, 0.6F, 0.09F, 1.0F, gw * 0.8F, 0.6F, 0.32F, 1.0F, i + 40);
