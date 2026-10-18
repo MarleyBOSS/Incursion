@@ -98,7 +98,8 @@ public final class CoreEvolution {
         float s = SCALE[stage];
         int lo = (int) Math.floor(0.5 - s / 2.0 + 0.001);
         int hi = (int) Math.floor(0.5 + s / 2.0 - 0.001);
-        int height = (int) Math.ceil(1.9 * s - 0.001);
+        // only the body of the lower half is solid; the air above it (where the upper half floats) stays free to walk in
+        int height = Math.max(2, (int) Math.ceil(0.95 * s - 0.001));
         for (int x = lo; x <= hi; x++) {
             for (int z = lo; z <= hi; z++) {
                 for (int y = 0; y < height; y++) {

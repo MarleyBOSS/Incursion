@@ -168,6 +168,10 @@ Mit jeder Stufe stärker:
 
 **Umsetzung im Design.** Geschlossen: ein voller Block (Unterschale, vier Platten mit Scharnier und Tuch-Einlage, Deckel mit dem Siegel-„Auge“, animierte Runen, Nahtlinie in Türkis). Aktiv: nur die Unterschale steht als Blockmodell, den Rest zeichnet `client/CoreShellRenderer` (Deckel, Kolben, Platten, Kristall, Laser, Siegelkreis); die Aufklapp-Zeit ist `OPEN_TICKS` (50). Sounds `core_open` (Entsiegeln) und `core_hum` (Summen, alle ~4 s), Partikel `block/CoreEffects`. Texturen: `tools/gen_core_textures.py`. Für die übrigen Blöcke und Items (Totem, Beute-Kiste, Upgrade-Werkzeuge, Splitter) gilt dieselbe Handschrift: Obsidian + violett + Gold + Türkis, animierte Runen, Siegel-Bezug.
 
+## Upgrade-Fluss mit Boss-Nacht (Idee 18.10.)
+
+Spieler setzt tagsüber oder nachts die Tafel mit dem Upgrade-Werkzeug ein (Stufe 5, 10, 15). Das Upgrade startet, schließt aber erst nach der **darauffolgenden Nacht** ab (ca. 24 Ingame-Stunden). In dieser Nacht erscheint der **Boss der Stufe** (Späher, Brecher, Seelenwirker; bei Stufe 20 Varkhul). Wer die Nacht übersteht, bekommt das Upgrade und die **Evolution des Sarkophags** (`CoreEvolution`). Die Features der Evolution sollen an den Boss der Stufe erinnern. Offen: Abbruch bei zerstörtem Kern, Anzeige im GUI, Testmodus überspringt die Wartezeit.
+
 ## Laufen auf der Route (v0.8.3.2)
 
 - Die Wege sind aus rechtwinkligen Schritten gebaut, aber Mobs laufen sie **nicht Schritt für Schritt** ab: Die normale Mob-Wegfindung (`getNavigation().moveTo`) führt sie zu einem Schritt ihres Weges bis zu 12 Schritte voraus (nie über das hinaus, was begehbar bereit ist, `walkLimit`). Sie bewegen sich dadurch wie jeder Mob, der etwas jagt. Findet die Wegfindung keinen Weg (oder im tiefen Wasser, als Passagier), läuft der Mob die Schritte wie vorher. Arbeiten (bauen, graben) und Plattformen laufen unverändert.

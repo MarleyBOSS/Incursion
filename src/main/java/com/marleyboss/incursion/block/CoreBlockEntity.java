@@ -192,7 +192,7 @@ public class CoreBlockEntity extends BlockEntity {
                 finale(level);
             }
         }
-        if (built == stage && stage >= 1 && tickCounter % 10 == 0) {
+        if (built == stage && stage >= 1 && tickCounter % 4 == 0) {
             clearStrays(level);
         }
         if (!ghosts.isEmpty() && steps.isEmpty()) {
@@ -310,6 +310,7 @@ public class CoreBlockEntity extends BlockEntity {
 
     /** Removes whatever got into the protected area (flowing water, a piston, ...) without a drop. */
     private void clearStrays(ServerLevel level) {
+        int doomed = 0;
         int r = CoreEvolution.areaRadius(stage);
         int h = CoreEvolution.areaHeight(stage);
         for (int dx = -r; dx <= r; dx++) {
@@ -323,11 +324,24 @@ public class CoreBlockEntity extends BlockEntity {
                     }
                     level.removeBlockEntity(pos);
                     level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
-                    level.levelEvent(2001, pos, Block.getId(cur));
-                    level.sendParticles(ParticleTypes.EXPLOSION, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 1,
-                            0.0, 0.0, 0.0, 0.0);
+                    boolean visible = cur.getFluidState().isEmpty()
+                            && cur.getRenderShape() == net.minecraft.world.level.block.RenderShape.MODEL;
+                    if (visible && ghosts.size() < MAX_GHOSTS && doomed < 24) {
+                        // what is placed in the area shakes for a moment and blows up
+                        long due = level.getGameTime() + 30L;
+                        ghosts.add(new Ghost(pos, cur, due));
+                        steps.add(new Step(pos, null, cur, due, 0));
+                        doomed++;
+                    } else {
+                        level.levelEvent(2001, pos, Block.getId(cur));
+                        level.sendParticles(ParticleTypes.POOF, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, 3,
+                                0.2, 0.2, 0.2, 0.01);
+                    }
                 }
             }
+        }
+        if (doomed > 0) {
+            forceSync();
         }
     }
 
