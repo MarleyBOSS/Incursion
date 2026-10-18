@@ -265,7 +265,6 @@ final class SarcophagusRenderer {
         pose.mulPose(Axis.YP.rotationDegrees(twist));
         pose.translate(-0.5F, 0.0F, -0.5F);
         drawSlab(pose.last(), solid, light);
-        drawUnderside(pose.last(), solid, light);
         drawUpperFrame(pose.last(), solid, light);
         pose.popPose();
         flushSolid(buffer);
@@ -377,23 +376,6 @@ final class SarcophagusRenderer {
                 new float[]{a, y0, a}, new float[]{a, y0, b}, new float[]{a, 1, b}, new float[]{a, 1, a});
         poly(vc, pose, light, inner, 2, -1, 0, 0,
                 new float[]{b, y0, a}, new float[]{b, y0, b}, new float[]{b, 1, b}, new float[]{b, 1, a});
-    }
-
-    /**
-     * The underside of the upper half. The upper half is the piece that completes the cube, so below it has the same
-     * shape as the top of the lower half (the V valleys and the four corner tips). Drawn on both sides: from below it is
-     * the underside, from inside (through the glass) it is what one sees behind the windows, so one cannot look
-     * through the block. A hair below the real surface, so that a shut block does not flicker against the floor.
-     */
-    private static void drawUnderside(PoseStack.Pose pose, VertexConsumer vc, int light) {
-        TextureAtlasSprite marble = sprite(MARBLE);
-        for (float[][] tri : FLOOR) {
-            float[] a = {tri[0][0], tri[0][1] - 0.003F, tri[0][2]};
-            float[] b = {tri[1][0], tri[1][1] - 0.003F, tri[1][2]};
-            float[] c = {tri[2][0], tri[2][1] - 0.003F, tri[2][2]};
-            poly(vc, pose, light, marble, 0, 0, -1, 0, a, b, c);
-            poly(vc, pose, light, marble, 0, 0, 1, 0, a, b, c);
-        }
     }
 
     /** The frame of the lower half: gold, clean. Bottom edges, corner posts and the V notches. */
@@ -545,6 +527,12 @@ final class SarcophagusRenderer {
             polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, nrm[0], nrm[1], nrm[2],
                     wallPoint(alongX, poly.get(0), front), wallPoint(alongX, poly.get(i), front),
                     wallPoint(alongX, poly.get(i + 1), front));
+        }
+        // the back face (towards the inside of the block), so that the frame can be seen from inside as well
+        for (int i = 1; i + 1 < poly.size(); i++) {
+            polyAt(vc, pose, light, sprite, mode, 0.5F, 0.5F, -nrm[0], -nrm[1], -nrm[2],
+                    wallPoint(alongX, poly.get(0), back), wallPoint(alongX, poly.get(i), back),
+                    wallPoint(alongX, poly.get(i + 1), back));
         }
         // sides (not those on the block's own boundary)
         for (int i = 0; i < poly.size(); i++) {
@@ -836,11 +824,11 @@ final class SarcophagusRenderer {
         pose.mulPose(Axis.YP.rotationDegrees(twist));
         pose.translate(-0.5F, 0.0F, -0.5F);
         PoseStack.Pose q = pose.last();
-        for (float[][] tri : FLOOR) {
-            float[] ca = {tri[0][0], tri[0][1] - 0.006F, tri[0][2]};
-            float[] cb = {tri[1][0], tri[1][1] - 0.006F, tri[1][2]};
-            float[] cc = {tri[2][0], tri[2][1] - 0.006F, tri[2][2]};
-            glowTri(vc, q, ca, cb, cc, 0.15F * k, 0.4F * k, 0.55F * k, false);
+        float y = 1.0F - SLAB - 0.003F;
+        float[] m = {0.5F, y, 0.5F};
+        float[][] corners = {{INSET, y, INSET}, {1 - INSET, y, INSET}, {1 - INSET, y, 1 - INSET}, {INSET, y, 1 - INSET}};
+        for (int i = 0; i < 4; i++) {
+            glowTri(vc, q, corners[i], corners[(i + 1) % 4], m, 0.2F * k, 0.2F * k, 0.4F * k, false);
         }
         pose.popPose();
     }
