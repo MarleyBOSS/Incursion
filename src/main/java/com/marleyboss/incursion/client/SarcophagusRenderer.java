@@ -279,7 +279,7 @@ final class SarcophagusRenderer {
             drawBolt(pose, buffer, time, 1.0F - t / 0.18F);
         }
         if (orb > 0.0F) {
-            drawInnerGlow(pose, buffer, time, orb);
+            drawInnerGlow(pose, buffer, time, orb, lift, twist, shake);
         }
         if (orb > 0.0F) {
             float flash = t < 1.0F ? Mth.sin(Mth.clamp((t - 0.45F) / 0.2F, 0.0F, 1.0F) * (float) Math.PI) : 0.0F;
@@ -811,8 +811,9 @@ final class SarcophagusRenderer {
         }
     }
 
-    /** The firelight of the Core on the floor of the lower half. */
-    private static void drawInnerGlow(PoseStack pose, MultiBufferSource buffer, float time, float scale) {
+    /** The firelight of the Core on the floor of the lower half and on the underside of the slab. */
+    private static void drawInnerGlow(PoseStack pose, MultiBufferSource buffer, float time, float scale, float lift,
+                                      float twist, float shake) {
         VertexConsumer vc = buffer.getBuffer(RenderType.eyes(TRIM));
         float k = scale * (0.85F + 0.15F * Mth.sin(time * 0.19F));
         PoseStack.Pose p = pose.last();
@@ -822,6 +823,21 @@ final class SarcophagusRenderer {
             float[] c = {tri[2][0], tri[2][1] + 0.003F, tri[2][2]};
             glowTri(vc, p, a, b, c, 0.38F * k, 0.25F * k, 0.55F * k, true);
         }
+        // The glow on the underside of the slab. It stays inside the frame (the strips and the gold line under the slab are
+        // about 0.075 wide) and fades to almost nothing at its rim, so no bright edge or line shows round it or at the tips.
+        pose.pushPose();
+        pose.translate(0.5F + shake, lift, 0.5F);
+        pose.mulPose(Axis.YP.rotationDegrees(twist));
+        pose.translate(-0.5F, 0.0F, -0.5F);
+        PoseStack.Pose q = pose.last();
+        float y = 1.0F - SLAB - 0.003F;
+        float e = 0.09F;
+        float[] m = {0.5F, y, 0.5F};
+        float[][] corners = {{e, y, e}, {1 - e, y, e}, {1 - e, y, 1 - e}, {e, y, 1 - e}};
+        for (int i = 0; i < 4; i++) {
+            glowTri(vc, q, corners[i], corners[(i + 1) % 4], m, 0.03F * k, 0.03F * k, 0.4F * k, false);
+        }
+        pose.popPose();
     }
 
     /** A triangle with a glow colour (orange) per corner, intensities ka, kb, kc; faces up or down. */
