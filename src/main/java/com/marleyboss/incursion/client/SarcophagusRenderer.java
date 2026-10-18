@@ -442,13 +442,14 @@ final class SarcophagusRenderer {
                 vStrip(vc, pose, light, sprite, mode, alongX, at, 0.0F, TIP, 0.5F, 0.5F, half, shift, top, out);
                 vStrip(vc, pose, light, sprite, mode, alongX, at, 1.0F, TIP, 0.5F, 0.5F, half, shift, top, out);
             }
-            float sign = at < 0.5F ? -1.0F : 1.0F;
-            float front = at + sign * out;
             float line = 0.010F;
-            polyAt(vc, pose, light, gold, 4, 0.5F, 0.5F, alongX ? 0 : sign, 0, alongX ? sign : 0,
-                    wallPoint(alongX, new float[]{x0, top}, front), wallPoint(alongX, new float[]{1.0F - x0, top}, front),
-                    wallPoint(alongX, new float[]{1.0F - x0 - line * slant, top - line}, front),
-                    wallPoint(alongX, new float[]{x0 + line * slant, top - line}, front));
+            float near = at < 0.5F ? -out : 1.0F - DEPTH;
+            float far = at < 0.5F ? DEPTH : 1.0F + out;
+            if (alongX) {
+                box(vc, pose, light, gold, 4, x0, 1.0F - x0, top - line, top, near, far);
+            } else {
+                box(vc, pose, light, gold, 4, near, far, top - line, top, x0, 1.0F - x0);
+            }
         }
     }
 
@@ -526,11 +527,11 @@ final class SarcophagusRenderer {
         }
     }
 
+    /** Sides on the block's own boundary or in the seam between two strips stay out; the top (under the slab) is drawn so nothing can be seen through. */
     private static boolean onBoundary(float[] a, float[] b, float ymax) {
         float e = 1.0E-4F;
         return (a[0] < e && b[0] < e) || (a[0] > 1.0F - e && b[0] > 1.0F - e)
-                || (Math.abs(a[0] - 0.5F) < e && Math.abs(b[0] - 0.5F) < e)
-                || (a[1] > ymax - e && b[1] > ymax - e);
+                || (Math.abs(a[0] - 0.5F) < e && Math.abs(b[0] - 0.5F) < e);
     }
 
     private static float[] wallPoint(boolean alongX, float[] q, float depth) {
@@ -672,13 +673,38 @@ final class SarcophagusRenderer {
         glassTri(vc, pose, bright, 1, g, a, 1, g, b, E, 1, 0, 0);
     }
 
-    /** A glass triangle: the top edge from (ax, ay, az) to (bx, by, bz), the tip c. u runs along the top edge, v down to the tip. */
+    /** Thickness of the glass (into the block). */
+    private static final float GLASS_DEPTH = 0.03F;
+
+    /**
+     * A glass triangle with thickness: the top edge from (ax, ay, az) to (bx, by, bz), the tip c, (nx, ny, nz) pointing
+     * out of the block. A back sheet, three side faces and a front sheet. u runs along the top edge, v down to the tip.
+     */
     private static void glassTri(VertexConsumer vc, PoseStack.Pose pose, int light, float ax, float ay, float az, float bx,
                                  float by, float bz, float[] c, float nx, float ny, float nz) {
-        glassVertex(vc, pose, light, ax, ay, az, 0.0F, 0.0F, nx, ny, nz);
-        glassVertex(vc, pose, light, bx, by, bz, 1.0F, 0.0F, nx, ny, nz);
-        glassVertex(vc, pose, light, c[0], c[1], c[2], 0.5F, 1.0F, nx, ny, nz);
-        glassVertex(vc, pose, light, c[0], c[1], c[2], 0.5F, 1.0F, nx, ny, nz);
+        float d = GLASS_DEPTH;
+        float[][] front = {{ax, ay, az}, {bx, by, bz}, {c[0], c[1], c[2]}};
+        float[][] back = new float[3][];
+        for (int i = 0; i < 3; i++) {
+            back[i] = new float[]{front[i][0] - nx * d, front[i][1] - ny * d, front[i][2] - nz * d};
+        }
+        float[][] uv = {{0.0F, 0.0F}, {1.0F, 0.0F}, {0.5F, 1.0F}};
+        // the back sheet first, so that the front sheet blends over it when seen from outside
+        for (int i = 0; i < 4; i++) {
+            int k = Math.min(i, 2);
+            glassVertex(vc, pose, light, back[k][0], back[k][1], back[k][2], uv[k][0], uv[k][1], nx, ny, nz);
+        }
+        for (int e = 0; e < 3; e++) {
+            int f = (e + 1) % 3;
+            glassVertex(vc, pose, light, front[e][0], front[e][1], front[e][2], 0.5F, 0.5F, nx, ny, nz);
+            glassVertex(vc, pose, light, front[f][0], front[f][1], front[f][2], 0.5F, 0.5F, nx, ny, nz);
+            glassVertex(vc, pose, light, back[f][0], back[f][1], back[f][2], 0.5F, 0.5F, nx, ny, nz);
+            glassVertex(vc, pose, light, back[e][0], back[e][1], back[e][2], 0.5F, 0.5F, nx, ny, nz);
+        }
+        for (int i = 0; i < 4; i++) {
+            int k = Math.min(i, 2);
+            glassVertex(vc, pose, light, front[k][0], front[k][1], front[k][2], uv[k][0], uv[k][1], nx, ny, nz);
+        }
     }
 
     private static void glassVertex(VertexConsumer vc, PoseStack.Pose pose, int light, float x, float y, float z, float u,
