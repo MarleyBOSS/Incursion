@@ -3,6 +3,7 @@ package com.marleyboss.incursion.block;
 import com.marleyboss.incursion.registry.ModBlocks;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
@@ -11,7 +12,8 @@ import net.minecraft.world.level.block.state.BlockState;
  * <ul>
  *     <li>stage 0 (level 1-4): the Sarcophagus, 1x2 blocks;</li>
  *     <li>stage 1 (level 5-9): bigger, on a 3x3 plaza of obsidian with gold lines;</li>
- *     <li>stage 2 (level 10-14): bigger, a round plaza with gold rings, four pillars with red energy crystals;</li>
+ *     <li>stage 2 (level 10-14): bigger, a round plaza with gold rings and glass panes, four pillars with red energy crystals,
+ *     and under the plaza a hollow inverted cone of obsidian and gold, the prison of the Warden;</li>
  *     <li>stage 3 (level 15-19): bigger, wider plaza, taller pillars, energy beams from the crystals to the Core;</li>
  *     <li>stage 4 (level 20): the full size: the widest plaza, the tallest pillars, strong beams.</li>
  * </ul>
@@ -37,7 +39,32 @@ public final class CoreEvolution {
     /** The largest radius of the protected area (stage 4). */
     public static final int MAX_AREA_RADIUS = 11;
 
+    /** The floor of the prison under the plaza (y relative to the Core): the Warden walks on y = PRISON_FLOOR + 1. */
+    public static final int PRISON_FLOOR = -7;
+    private static final int PRISON_BOTTOM = -13;
+    /** Thickness of the hull of the cone. */
+    private static final float HULL = 1.3F;
+
     private CoreEvolution() {
+    }
+
+    /** Outer radius of the inverted cone at height y (y = -2 is the layer right under the plaza). */
+    public static float coneRadius(int y) {
+        return 8.2F - 0.62F * (-1 - y);
+    }
+
+    /** Is this cell inside the hollow of the prison (stage 2 on)? */
+    public static boolean inPrison(int dx, int dy, int dz) {
+        if (dy > -2 || dy <= PRISON_FLOOR) {
+            return false;
+        }
+        float ri = coneRadius(dy) - HULL + 0.5F;
+        return dx * dx + dz * dz <= ri * ri;
+    }
+
+    /** The lowest layer (relative to the Core) of the protected area. */
+    public static int areaBottom(int stage) {
+        return clamp(stage) >= 2 ? PRISON_FLOOR + 1 : 0;
     }
 
     /** Height of the invisible space of the Sarcophagus in blocks. */
@@ -108,8 +135,11 @@ public final class CoreEvolution {
         if (stage < 1) {
             return false;
         }
+        if (dy < 0) {
+            return clamp(stage) >= 2 && inPrison(dx, dy, dz);
+        }
         float disc = DISC[clamp(stage)] + 0.5F;
-        return dx * dx + dz * dz <= disc * disc && dy >= 0 && dy < areaHeight(stage);
+        return dx * dx + dz * dz <= disc * disc && dy < areaHeight(stage);
     }
 
     public static int stageFor(int level) {
@@ -180,7 +210,8 @@ public final class CoreEvolution {
                     boolean frame = ra == 2 || rp == 2; // framed in gold
                     boolean cross = stage == 1 && (x == 0 || z == 0);
                     boolean isGold = !pad && (frame || cross || Math.abs(x) == Math.abs(z) || onRing(d, stage, disc));
-                    cells.add(new Cell(x, -1, z, isGold ? gold : floor));
+                    boolean glass = stage >= 2 && !isGold && !pad && d >= 1.0 && d <= 4.8; // panes: one looks down into the prison
+                    cells.add(new Cell(x, -1, z, glass ? Blocks.GLASS.defaultBlockState() : isGold ? gold : floor));
                 }
             }
         }
@@ -192,6 +223,28 @@ public final class CoreEvolution {
                 for (int sz = -1; sz <= 1; sz += 2) {
                     for (int y = 0; y < pillar; y++) {
                         cells.add(new Cell(sx * radius, y, sz * radius, column));
+                    }
+                }
+            }
+        }
+        if (stage >= 2) {
+            // the prison: an inverted cone of obsidian and gold under the plaza, hollow down to its floor
+            BlockState air = Blocks.AIR.defaultBlockState();
+            BlockState hullFloor = ModBlocks.CORE_FLOOR.get().defaultBlockState();
+            BlockState hullGold = ModBlocks.CORE_GOLD.get().defaultBlockState();
+            for (int y = -2; y >= PRISON_BOTTOM; y--) {
+                float ro = coneRadius(y);
+                int rr = (int) Math.ceil(ro + 0.3F);
+                int k = -1 - y;
+                for (int x = -rr; x <= rr; x++) {
+                    for (int z = -rr; z <= rr; z++) {
+                        double d = Math.sqrt(x * x + z * z);
+                        if (y > PRISON_FLOOR && d <= ro - HULL) {
+                            cells.add(new Cell(x, y, z, air));
+                        } else if (d <= ro + 0.3) {
+                            boolean isGold = y == PRISON_FLOOR ? (d > 2.4 && d < 3.2) || x == 0 || z == 0 : k % 3 == 0 || x == 0 || z == 0;
+                            cells.add(new Cell(x, y, z, isGold ? hullGold : hullFloor));
+                        }
                     }
                 }
             }
@@ -233,6 +286,6 @@ public final class CoreEvolution {
     public static boolean isStructure(BlockState state) {
         return state.is(ModBlocks.CORE_PART.get()) || state.is(ModBlocks.CORE_TOP.get())
                 || state.is(ModBlocks.CORE_FLOOR.get()) || state.is(ModBlocks.CORE_GOLD.get())
-                || state.is(ModBlocks.CORE_CRYSTAL.get());
+                || state.is(ModBlocks.CORE_CRYSTAL.get()) || state.is(Blocks.GLASS);
     }
 }

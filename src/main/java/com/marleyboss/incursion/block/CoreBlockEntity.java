@@ -279,7 +279,11 @@ public class CoreBlockEntity extends BlockEntity {
                 if (!cur.isAir()) {
                     level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
                 }
-                steps.add(new Step(pos, cell.state(), old, due, kind));
+                if (!cell.state().isAir()) {
+                    steps.add(new Step(pos, cell.state(), old, due, kind));
+                } else if (old != null) {
+                    steps.add(new Step(pos, null, old, due, 0)); // only the blast
+                }
             }
         }
         // Everything else in the area goes too (the area stays free), whatever it is.
@@ -288,7 +292,7 @@ public class CoreBlockEntity extends BlockEntity {
         if (newStage >= 1) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    for (int dy = 0; dy < h; dy++) {
+                    for (int dy = CoreEvolution.areaBottom(newStage); dy < h; dy++) {
                         if (!CoreEvolution.inArea(newStage, dx, dy, dz)) {
                             continue;
                         }
@@ -332,7 +336,7 @@ public class CoreBlockEntity extends BlockEntity {
         int h = CoreEvolution.areaHeight(stage);
         for (int dx = -r; dx <= r; dx++) {
             for (int dz = -r; dz <= r; dz++) {
-                for (int dy = 0; dy < h; dy++) {
+                for (int dy = CoreEvolution.areaBottom(stage); dy < h; dy++) {
                     if (!CoreEvolution.inArea(stage, dx, dy, dz)) {
                         continue;
                     }
