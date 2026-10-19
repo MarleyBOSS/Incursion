@@ -42,15 +42,15 @@ public final class CoreEvolution {
     /** The floor of the prison under the plaza (y relative to the Core): the Warden walks on y = PRISON_FLOOR + 1. */
     public static final int PRISON_FLOOR = -7;
     private static final int PRISON_BOTTOM = -13;
-    /** Thickness of the hull of the cone. */
+    /** Thickness of the hull of the pyramid. */
     private static final float HULL = 1.3F;
 
     private CoreEvolution() {
     }
 
-    /** Outer radius of the inverted cone at height y (y = -2 is the layer right under the plaza). */
+    /** Outer half-width of the inverted pyramid at height y (y = -2 is the layer right under the plaza); ends in one block at PRISON_BOTTOM. */
     public static float coneRadius(int y) {
-        return 8.2F - 0.62F * (-1 - y);
+        return 6.6F - 0.6F * (-2 - y);
     }
 
     /** Is this cell inside the hollow of the prison (stage 2 on)? */
@@ -59,7 +59,7 @@ public final class CoreEvolution {
             return false;
         }
         float ri = coneRadius(dy) - HULL + 0.5F;
-        return dx * dx + dz * dz <= ri * ri;
+        return Math.max(Math.abs(dx), Math.abs(dz)) <= ri;
     }
 
     /** The lowest layer (relative to the Core) of the protected area. */
@@ -228,7 +228,7 @@ public final class CoreEvolution {
             }
         }
         if (stage >= 2) {
-            // the prison: an inverted cone of obsidian and gold under the plaza, hollow down to its floor
+            // the prison: an inverted pyramid of obsidian and gold under the plaza, ending in a point, hollow down to its floor
             BlockState air = Blocks.AIR.defaultBlockState();
             BlockState hullFloor = ModBlocks.CORE_FLOOR.get().defaultBlockState();
             BlockState hullGold = ModBlocks.CORE_GOLD.get().defaultBlockState();
@@ -238,11 +238,11 @@ public final class CoreEvolution {
                 int k = -1 - y;
                 for (int x = -rr; x <= rr; x++) {
                     for (int z = -rr; z <= rr; z++) {
-                        double d = Math.sqrt(x * x + z * z);
+                        int d = Math.max(Math.abs(x), Math.abs(z));
                         if (y > PRISON_FLOOR && d <= ro - HULL) {
                             cells.add(new Cell(x, y, z, air));
                         } else if (d <= ro + 0.3) {
-                            boolean isGold = y == PRISON_FLOOR ? (d > 2.4 && d < 3.2) || x == 0 || z == 0 : k % 3 == 0 || x == 0 || z == 0;
+                            boolean isGold = y == PRISON_FLOOR ? d == 3 || Math.abs(x) == Math.abs(z) : k % 3 == 0 || Math.abs(x) == Math.abs(z);
                             cells.add(new Cell(x, y, z, isGold ? hullGold : hullFloor));
                         }
                     }
