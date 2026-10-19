@@ -39,32 +39,46 @@ public final class CoreEvolution {
     /** The largest radius of the protected area (stage 4). */
     public static final int MAX_AREA_RADIUS = 11;
 
-    /** The floor of the prison under the plaza (y relative to the Core): the Warden walks on y = PRISON_FLOOR + 1. */
+    /** The floor of the prison under the plaza from stage 2 on (y relative to the Core): the Warden walks on y = PRISON_FLOOR + 1. */
     public static final int PRISON_FLOOR = -7;
-    private static final int PRISON_BOTTOM = -13;
+    /** Half width of the inverted pyramid under the plaza at its top (y = -2), per stage: it grows with the plaza. */
+    private static final float[] PYR_TOP = {0.0F, 3.6F, 6.6F, 7.6F, 8.6F};
+    private static final float PYR_SLOPE = 0.6F;
+    /** Radius of the glass window in the plaza floor, per stage. */
+    private static final float[] GLASS_R = {0.0F, 2.3F, 5.0F, 5.8F, 6.6F};
     /** Thickness of the hull of the pyramid. */
     private static final float HULL = 1.3F;
 
     private CoreEvolution() {
     }
 
-    /** Outer half-width of the inverted pyramid at height y (y = -2 is the layer right under the plaza); ends in one block at PRISON_BOTTOM. */
-    public static float coneRadius(int y) {
-        return 6.6F - 0.6F * (-2 - y);
+    /** Outer half-width of the inverted pyramid of a stage at height y (y = -2 is the layer right under the plaza); it ends in one block. */
+    public static float coneRadius(int stage, int y) {
+        return PYR_TOP[clamp(stage)] - PYR_SLOPE * (-2 - y);
     }
 
-    /** Is this cell inside the hollow of the prison (stage 2 on)? */
-    public static boolean inPrison(int dx, int dy, int dz) {
-        if (dy > -2 || dy <= PRISON_FLOOR) {
+    /** The floor of the hollow under the plaza (a small chamber in stage 1, the prison of the Warden from stage 2 on). */
+    public static int prisonFloor(int stage) {
+        return clamp(stage) >= 2 ? PRISON_FLOOR : -5;
+    }
+
+    /** Is this cell inside the hollow under the plaza (stage 1 on)? */
+    public static boolean inPrison(int stage, int dx, int dy, int dz) {
+        if (clamp(stage) < 1 || dy > -2 || dy <= prisonFloor(stage)) {
             return false;
         }
-        float ri = coneRadius(dy) - HULL + 0.5F;
+        float ri = coneRadius(stage, dy) - HULL + 0.5F;
         return Math.max(Math.abs(dx), Math.abs(dz)) <= ri;
     }
 
     /** The lowest layer (relative to the Core) of the protected area. */
     public static int areaBottom(int stage) {
-        return clamp(stage) >= 2 ? PRISON_FLOOR + 1 : 0;
+        return clamp(stage) >= 1 ? prisonFloor(stage) + 1 : 0;
+    }
+
+    /** Radius of the glass window in the plaza floor (for the client: the animation runs through the stages). */
+    public static float glassAt(float stage) {
+        return blend(GLASS_R, stage);
     }
 
     /** Height of the invisible space of the Sarcophagus in blocks. */
@@ -136,7 +150,7 @@ public final class CoreEvolution {
             return false;
         }
         if (dy < 0) {
-            return clamp(stage) >= 2 && inPrison(dx, dy, dz);
+            return inPrison(stage, dx, dy, dz);
         }
         float disc = DISC[clamp(stage)] + 0.5F;
         return dx * dx + dz * dz <= disc * disc && dy < areaHeight(stage);
@@ -210,7 +224,7 @@ public final class CoreEvolution {
                     boolean frame = ra == 2 || rp == 2; // framed in gold
                     boolean cross = stage == 1 && (x == 0 || z == 0);
                     boolean isGold = !pad && (frame || cross || Math.abs(x) == Math.abs(z) || onRing(d, stage, disc));
-                    boolean glass = stage >= 2 && !isGold && !pad && d >= 1.0 && d <= 4.8; // panes: one looks down into the prison
+                    boolean glass = !pad && !frame && !cross && d >= 1.0 && d <= GLASS_R[stage]; // a big window: one looks down into the prison
                     cells.add(new Cell(x, -1, z, glass ? Blocks.GLASS.defaultBlockState() : isGold ? gold : floor));
                 }
             }
@@ -227,22 +241,23 @@ public final class CoreEvolution {
                 }
             }
         }
-        if (stage >= 2) {
-            // the prison: an inverted pyramid of obsidian and gold under the plaza, ending in a point, hollow down to its floor
+        if (stage >= 1) {
+            // the hollow under the plaza: an inverted pyramid of obsidian and gold that ends in a point (the prison of the Warden)
             BlockState air = Blocks.AIR.defaultBlockState();
             BlockState hullFloor = ModBlocks.CORE_FLOOR.get().defaultBlockState();
             BlockState hullGold = ModBlocks.CORE_GOLD.get().defaultBlockState();
-            for (int y = -2; y >= PRISON_BOTTOM; y--) {
-                float ro = coneRadius(y);
+            int floorY = prisonFloor(stage);
+            for (int y = -2; coneRadius(stage, y) >= -0.3F; y--) {
+                float ro = coneRadius(stage, y);
                 int rr = (int) Math.ceil(ro + 0.3F);
                 int k = -1 - y;
                 for (int x = -rr; x <= rr; x++) {
                     for (int z = -rr; z <= rr; z++) {
                         int d = Math.max(Math.abs(x), Math.abs(z));
-                        if (y > PRISON_FLOOR && d <= ro - HULL) {
+                        if (y > floorY && d <= ro - HULL) {
                             cells.add(new Cell(x, y, z, air));
                         } else if (d <= ro + 0.3) {
-                            boolean isGold = y == PRISON_FLOOR ? d == 3 || Math.abs(x) == Math.abs(z) : k % 3 == 0 || Math.abs(x) == Math.abs(z);
+                            boolean isGold = y == floorY ? d == 3 || Math.abs(x) == Math.abs(z) : k % 3 == 0 || Math.abs(x) == Math.abs(z);
                             cells.add(new Cell(x, y, z, isGold ? hullGold : hullFloor));
                         }
                     }
