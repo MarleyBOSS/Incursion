@@ -56,18 +56,6 @@ public final class ModBlocks {
     public static final DeferredBlock<com.marleyboss.incursion.block.CoreCrystalBlock> CORE_CRYSTAL = BLOCKS.register("core_crystal",
             () -> new com.marleyboss.incursion.block.CoreCrystalBlock(structure(MapColor.COLOR_RED, 11).noOcclusion()));
 
-    /** The fire of the explosion: looks like normal fire, never dies, comes back elsewhere when put out (see EternalFire). */
-    public static final DeferredBlock<com.marleyboss.incursion.block.EternalFireBlock> ETERNAL_FIRE = BLOCKS.register("eternal_fire",
-            () -> new com.marleyboss.incursion.block.EternalFireBlock(BlockBehaviour.Properties.of()
-                    .mapColor(MapColor.FIRE)
-                    .replaceable()
-                    .noCollission()
-                    .instabreak()
-                    .sound(SoundType.WOOL)
-                    .lightLevel(state -> 15)
-                    .noLootTable()
-                    .pushReaction(PushReaction.DESTROY)));
-
     private static BlockBehaviour.Properties structure(MapColor color, int light) {
         return BlockBehaviour.Properties.of()
                 .mapColor(color)

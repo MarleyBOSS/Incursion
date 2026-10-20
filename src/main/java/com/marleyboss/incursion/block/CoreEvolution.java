@@ -258,7 +258,7 @@ public final class CoreEvolution {
     /** The cell (as an offset on both axes) the chains of a stage are fixed on; the renderer uses the same position. */
     public static int anchorCell(int stage) {
         stage = clamp(stage);
-        float reach = Math.min(0.5F * SCALE[stage] + 2.3F, PLAZA[stage] + 0.4F);
+        float reach = Math.min(0.5F * SCALE[stage] + 1.6F, PLAZA[stage] + 0.4F);
         return Math.max(1, (int) Math.floor(reach + 0.5F));
     }
 

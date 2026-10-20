@@ -330,12 +330,13 @@ public final class Config {
             .define("contaminationEnabled", true);
 
     public static final ModConfigSpec.BooleanValue BURN_ENABLED = BUILDER
-            .comment("If true, the land burns after the explosion with eternal fire (it comes back somewhere nearby when put out).")
+            .comment("If true, the land burns after the explosion. The fires burn on netherrack, so they never go out; a fire that is",
+                    "put out is lit again somewhere nearby.")
             .define("burnEnabled", true);
 
-    public static final ModConfigSpec.IntValue BURN_DENSITY = BUILDER
+    public static final ModConfigSpec.IntValue FIRE_DENSITY = BUILDER
             .comment("Share (in percent) of the ground in the crater that burns; towards the edge of the zone it falls off.")
-            .defineInRange("burnDensity", 55, 1, 100);
+            .defineInRange("fireDensity", 4, 1, 100);
 
     public static final ModConfigSpec.DoubleValue CONTAMINATION_RADIUS_FACTOR = BUILDER
             .comment("Contaminated zone radius = crater radius * this factor (max 96 blocks).")

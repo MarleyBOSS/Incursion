@@ -1,5 +1,4 @@
 {
-  "block.incursion.eternal_fire": "Eternal Fire",
   "block.incursion.core": "Sarcophagus",
   "block.incursion.core_part": "Sarcophagus (space)",
   "block.incursion.core_floor": "Core Plaza",
@@ -8,7 +7,7 @@
   "message.incursion.core.stage.1": "Stage I (Scout + Elder Guardian): The Elder Guardian hangs in its golden cage of rings above the plain, a beige beam leads from its eye into the antenna of the lid.",
   "message.incursion.core.stage.2": "Stage II (Breaker + Warden): The Warden stands in its cage of rings between two pillars, blue rings of sound run into the antenna. The Elder Guardian stays as a trophy on chains between the pillars.",
   "message.incursion.core.stage.3": "Stage III (Soul Weaver + Ender Dragon): The Ender Dragon hangs in its cage of rings, a violet beam leads into the antenna. Warden and Elder Guardian stay as trophies on golden chains between the pillars.",
-  "message.incursion.core.stage.4": "Stage IV (Wither): The Wither hangs in its cage of rings, a white beam leads into the antenna, from which a beam of light rises into the sky. The other bosses feed the antenna as trophies, Wither skulls sit in the pillars.",
+  "message.incursion.core.stage.4": "Stage IV (Wither): The Wither hangs in its cage of rings, a white beam leads into the antenna, from which a beam of light rises into the sky. The other bosses feed the antenna as trophies.",
   "block.incursion.core_top": "Sarcophagus (upper half)",
   "message.incursion.core.state.active": "ACTIVE",
   "message.incursion.core.state.inactive": "inactive",
@@ -106,7 +105,7 @@
   "incursion.configuration.explosionBlocksPerTick": "Blocks removed per tick",
   "incursion.configuration.explosionDamage": "Explosion damage",
   "incursion.configuration.burnEnabled": "Land burns after the explosion",
-  "incursion.configuration.burnDensity": "Fire density (%)",
+  "incursion.configuration.fireDensity": "Fire density (%)",
   "incursion.configuration.contaminationEnabled": "Contamination enabled",
   "incursion.configuration.contaminationRadiusFactor": "Contamination radius (× crater)",
   "incursion.configuration.contaminationMinutes": "Contamination duration (minutes, -1 = forever)",

@@ -245,7 +245,7 @@ final class SarcophagusRenderer {
         state.rising = state.open > before;
         float t = state.open;
         if (active && t >= 1.0F && time >= state.nextHum) {
-            level.playLocalSound(px, py, pz, ModSounds.CORE_HUM.get(), SoundSource.BLOCKS, 0.4F, 1.0F, false);
+            level.playLocalSound(px, py, pz, ModSounds.CORE_HUM.get(), SoundSource.BLOCKS, 1.0F, 1.0F, false);
             state.nextHum = time + 1277.0F; // the piece is 64 s (1280 ticks) and fades at both ends: the next round starts just before its end
         }
 
@@ -407,7 +407,6 @@ final class SarcophagusRenderer {
             drawCageChains(pose, fresh, time, vs, vp);
             drawPillars(pose, fresh, time, vp);
             flushSolid(buffer);
-            drawEnderEyes(pose, buffer, time, vp);
             drawBosses(pose, buffer, level, core, time, partialTick, vs, vp, yawCam);
         }
 
@@ -422,7 +421,22 @@ final class SarcophagusRenderer {
         late.lift = lift;
         late.twist = twist;
         late.shake = shake;
-        late.orb = orb;
+        float evoAge = -1.0F;
+        float evoBoost = 1.0F;
+        if (active && core.isEvoShow()) {
+            evoAge = (level.getGameTime() - core.getEvoStart()) + partialTick;
+            float fuse = CoreEvolution.EVOLVE_TICKS;
+            if (evoAge < 0.0F) {
+                evoAge = -1.0F;
+            } else if (evoAge < fuse) {
+                evoBoost = 1.0F + 2.2F * (float) Math.pow(evoAge / fuse, 2.2);
+            } else {
+                float fall = Math.max(0.0F, 1.0F - (evoAge - fuse) / 25.0F);
+                evoBoost = 1.0F + 2.2F * fall * fall;
+            }
+        }
+        late.evoAge = evoAge;
+        late.orb = orb * evoBoost;
         late.flash = flash;
         late.glow = glow;
         late.contents = contents;
@@ -467,6 +481,8 @@ final class SarcophagusRenderer {
         float vh;
         float window;
         float yaw;
+        /** Ticks since a new stage began to rise (the upgrade animation), -1 = none. */
+        float evoAge = -1.0F;
     }
 
     private static final List<Late> LATE = new ArrayList<>();
@@ -539,6 +555,9 @@ final class SarcophagusRenderer {
         }
         pose.popPose();
         drawEvolution(pose, buffer, d);
+        if (d.evoAge >= 0.0F) {
+            CoreBlastRenderer.drawUpgrade(pose, buffer, d);
+        }
 
         // All glowing parts are drawn now, before the glass: the glass writes depth, and drawn earlier it would hide
         // whatever glows behind it (the order the buffers are drawn in is not fixed unless it is done by hand).
@@ -631,11 +650,6 @@ final class SarcophagusRenderer {
     private static float[] crystalColor(float vp) {
         float b = toSoul(vp);
         return new float[]{Mth.lerp(b, 1.0F, 0.72F), Mth.lerp(b, 0.38F, 0.35F), Mth.lerp(b, 0.1F, 1.0F)};
-    }
-
-    /** Height of the eye that sits in a pillar of the given stone height. */
-    private static float eyeHeight(float top) {
-        return Math.max(1.4F, top * 0.5F);
     }
 
     /** A repeatable pseudo random number in [0, 1) from two integers. */
@@ -833,24 +847,6 @@ final class SarcophagusRenderer {
                 ring(vc, p, light, gold, cx, yc, cz, (cr + 0.62F) * wB, 1.05F, -rot2, 12, 0.014F);
                 ring(vc, p, light, gold, cx, yc, cz, (cr + 0.74F) * wB, -1.05F, rot2 * 0.7F, 12, 0.012F);
             }
-            // an eye is set into the shaft, looking at the Core (stage 3 on): the energy of the dragon leaves the pillar here
-            if (toB > 0.05F) {
-                float ey = eyeHeight(top);
-                pose.pushPose();
-                pose.translate(cx, ey, cz);
-                pose.mulPose(Axis.YP.rotationDegrees(-ang * 57.29578F));
-                pose.scale(toB, toB, toB);
-                PoseStack.Pose q = pose.last();
-                float front = -(hw + 0.30F);
-                fbox(vc, q, light, marble, wall, front, -hw + 0.1F, -0.27F, 0.27F, -0.27F, 0.27F);
-                fbox(vc, q, light, dark, dark, front - 0.016F, front, -0.19F, 0.19F, -0.19F, 0.19F);
-                float fx = front - 0.012F;
-                beam(vc, q, light, gold, fx, -0.22F, -0.22F, fx, -0.22F, 0.22F, 0.026F);
-                beam(vc, q, light, gold, fx, 0.22F, -0.22F, fx, 0.22F, 0.22F, 0.026F);
-                beam(vc, q, light, gold, fx, -0.22F, -0.22F, fx, 0.22F, -0.22F, 0.026F);
-                beam(vc, q, light, gold, fx, -0.22F, 0.22F, fx, 0.22F, 0.22F, 0.026F);
-                pose.popPose();
-            }
             float y = yc + 0.07F * Mth.sin(time * 0.08F + i * 1.7F);
             crystal(vc, p, crystal, cx, y, cz, cr, ch, time * 0.045F + i * 0.8F);
         }
@@ -1046,41 +1042,6 @@ final class SarcophagusRenderer {
                 prev = pos;
             }
         }
-        // stage 4: purple tongues, rooted in the orb, bent upwards, writhing
-        float tg = ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F));
-        if (tg > 0.02F) {
-            for (int i = 0; i < 7; i++) {
-                float phi = i * 2.399F + time * 0.006F * (i % 2 == 0 ? 1.0F : -1.0F);
-                float theta = 0.15F + 0.55F * (0.5F + 0.5F * Mth.sin(i * 1.7F + time * 0.01F));
-                float[] dd = dirOf(phi, theta);
-                float sl = Mth.sqrt(dd[0] * dd[0] + dd[2] * dd[2]);
-                float s1x = -dd[2] / sl;
-                float s1z = dd[0] / sl;
-                float s2x = dd[1] * s1z;
-                float s2y = dd[2] * s1x - dd[0] * s1z;
-                float s2z = -dd[1] * s1x;
-                float life = 0.5F + 0.5F * Mth.sin(time * 0.13F + i * 2.9F) * Mth.sin(time * 0.071F + i * 1.3F + 1.0F);
-                float room = Math.max(0.05F, fireLimit(dd, d.lift, 0.44F) - r0 - 0.03F);
-                float len = Math.min(room, (0.3F * f) * (0.4F + 0.6F * life)) * tg;
-                float[] prev = null;
-                for (int sg = 0; sg <= 7; sg++) {
-                    float u = sg / 7.0F;
-                    float run = u * len;
-                    float swayA = Mth.sin(time * 0.21F + i * 1.3F + u * 4.5F) * 0.16F * u * len;
-                    float swayB = Mth.cos(time * 0.17F + i + u * 3.8F) * 0.12F * u * len;
-                    float rr = r0 + run;
-                    float[] pos = {cx + dd[0] * rr + s1x * swayA + s2x * swayB, cy + dd[1] * rr + s2y * swayB, cz + dd[2] * rr + s1z * swayA + s2z * swayB};
-                    if (prev != null) {
-                        float heat = k * tg * (0.55F + 0.45F * life);
-                        float w = 0.02F * (1.0F - 0.8F * u);
-                        lines.add(prev[0], prev[1], prev[2], pos[0], pos[1], pos[2], w * 1.8F, 0.45F * heat * 0.4F, 0.15F * heat * 0.4F, 0.9F * heat * 0.4F);
-                        lines.add(prev[0], prev[1], prev[2], pos[0], pos[1], pos[2], w, 0.62F * heat * (1.0F - 0.3F * u), 0.3F * heat, 1.0F * heat);
-                        lines.add(prev[0], prev[1], prev[2], pos[0], pos[1], pos[2], w * 0.4F, 0.95F * heat, 0.8F * heat, 1.0F * heat);
-                    }
-                    prev = pos;
-                }
-            }
-        }
         lines.flush(buffer, p);
         float crown = ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F));
         if (crown > 0.02F) {
@@ -1102,7 +1063,7 @@ final class SarcophagusRenderer {
     private static float[] anchorAt(int i, float scale, float vs) {
         float ext = ease(Mth.clamp(vs, 0.0F, 1.0F));
         float radius = Math.max(1.0F, CoreEvolution.radiusAt(vs));
-        float reach = Math.min(0.5F * scale + 2.3F, radius + 0.4F);
+        float reach = Math.min(0.5F * scale + 1.6F, radius + 0.4F);
         float sx = i % 2 == 0 ? -1.0F : 1.0F;
         float sz = i < 2 ? -1.0F : 1.0F;
         float tx = 0.5F + sx * 0.5F * scale;
@@ -1127,18 +1088,7 @@ final class SarcophagusRenderer {
             float[] an = anchorAt(i, scale, vs);
             float ax = an[0];
             float az = an[1];
-            final int links = 14;
-            for (int k = 1; k < links; k++) {
-                float f = (float) k / links;
-                float x = tx + (ax - tx) * f;
-                float y = ty + (0.06F - ty) * f - 0.10F * Mth.sin(f * (float) Math.PI) + 0.012F * Mth.sin(time * 0.07F + k + i);
-                float z = tz + (az - tz) * f;
-                if (k % 2 == 0) {
-                    box(vc, p, light, gold, 4, x - 0.07F, x + 0.07F, y - 0.04F, y + 0.04F, z - 0.03F, z + 0.03F);
-                } else {
-                    box(vc, p, light, gold, 4, x - 0.03F, x + 0.03F, y - 0.04F, y + 0.04F, z - 0.07F, z + 0.07F);
-                }
-            }
+            chainBetween(vc, p, light, gold, tx, ty, tz, ax, 0.06F, az, 0.10F, time + i * 7.0F, 1.0F);
             // the anchor ring on the plaza
             float w = 0.42F * ext;
             float t = 0.07F;
@@ -1719,7 +1669,7 @@ final class SarcophagusRenderer {
     /** Height of the middle of a boss above its feet, in units of its scale. */
     private static final float[] BOSS_MID = {1.0F, 1.45F, 1.0F, 1.7F};
     /** Radius of the cage of rings round a boss, in units of its scale. */
-    private static final float[] CAGE_R = {1.8F, 1.5F, 5.0F, 2.2F};
+    private static final float[] CAGE_R = {1.8F, 1.5F, 3.3F, 2.2F};
 
     /** Height of the middle of the trophies that hang between pillars of the given height (above head height, the ways stay free). */
     private static float trophyMid(float height) {
@@ -1963,10 +1913,11 @@ final class SarcophagusRenderer {
         float yc = crystalCenter(vp);
         for (int b = 0; b < 4; b++) {
             float[] a = bossAt(b, time, vs, vr, height);
-            if (a[6] < 0.03F || a[4] < 0.05F) {
+            if (a[5] < 0.03F || a[4] < 0.05F) {
                 continue;
             }
-            float r = CAGE_R[b] * a[4];
+            // every boss hangs on its two pillars from the moment it appears (active or not); the chain ends at the outer ring
+            float r = CAGE_R[b] * a[4] * 1.24F * Mth.clamp(a[5] * 1.5F, 0.0F, 1.0F);
             float mx = a[0];
             float my = a[1] + BOSS_MID[b] * a[4];
             float mz = a[2];
@@ -1981,90 +1932,72 @@ final class SarcophagusRenderer {
                 float hy = my + dy / len * r;
                 float hz = mz + dz / len * r;
                 float span = Mth.sqrt((cx - hx) * (cx - hx) + (yc - hy) * (yc - hy) + (cz - hz) * (cz - hz));
-                int n = Math.max(4, (int) (span / 0.24F));
-                int shown = (int) (n * a[6]);
-                float sag = 0.14F * span;
-                float px = -(cz - hz);
-                float pz = cx - hx;
-                float pl = Math.max(0.01F, Mth.sqrt(px * px + pz * pz));
-                px /= pl;
-                pz /= pl;
-                for (int k = 0; k < shown; k++) {
-                    float u = (k + 0.5F) / n;
-                    float u2 = (k + 1.0F) / n;
-                    float[] c0 = chainPoint(cx, yc, cz, hx, hy, hz, u, sag, time, k);
-                    float[] c1 = chainPoint(cx, yc, cz, hx, hy, hz, u2, sag, time, k + 1);
-                    if (k % 2 == 0) {
-                        beam(vc, p, light, gold, c0[0], c0[1], c0[2], c1[0], c1[1], c1[2], 0.05F);
-                    } else {
-                        float mx2 = (c0[0] + c1[0]) * 0.5F;
-                        float my2 = (c0[1] + c1[1]) * 0.5F;
-                        float mz2 = (c0[2] + c1[2]) * 0.5F;
-                        beam(vc, p, light, gold, mx2 - px * 0.07F, my2, mz2 - pz * 0.07F, mx2 + px * 0.07F, my2, mz2 + pz * 0.07F, 0.04F);
-                    }
-                }
+                chainBetween(vc, p, light, gold, cx, yc, cz, hx, hy, hz, 0.14F * span, time, a[5]);
             }
+        }
+    }
+
+    private static final float LINK_LENGTH = 0.22F;
+    private static final float LINK_WIDTH = 0.11F;
+
+    /** A hanging chain of real links from a to b (it sags in the middle); {@code frac} is how much of it is there, from a on. */
+    private static void chainBetween(VertexConsumer vc, PoseStack.Pose p, int light, TextureAtlasSprite gold, float ax, float ay,
+                                     float az, float bx, float by, float bz, float sag, float time, float frac) {
+        float span = Mth.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay) + (bz - az) * (bz - az));
+        int n = Math.max(4, (int) (span / 0.15F));
+        int shown = (int) (n * Mth.clamp(frac, 0.0F, 1.0F));
+        for (int k = 0; k < shown; k++) {
+            float[] c = chainPoint(ax, ay, az, bx, by, bz, (k + 0.5F) / n, sag, time, k);
+            float[] c0 = chainPoint(ax, ay, az, bx, by, bz, k / (float) n, sag, time, k);
+            float[] c1 = chainPoint(ax, ay, az, bx, by, bz, (k + 1.0F) / n, sag, time, k);
+            chainLink(vc, p, light, gold, c[0], c[1], c[2], c1[0] - c0[0], c1[1] - c0[1], c1[2] - c0[2], k % 2 == 0);
+        }
+    }
+
+    /**
+     * One link of a chain: a flat oval ring of four thin bars round (cx, cy, cz), its long side along (tx, ty, tz). The links
+     * alternate: one lies flat, the next stands on its edge, as in a real chain.
+     */
+    private static void chainLink(VertexConsumer vc, PoseStack.Pose p, int light, TextureAtlasSprite gold, float cx, float cy, float cz,
+                                  float tx, float ty, float tz, boolean flat) {
+        float tl = Mth.sqrt(tx * tx + ty * ty + tz * tz);
+        if (tl < 1.0E-4F) {
+            return;
+        }
+        tx /= tl;
+        ty /= tl;
+        tz /= tl;
+        float n1x = -tz;
+        float n1z = tx;
+        float nl = Mth.sqrt(n1x * n1x + n1z * n1z);
+        if (nl < 1.0E-3F) {
+            n1x = 1.0F;
+            n1z = 0.0F;
+            nl = 1.0F;
+        }
+        n1x /= nl;
+        n1z /= nl;
+        // n2 = t x n1 (n1 has no y part)
+        float n2x = -tz * 0.0F + ty * n1z;
+        float n2y = tz * n1x - tx * n1z;
+        float n2z = -ty * n1x;
+        float ux = flat ? n1x : n2x;
+        float uy = flat ? 0.0F : n2y;
+        float uz = flat ? n1z : n2z;
+        float hl = LINK_LENGTH * 0.5F;
+        float hw = LINK_WIDTH * 0.5F;
+        float bar = 0.014F;
+        for (int side = -1; side <= 1; side += 2) {
+            beam(vc, p, light, gold, cx - tx * hl + ux * hw * side, cy - ty * hl + uy * hw * side, cz - tz * hl + uz * hw * side,
+                    cx + tx * hl + ux * hw * side, cy + ty * hl + uy * hw * side, cz + tz * hl + uz * hw * side, bar);
+            beam(vc, p, light, gold, cx + tx * hl * side - ux * hw, cy + ty * hl * side - uy * hw, cz + tz * hl * side - uz * hw,
+                    cx + tx * hl * side + ux * hw, cy + ty * hl * side + uy * hw, cz + tz * hl * side + uz * hw, bar);
         }
     }
 
     /** A point of a sagging chain from (ax, ay, az) to (bx, by, bz), u = 0..1. */
     private static float[] chainPoint(float ax, float ay, float az, float bx, float by, float bz, float u, float sag, float time, int k) {
         return new float[]{ax + (bx - ax) * u, ay + (by - ay) * u - sag * 4.0F * u * (1.0F - u) + 0.01F * Mth.sin(time * 0.07F + k), az + (bz - az) * u};
-    }
-
-    /** Position of the Eye of Ender set into the shaft of pillar i, in front of its niche. */
-    private static float[] eyeAt(int i, float vp) {
-        float vr = CoreEvolution.pillarRadiusAt(vp);
-        float cx = 0.5F + (i % 2 == 0 ? -vr : vr);
-        float cz = 0.5F + (i < 2 ? -vr : vr);
-        float ang = (float) Math.atan2(cz - 0.5F, cx - 0.5F);
-        float top = CoreEvolution.pillarAt(vp) - 1.7F;
-        float hw = shaftHalf(vp);
-        return new float[]{cx - Mth.cos(ang) * (hw + 0.36F), eyeHeight(top), cz - Mth.sin(ang) * (hw + 0.36F)};
-    }
-
-    private static ItemStack eyeStack;
-    private static ItemStack skullStack;
-
-    /**
-     * The Eyes of Ender (stage 3, the Ender Dragon) and the Wither skeleton skulls (stage 4, the Wither) in the niches of the
-     * pillars: the game's own items, set so that they look at the Core (they do not turn with the player).
-     */
-    private static void drawEnderEyes(PoseStack pose, MultiBufferSource buffer, float time, float vp) {
-        float toB = toSoul(vp);
-        float toR = toRift(vp);
-        if (toB < 0.05F || CoreEvolution.pillarAt(vp) < 1.0F) {
-            return;
-        }
-        if (eyeStack == null) {
-            eyeStack = new ItemStack(Items.ENDER_EYE);
-            skullStack = new ItemStack(Items.WITHER_SKELETON_SKULL);
-        }
-        Level level = Minecraft.getInstance().level;
-        float eyeK = toB * (1.0F - toR);
-        for (int i = 0; i < 4; i++) {
-            float[] e = eyeAt(i, vp);
-            float yaw = (float) Math.atan2(0.5F - e[0], 0.5F - e[2]);
-            float cy = e[1] + 0.03F * Mth.sin(time * 0.07F + i * 1.7F);
-            if (eyeK > 0.03F) {
-                pose.pushPose();
-                pose.translate(e[0], cy, e[2]);
-                pose.mulPose(Axis.YP.rotation(yaw));
-                pose.scale(eyeK, eyeK, eyeK);
-                Minecraft.getInstance().getItemRenderer().renderStatic(eyeStack, ItemDisplayContext.FIXED, LightTexture.FULL_BRIGHT,
-                        OverlayTexture.NO_OVERLAY, pose, buffer, level, i);
-                pose.popPose();
-            }
-            if (toR > 0.03F) {
-                pose.pushPose();
-                pose.translate(e[0], cy - 0.1F * toR, e[2]);
-                pose.mulPose(Axis.YP.rotation(yaw + (float) Math.PI)); // the face of a skull item looks the other way
-                pose.scale(0.8F * toR, 0.8F * toR, 0.8F * toR);
-                Minecraft.getInstance().getItemRenderer().renderStatic(skullStack, ItemDisplayContext.FIXED, LightTexture.FULL_BRIGHT,
-                        OverlayTexture.NO_OVERLAY, pose, buffer, level, i);
-                pose.popPose();
-            }
-        }
     }
 
     /** u0 (0), u1 (1), v0 (2), v1 (3) of a sprite. */
@@ -2604,17 +2537,6 @@ final class SarcophagusRenderer {
                     col[0] * 0.5F * pulse, col[1] * 0.5F * pulse, col[2] * 0.5F * pulse);
             billboard(buffer.getBuffer(glow(HALO)), p, gems[i][0], gems[i][1], gems[i][2], 1.5F, time * 0.02F,
                     col[0] * 0.36F * pulse, col[1] * 0.36F * pulse, col[2] * 0.36F * pulse);
-        }
-        // the glow of the Eyes of Ender
-        if (toB > 0.05F && height > 1.0F) {
-            for (int i = 0; i < 4; i++) {
-                float[] ey = eyeAt(i, vp);
-                float toR = toRift(vp);
-                float k = toB * (1.0F - toR) * (0.35F + 0.5F * dragon);
-                billboard(buffer.getBuffer(glow(HALO)), p, ey[0], ey[1], ey[2], 0.55F, 0.0F, 0.12F * k, 0.75F * k, 0.5F * k);
-                float ks = toR * (0.35F + 0.5F * ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F)));
-                billboard(buffer.getBuffer(glow(HALO)), p, ey[0], ey[1], ey[2], 0.6F, 0.0F, 0.5F * ks, 0.3F * ks, 0.9F * ks);
-            }
         }
     }
 

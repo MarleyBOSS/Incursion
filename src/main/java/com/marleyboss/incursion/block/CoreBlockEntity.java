@@ -112,6 +112,8 @@ public class CoreBlockEntity extends BlockEntity {
     private long evoStart = 0L;
     /** Server: a new stage is being raised (music and finale play); not saved. */
     private boolean announce;
+    /** The client plays the upgrade animation (a real new stage, not a rebuild after loading); synced, not saved. */
+    private boolean evoShow;
     /** Blocks that were in the way, shown shaking until they blow up (client side copy, synced, not saved). */
     private final List<Ghost> ghosts = new ArrayList<>();
     /** Blocks still to place (server side). */
@@ -272,6 +274,12 @@ public class CoreBlockEntity extends BlockEntity {
                 ghosts.add(new Ghost(pos, cur, due));
                 old = cur;
             }
+            if (!reserved && CoreEvolution.isStructure(cur) && !cell.state().isAir()) {
+                // a block of the structure that only changes (the pattern of the plaza grows): swap it at once, so that there is
+                // never a gap that one could fall through
+                level.setBlock(pos, cell.state(), Block.UPDATE_ALL);
+                continue;
+            }
             level.removeBlockEntity(pos); // no contents fall out
             if (reserved) {
                 level.setBlock(pos, cell.state(), Block.UPDATE_ALL);
@@ -327,6 +335,7 @@ public class CoreBlockEntity extends BlockEntity {
         }
         // a new stage (not a rebuild after loading the world): the music builds up and the finale comes after a fixed time
         announce = newStage != oldStage && newStage >= 1;
+        evoShow = announce;
         if (announce) {
             steps.add(new Step(worldPosition, null, null, now + CoreEvolution.EVOLVE_TICKS, 0)); // does nothing, only holds the finale back
             level.playSound(null, worldPosition, ModSounds.CORE_EVOLVE_RISE.get(), SoundSource.BLOCKS, 2.0F, 1.0F);
@@ -502,6 +511,10 @@ public class CoreBlockEntity extends BlockEntity {
         return built;
     }
 
+    public boolean isEvoShow() {
+        return evoShow;
+    }
+
     public long getEvoStart() {
         return evoStart;
     }
@@ -611,6 +624,7 @@ public class CoreBlockEntity extends BlockEntity {
         CompoundTag tag = saveWithoutMetadata(registries);
         tag.putLongArray(TAG_WARDS, syncedWards);
         tag.putLong("EvoStart", evoStart);
+        tag.putBoolean("EvoShow", evoShow);
         net.minecraft.nbt.ListTag list = new net.minecraft.nbt.ListTag();
         for (Ghost g : ghosts) {
             CompoundTag entry = new CompoundTag();
@@ -942,6 +956,7 @@ public class CoreBlockEntity extends BlockEntity {
         built = tag.contains("Built") ? tag.getInt("Built") : -1;
         fading = tag.getBoolean("Fading");
         evoStart = tag.getLong("EvoStart");
+        evoShow = tag.getBoolean("EvoShow");
         ghosts.clear();
         if (tag.contains("Ghosts")) {
             net.minecraft.nbt.ListTag list = tag.getList("Ghosts", 10);

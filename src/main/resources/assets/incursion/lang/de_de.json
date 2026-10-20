@@ -1,5 +1,4 @@
 {
-  "block.incursion.eternal_fire": "Ewiges Feuer",
   "block.incursion.core": "Sarkophag",
   "block.incursion.core_part": "Sarkophag (Raum)",
   "block.incursion.core_floor": "Kernplattform",
@@ -8,7 +7,7 @@
   "message.incursion.core.stage.1": "Stufe I (Späher + Elder Guardian): Der Elder Guardian hängt im goldenen Ringkäfig über der Ebene, ein beiger Strahl führt aus seinem Auge in die Antenne des Deckels.",
   "message.incursion.core.stage.2": "Stufe II (Brecher + Warden): Der Warden steht im Ringkäfig zwischen zwei Pfeilern, blaue Schallringe laufen in die Antenne. Der Elder Guardian bleibt als Trophäe an Ketten zwischen den Pfeilern.",
   "message.incursion.core.stage.3": "Stufe III (Seelenwirker + Enderdrache): Der Enderdrache hängt im Ringkäfig, ein violetter Strahl führt in die Antenne. Warden und Elder Guardian bleiben als Trophäen an goldenen Ketten zwischen den Pfeilern.",
-  "message.incursion.core.stage.4": "Stufe IV (Wither): Der Wither hängt im Ringkäfig, ein weißer Strahl führt in die Antenne, aus der ein Lichtstrahl in den Himmel steigt. Die anderen Bosse speisen die Antenne als Trophäen, Wither-Schädel sitzen in den Pfeilern.",
+  "message.incursion.core.stage.4": "Stufe IV (Wither): Der Wither hängt im Ringkäfig, ein weißer Strahl führt in die Antenne, aus der ein Lichtstrahl in den Himmel steigt. Die anderen Bosse speisen die Antenne als Trophäen.",
   "block.incursion.core_top": "Sarkophag (Oberteil)",
   "message.incursion.core.state.active": "AKTIV",
   "message.incursion.core.state.inactive": "inaktiv",
@@ -106,7 +105,7 @@
   "incursion.configuration.explosionBlocksPerTick": "Entfernte Blöcke pro Tick",
   "incursion.configuration.explosionDamage": "Explosionsschaden",
   "incursion.configuration.burnEnabled": "Land brennt nach der Explosion",
-  "incursion.configuration.burnDensity": "Dichte des Feuers (%)",
+  "incursion.configuration.fireDensity": "Dichte des Feuers (%)",
   "incursion.configuration.contaminationEnabled": "Verseuchung aktiv",
   "incursion.configuration.contaminationRadiusFactor": "Verseuchungsradius (× Krater)",
   "incursion.configuration.contaminationMinutes": "Verseuchungsdauer (Minuten, -1 = für immer)",

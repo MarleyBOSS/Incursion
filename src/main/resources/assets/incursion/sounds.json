@@ -4,7 +4,7 @@
   "table_finish": { "subtitle": "subtitles.incursion.table_finish", "sounds": [ "incursion:block/table/finish" ] },
   "table_zap": { "subtitle": "subtitles.incursion.table_zap", "sounds": [ "incursion:block/table/zap" ] },
   "core_open": { "subtitle": "subtitles.incursion.core_open", "sounds": [ "incursion:block/core/open" ] },
-  "core_hum": { "subtitle": "subtitles.incursion.core_hum", "sounds": [ { "name": "incursion:block/core/hum", "stream": true, "attenuation_distance": 24 } ] },
+  "core_hum": { "subtitle": "subtitles.incursion.core_hum", "sounds": [ { "name": "incursion:block/core/hum", "stream": true, "attenuation_distance": 40 } ] },
   "core_evolve_rise": { "subtitle": "subtitles.incursion.core_evolve_rise", "sounds": [ { "name": "incursion:block/core/evolve_rise", "attenuation_distance": 48 } ] },
   "core_evolve_finale": { "subtitle": "subtitles.incursion.core_evolve_finale", "sounds": [ { "name": "incursion:block/core/evolve_finale", "attenuation_distance": 48 } ] },
   "core_meltdown": { "subtitle": "subtitles.incursion.core_meltdown", "sounds": [ { "name": "incursion:block/core/meltdown", "attenuation_distance": 160 } ] },

@@ -26,8 +26,9 @@ Der Spieler baut den **Incursion Core**, einen Block, der von Stufe 0 bis Stufe 
 - Großer Krater, das Gebiet wird danach **unbewohnbar** (verseuchte Zone: Ödland-Blöcke, Schaden für alles darin).
 - Die Verseuchung bleibt standardmäßig **für immer**, in der Config einstellbar (Dauer, Radius, abschaltbar).
 - Technisch: Der Krater wird schrittweise über mehrere Ticks erzeugt, damit das Spiel nicht einfriert.
+- **Upgrade (v0.17):** Auch jedes Upgrade hat eine kleine Version dieser Animation (Aufladen passend zur Musik, danach eine Welle aus Licht), ohne Feuer und Zerstörung.
 - **Meltdown (v0.16):** Der Kern explodiert nicht auf einen Schlag. Er überlädt 5,5 Sekunden lang (Kern wird größer, heller, weiß; Ringe, Blitze, Funken, Kamerawackeln, Warnung in der Action-Bar), dann folgt die animierte Explosion (Flash, Feuerball, Schockwellen, Lichtsäule, Funkenregen). Der Krater entsteht erst mit der Explosion.
-- **Ewiges Feuer (v0.16):** Nach der Explosion brennt das Land mit normalem, aber unauslöschlichem Feuer: Wird es gelöscht, taucht es kurz darauf an anderer Stelle in der Nähe wieder auf, damit das Gebiet wirklich unbelebar bleibt. Dichte und Abschaltbarkeit in der Config (`burnEnabled`, `burnDensity`).
+- **Ewiges Feuer (v0.16/0.17):** Nach der Explosion brennt das Land mit normalem Vanilla-Feuer auf Netherrack (brennt ewig, Regen löscht es nicht). Wird es gelöscht, zündet es kurz darauf an anderer Stelle in der Nähe neu, damit das Gebiet wirklich unbelebar bleibt. Dichte und Abschaltbarkeit in der Config (`burnEnabled`, `fireDensity`).
 - Umgesetzt (v0.3): Kraterradius 10 + 1,5 pro Stufe (max. 48), Verseuchung bis 1,5 × Kraterradius: Boden wird Grobe Erde/Kies, Blätter verschwinden, Kraterboden aus Schwarzstein/Basalt/Magma. In der Zone gibt es Wither (Untote immun) und Ascheregen.
 
 ## Vorteile pro Stufe

@@ -4,7 +4,6 @@ import static com.marleyboss.incursion.client.SarcophagusRenderer.FLARE;
 import static com.marleyboss.incursion.client.SarcophagusRenderer.HALO;
 import static com.marleyboss.incursion.client.SarcophagusRenderer.ORB_RADIUS;
 import static com.marleyboss.incursion.client.SarcophagusRenderer.ORB_Y;
-import static com.marleyboss.incursion.client.SarcophagusRenderer.RING;
 import static com.marleyboss.incursion.client.SarcophagusRenderer.TRIM;
 import static com.marleyboss.incursion.client.SarcophagusRenderer.billboard;
 import static com.marleyboss.incursion.client.SarcophagusRenderer.drawBolt;
@@ -20,6 +19,7 @@ import static com.marleyboss.incursion.client.SarcophagusRenderer.plane;
 import static com.marleyboss.incursion.client.SarcophagusRenderer.rnd;
 import static com.marleyboss.incursion.client.SarcophagusRenderer.sphere;
 
+import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreEvolution;
 import com.marleyboss.incursion.entity.CoreBlastEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
@@ -45,6 +47,14 @@ import net.neoforged.neoforge.client.event.ViewportEvent;
  */
 public final class CoreBlastRenderer {
     private static final List<CoreBlastEntity> BLASTS = new ArrayList<>();
+    /** A soft, wide ring: the shock waves (a thin textured line would shimmer when it is huge). */
+    private static final ResourceLocation SHOCK = ResourceLocation.fromNamespaceAndPath(Incursion.MODID, "textures/effect/shock_ring.png");
+    /** A reactor circle (rings, ticks, two triangles): not the rune circle of the Core. */
+    private static final ResourceLocation CIRCLE = ResourceLocation.fromNamespaceAndPath(Incursion.MODID, "textures/effect/blast_circle.png");
+
+    private static RenderType tex(ResourceLocation texture) {
+        return RenderType.entityTranslucentEmissive(texture);
+    }
 
     private CoreBlastRenderer() {
     }
@@ -79,11 +89,26 @@ public final class CoreBlastRenderer {
             PoseStack pose = new PoseStack();
             pose.translate(blast.getX() - 0.5 - cam.x, blast.getY() - cam.y, blast.getZ() - 0.5 - cam.z);
             if (age < CoreBlastEntity.FUSE) {
-                charge(pose, buffer, blast, age, time, sc);
+                charge(pose, buffer, age, CoreBlastEntity.FUSE, time, sc, blast.getStage(), true, 1.0F);
             } else {
-                blast(pose, buffer, blast, age - CoreBlastEntity.FUSE, time, sc);
+                blast(pose, buffer, age - CoreBlastEntity.FUSE, time, sc, Mth.clamp(blast.getBlastRadius(), 10, 48), false);
             }
             flushAdditive(buffer);
+        }
+    }
+
+    /**
+     * The upgrade of a Core to a new stage: the same kind of animation as the meltdown, but gentler and without the fire:
+     * the Core charges up for {@link CoreEvolution#EVOLVE_TICKS} (the music builds up to the same moment), then a wave of
+     * light goes out of it. {@code d.evoAge} is the time since the upgrade began.
+     */
+    static void drawUpgrade(PoseStack pose, MultiBufferSource buffer, SarcophagusRenderer.Late d) {
+        float fuse = CoreEvolution.EVOLVE_TICKS;
+        float stage = Mth.clamp(d.vs, 0.0F, 4.0F);
+        if (d.evoAge < fuse) {
+            charge(pose, buffer, d.evoAge, fuse, d.time, d.scale, stage, false, 0.65F);
+        } else if (d.evoAge < fuse + 110.0F) {
+            blast(pose, buffer, d.evoAge - fuse, d.time, d.scale, 8.0F + 1.2F * Math.max(1.0F, stage), true);
         }
     }
 
@@ -104,12 +129,12 @@ public final class CoreBlastRenderer {
     // The charge
     // ------------------------------------------------------------------
 
-    private static void charge(PoseStack pose, MultiBufferSource buffer, CoreBlastEntity blast, float age, float time, float sc) {
-        float c = age / CoreBlastEntity.FUSE;
+    private static void charge(PoseStack pose, MultiBufferSource buffer, float age, float fuse, float time, float sc, float stage,
+                               boolean core, float m) {
+        float c = age / fuse;
         float c2 = c * c;
         float c3 = c2 * c;
         float orb = 1.0F + 7.0F * (float) Math.pow(c, 2.2);
-        float stage = blast.getStage();
         SarcophagusRenderer.Late d = new SarcophagusRenderer.Late();
         d.time = time;
         d.orb = orb;
@@ -122,34 +147,39 @@ public final class CoreBlastRenderer {
         pose.translate(0.5F, 0.0F, 0.5F);
         pose.scale(sc, sc, sc);
         pose.translate(-0.5F, 0.0F, -0.5F);
-        float jit = 0.004F + 0.03F * c2;
-        pose.translate(jit * Mth.sin(time * 1.7F), jit * Mth.sin(time * 2.3F + 1.0F), jit * Mth.sin(time * 1.9F + 2.0F));
-        if (stage < 1.0F) {
-            drawStar(pose, buffer, d);
+        if (core) {
+            // (an upgrade does not draw the Core again: the block renderer does that, and makes it bigger)
+            pose.pushPose();
+            float jit = 0.004F + 0.03F * c2;
+            pose.translate(jit * Mth.sin(time * 1.7F), jit * Mth.sin(time * 2.3F + 1.0F), jit * Mth.sin(time * 1.9F + 2.0F));
+            if (stage < 1.0F) {
+                drawStar(pose, buffer, d);
+            }
+            drawOrb(pose, buffer, time, orb, 0.0F, stage);
+            float g = 1.0F + 3.5F * c2;
+            pose.pushPose();
+            pose.translate(0.5F, ORB_Y, 0.5F);
+            pose.scale(g, g, g);
+            pose.translate(-0.5F, -ORB_Y, -0.5F);
+            drawCorona(pose, buffer, d);
+            pose.popPose();
+            pose.popPose();
         }
-        drawOrb(pose, buffer, time, orb, 0.0F, stage);
-        float g = 1.0F + 3.5F * c2;
-        pose.pushPose();
-        pose.translate(0.5F, ORB_Y, 0.5F);
-        pose.scale(g, g, g);
-        pose.translate(-0.5F, -ORB_Y, -0.5F);
-        drawCorona(pose, buffer, d);
-        pose.popPose();
         // it turns white-hot
         pose.pushPose();
         pose.translate(0.5F, ORB_Y, 0.5F);
-        float w = (float) Math.pow(c, 2.5);
+        float w = (float) Math.pow(c, 2.5) * m;
         sphere(buffer.getBuffer(glow(TRIM)), pose.last(), ORB_RADIUS * orb * 1.04F, 0.0F, 0.0F, w, w * 0.96F, w * 0.82F);
         pose.popPose();
         billboard(buffer.getBuffer(glow(HALO)), pose.last(), 0.5F, ORB_Y, 0.5F, 0.9F + 7.0F * c2, 0.0F,
-                (0.25F + 0.75F * c) * 1.0F, (0.25F + 0.75F * c) * 0.58F, (0.25F + 0.75F * c) * 0.2F);
+                m * (0.25F + 0.75F * c) * 1.0F, m * (0.25F + 0.75F * c) * 0.58F, m * (0.25F + 0.75F * c) * 0.2F);
         billboard(buffer.getBuffer(glow(FLARE)), pose.last(), 0.5F, ORB_Y, 0.5F, 0.4F + 5.0F * c2, time * 0.012F,
-                c * 1.0F, c * 0.9F, c * 0.65F);
+                m * c * 1.0F, m * c * 0.9F, m * c * 0.65F);
         // bolts from the sky strike it
         for (int strike : new int[]{22, 48, 70, 88, 99}) {
             float local = age - strike;
             if (local >= 0.0F && local < 7.0F) {
-                drawBolt(pose, buffer, time, 1.0F - local / 7.0F);
+                drawBolt(pose, buffer, time, (1.0F - local / 7.0F) * Math.min(1.0F, m));
             }
         }
         pose.popPose();
@@ -164,11 +194,11 @@ public final class CoreBlastRenderer {
             float q = time * (0.012F + 0.03F * c) + i / 3.0F;
             float ph = q - (float) Math.floor(q);
             float r = 0.4F + reach * (1.0F - ph);
-            float a = Mth.sin(ph * (float) Math.PI) * (0.25F + 0.75F * c);
+            float a = Mth.sin(ph * (float) Math.PI) * (0.25F + 0.75F * c) * m;
             pose.pushPose();
             pose.mulPose(Axis.YP.rotationDegrees(time * (2.0F + i) + i * 40.0F));
             pose.mulPose(Axis.XP.rotationDegrees(i == 0 ? 0.0F : i == 1 ? 62.0F : -62.0F));
-            plane(buffer.getBuffer(glow(RING)), pose.last(), 0.0F, 0.0F, 0.0F, r, 0.0F, 0.0F, 0.0F, 0.0F, r,
+            plane(buffer.getBuffer(tex(SHOCK)), pose.last(), 0.0F, 0.0F, 0.0F, r, 0.0F, 0.0F, 0.0F, 0.0F, r,
                     1.0F * a, 0.62F * a, 0.22F * a);
             pose.popPose();
         }
@@ -181,7 +211,7 @@ public final class CoreBlastRenderer {
             float ph = q - cyc;
             float[] dd = dir(cyc * 61 + i, 3, 0.0F);
             float dist = (reach + 3.0F * rnd(i, cyc + 7)) * (1.0F - ph) * (1.0F - ph);
-            float a = Mth.sqrt(Mth.sin(ph * (float) Math.PI)) * (0.3F + 0.7F * c);
+            float a = Mth.sqrt(Mth.sin(ph * (float) Math.PI)) * (0.3F + 0.7F * c) * m;
             billboard(buffer.getBuffer(glow(FLARE)), pose.last(), dd[0] * dist, dd[1] * dist, dd[2] * dist,
                     0.1F + 0.12F * rnd(i, 9), time * 0.02F, 1.0F * a, 0.7F * a, 0.3F * a);
         }
@@ -203,7 +233,7 @@ public final class CoreBlastRenderer {
                 float nx = dd[0] * len * u + (rnd(sd, 20 + k) - 0.5F) * 2.0F * jag;
                 float ny = dd[1] * len * u + (rnd(sd, 30 + k) - 0.5F) * 2.0F * jag;
                 float nz = dd[2] * len * u + (rnd(sd, 40 + k) - 0.5F) * 2.0F * jag;
-                float fade = (1.0F - 0.55F * u) * flick * (0.45F + 0.55F * c);
+                float fade = (1.0F - 0.55F * u) * flick * (0.45F + 0.55F * c) * m;
                 laser(buffer.getBuffer(glow(TRIM)), pose.last(), px, py, pz, nx, ny, nz, 0.14F * sc, 0.55F * fade, 0.32F * fade, 0.08F * fade);
                 laser(buffer.getBuffer(glow(TRIM)), pose.last(), px, py, pz, nx, ny, nz, 0.035F * sc, 1.0F * fade, 0.96F * fade, 0.82F * fade);
                 px = nx;
@@ -218,20 +248,20 @@ public final class CoreBlastRenderer {
         pose.translate(0.5F, 0.06F, 0.5F);
         pose.mulPose(Axis.YP.rotationDegrees(-time * 3.0F));
         float dr = (2.0F + 7.0F * c) * sc;
-        plane(buffer.getBuffer(glow(RING)), pose.last(), 0.0F, 0.0F, 0.0F, dr, 0.0F, 0.0F, 0.0F, 0.0F, dr,
-                0.6F * c, 0.35F * c, 0.1F * c);
+        plane(buffer.getBuffer(tex(CIRCLE)), pose.last(), 0.0F, 0.0F, 0.0F, dr, 0.0F, 0.0F, 0.0F, 0.0F, dr,
+                0.9F * c * m, 0.55F * c * m, 0.16F * c * m);
         pose.popPose();
 
         // at the end a column of light climbs into the sky and the whole thing turns white
         if (c > 0.72F) {
-            float u = (c - 0.72F) / 0.28F;
+            float u = (c - 0.72F) / 0.28F * m;
             float width = (0.05F + 0.7F * u * u) * sc;
             laser(buffer.getBuffer(glow(TRIM)), pose.last(), 0.5F, oy, 0.5F, 0.5F, 240.0F, 0.5F, width * 3.0F, 0.4F * u, 0.22F * u, 0.06F * u);
             laser(buffer.getBuffer(glow(TRIM)), pose.last(), 0.5F, oy, 0.5F, 0.5F, 240.0F, 0.5F, width, 1.0F * u, 0.92F * u, 0.72F * u);
         }
-        float pre = (age - (CoreBlastEntity.FUSE - 9.0F)) / 9.0F;
+        float pre = (age - (fuse - 9.0F)) / 9.0F;
         if (pre > 0.0F) {
-            float p2 = pre * pre;
+            float p2 = pre * pre * m;
             billboard(buffer.getBuffer(glow(HALO)), pose.last(), 0.5F, oy, 0.5F, 3.0F * sc + 30.0F * p2, 0.0F, 1.2F * p2, 1.1F * p2, 0.9F * p2);
         }
     }
@@ -240,8 +270,8 @@ public final class CoreBlastRenderer {
     // The blast
     // ------------------------------------------------------------------
 
-    private static void blast(PoseStack pose, MultiBufferSource buffer, CoreBlastEntity blast, float e, float time, float sc) {
-        float radius = Mth.clamp(blast.getBlastRadius(), 10, 48);
+    private static void blast(PoseStack pose, MultiBufferSource buffer, float e, float time, float sc, float radius, boolean upgrade) {
+        float soft = upgrade ? 0.7F : 1.0F;
         float oy = ORB_Y * sc;
         pose.pushPose();
         pose.translate(0.5F, oy, 0.5F);
@@ -250,7 +280,7 @@ public final class CoreBlastRenderer {
         if (e < 26.0F) {
             float f = 1.0F - e / 26.0F;
             f *= f;
-            billboard(buffer.getBuffer(glow(HALO)), pose.last(), 0.0F, 0.0F, 0.0F, radius * (1.0F + 0.06F * e), 0.0F, 1.4F * f, 1.25F * f, 1.0F * f);
+            billboard(buffer.getBuffer(glow(HALO)), pose.last(), 0.0F, 0.0F, 0.0F, radius * (1.0F + 0.06F * e), 0.0F, 1.4F * f * soft, 1.25F * f * soft, 1.0F * f * soft);
             billboard(buffer.getBuffer(glow(FLARE)), pose.last(), 0.0F, 0.0F, 0.0F, radius * 0.8F, e * 0.02F, 1.0F * f, 1.0F * f, 0.95F * f);
         }
 
@@ -258,7 +288,7 @@ public final class CoreBlastRenderer {
         float grow = easeOut(e / 30.0F);
         float rf = radius * 0.6F * grow + 0.5F;
         float fb = (float) Math.pow(Mth.clamp(1.0F - (e - 25.0F) / 85.0F, 0.0F, 1.0F), 1.2);
-        if (fb > 0.01F) {
+        if (!upgrade && fb > 0.01F) {
             pose.pushPose();
             pose.mulPose(Axis.YP.rotationDegrees(e * 2.0F));
             sphere(buffer.getBuffer(fxFire()), pose.last(), rf, e * 0.01F, -e * 0.02F, 1.0F * fb, 0.5F * fb, 0.12F * fb);
@@ -273,14 +303,14 @@ public final class CoreBlastRenderer {
             pose.popPose();
         }
         float hot = 1.0F - Mth.clamp(e / 48.0F, 0.0F, 1.0F);
-        if (hot > 0.01F) {
+        if (!upgrade && hot > 0.01F) {
             sphere(buffer.getBuffer(glow(TRIM)), pose.last(), rf * 0.62F, 0.0F, 0.0F, 1.0F * hot, 0.96F * hot, 0.82F * hot);
         }
 
         // 2b. the cap of fire that rises on a stem
         float rise = easeOut(e / 75.0F) * radius * 0.9F;
         float cap = (float) Math.pow(Mth.clamp(1.0F - (e - 20.0F) / 95.0F, 0.0F, 1.0F), 1.1);
-        if (cap > 0.01F && e > 6.0F) {
+        if (!upgrade && cap > 0.01F && e > 6.0F) {
             laser(buffer.getBuffer(fxFire()), pose.last(), 0.0F, 0.0F, 0.0F, 0.0F, rise, 0.0F, radius * 0.1F * cap + 0.2F,
                     0.8F * cap, 0.34F * cap, 0.07F * cap);
             pose.pushPose();
@@ -293,7 +323,7 @@ public final class CoreBlastRenderer {
 
         // 3. the shock shell
         if (e < 50.0F) {
-            float a = (float) Math.pow(1.0F - e / 50.0F, 1.5) * 0.35F;
+            float a = (float) Math.pow(1.0F - e / 50.0F, 1.5) * 0.35F * soft;
             sphere(buffer.getBuffer(glow(TRIM)), pose.last(), radius * 2.8F * easeOut(e / 50.0F) + 0.5F, 0.0F, 0.0F, a, a * 0.9F, a * 0.75F);
         }
 
@@ -306,8 +336,18 @@ public final class CoreBlastRenderer {
             float rr = radius * (2.6F - 0.5F * j) * easeOut(ee / 90.0F) + 0.5F;
             float a = (float) Math.pow(1.0F - ee / 90.0F, 1.3);
             float k = j == 0 ? 1.0F : 0.7F;
-            plane(buffer.getBuffer(glow(RING)), pose.last(), 0.0F, 0.1F - oy, 0.0F, rr, 0.0F, 0.0F, 0.0F, 0.0F, rr,
-                    k * a, k * a * (j == 0 ? 0.55F : 0.85F), k * a * (j == 0 ? 0.15F : 0.6F));
+            plane(buffer.getBuffer(tex(SHOCK)), pose.last(), 0.0F, 0.1F - oy, 0.0F, rr, 0.0F, 0.0F, 0.0F, 0.0F, rr,
+                    k * a * soft, k * a * soft * (j == 0 ? 0.55F : 0.85F), k * a * soft * (j == 0 ? 0.15F : 0.6F));
+        }
+        // a reactor circle opens on the ground and fades
+        if (e < 70.0F) {
+            float a = (float) Math.pow(1.0F - e / 70.0F, 1.2) * soft;
+            float rc = radius * 1.1F * easeOut(e / 40.0F) + 0.5F;
+            pose.pushPose();
+            pose.translate(0.0F, 0.12F - oy, 0.0F);
+            pose.mulPose(Axis.YP.rotationDegrees(e * 1.5F));
+            plane(buffer.getBuffer(tex(CIRCLE)), pose.last(), 0.0F, 0.0F, 0.0F, rc, 0.0F, 0.0F, 0.0F, 0.0F, rc, 1.0F * a, 0.75F * a, 0.3F * a);
+            pose.popPose();
         }
 
         // 5. the pillar of light
@@ -322,7 +362,7 @@ public final class CoreBlastRenderer {
         }
 
         // 6. secondary blasts inside the fireball
-        for (int k = 0; k < 5; k++) {
+        for (int k = 0; k < (upgrade ? 0 : 5); k++) {
             float local = e - (6.0F + 9.0F * k);
             if (local < 0.0F || local >= 18.0F) {
                 continue;
@@ -339,7 +379,7 @@ public final class CoreBlastRenderer {
         if (e < 60.0F) {
             float f = (float) Math.pow(1.0F - e / 60.0F, 1.2);
             float reachS = easeOut(e / 26.0F);
-            for (int i = 0; i < 40; i++) {
+            for (int i = 0; i < (upgrade ? 24 : 40); i++) {
                 float[] dd = dir(i, 1, 0.25F);
                 float len = radius * (0.9F + 1.2F * rnd(i, 4)) * reachS;
                 float from = radius * 0.15F * reachS;
@@ -352,7 +392,7 @@ public final class CoreBlastRenderer {
         }
 
         // 8. embers that fly out and fall back
-        for (int i = 0; i < 150; i++) {
+        for (int i = 0; i < (upgrade ? 70 : 150); i++) {
             float life = 70.0F + 70.0F * rnd(i, 8);
             if (e >= life) {
                 continue;

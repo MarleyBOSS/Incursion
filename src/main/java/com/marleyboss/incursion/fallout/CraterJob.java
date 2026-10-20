@@ -1,9 +1,8 @@
 package com.marleyboss.incursion.fallout;
 
 import com.marleyboss.incursion.Config;
-import com.marleyboss.incursion.registry.ModBlocks;
+import com.marleyboss.incursion.block.EternalFire;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -31,7 +30,7 @@ import org.jetbrains.annotations.Nullable;
  *     <li>BLAST: flash, sound, damage to creatures.</li>
  *     <li>CARVE: remove the crater blocks from the centre outwards.</li>
  *     <li>SCORCH: turn the crater floor and the contaminated surroundings into wasteland.</li>
- *     <li>BURN: the ground burns with eternal fire (see EternalFireBlock).</li>
+ *     <li>BURN: the ground burns with eternal fire (see EternalFire).</li>
  *     <li>FINISH: remove dropped items in the crater, release the chunks.</li>
  * </ol>
  */
@@ -256,9 +255,8 @@ public class CraterJob {
             offsets = CraterShape.columns(radius, seed ^ 0x5DEECE66DL);
         }
         int budget = Math.max(50, Config.EXPLOSION_BLOCKS_PER_TICK.get() / 6);
-        double density = Config.BURN_DENSITY.get() / 100.0;
+        double density = Config.FIRE_DENSITY.get() / 100.0;
         RandomSource random = level.getRandom();
-        BlockState fire = ModBlocks.ETERNAL_FIRE.get().defaultBlockState();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         while (cursor < offsets.length && budget-- > 0) {
             int packed = offsets[cursor++];
@@ -276,15 +274,11 @@ public class CraterJob {
                 continue;
             }
             int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            if (y <= level.getMinBuildHeight()) {
+                continue;
+            }
             pos.set(x, y, z);
-            if (y <= level.getMinBuildHeight() || !level.getBlockState(pos).isAir()) {
-                continue;
-            }
-            BlockState below = level.getBlockState(pos.below());
-            if (!below.getFluidState().isEmpty() || !below.isFaceSturdy(level, pos.below(), Direction.UP)) {
-                continue;
-            }
-            level.setBlock(pos, fire, Block.UPDATE_CLIENTS);
+            EternalFire.light(level, pos);
         }
         if (cursor >= offsets.length) {
             offsets = null;
