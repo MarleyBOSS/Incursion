@@ -1641,8 +1641,7 @@ final class SarcophagusRenderer {
         }
         float disc = CoreEvolution.discAt(vp);
         float reach = (disc - 0.9F) * wv;
-        // the cracks begin outside the glass window in the floor (they do not run over the glass)
-        float start = Math.max(0.72F * sc + 0.1F, CoreEvolution.glassAt(vp) + 0.35F);
+        float start = 0.72F * sc + 0.1F;
         for (int j = 0; j < 9; j++) {
             float a = j * 0.698F + 0.35F + 0.25F * Mth.sin(j * 2.7F);
             float r = start;
@@ -1839,56 +1838,20 @@ final class SarcophagusRenderer {
     }
 
     /**
-     * Where boss b stands: {x, y (feet), z, yaw, scale, appear, settle}. The yaw is the direction it looks along, the
-     * scale is already multiplied by how far it has appeared. {@code appear} runs 0..1 while the stage rises to the stage of
-     * the boss, {@code settle} 0..1 while the next stage rises (the boss shrinks and is lifted up between two pillars).
-     * The Elder Guardian is held prisoner in a cage of rings and turned about the Core; the Warden walks its rounds in the
-     * prison under the plaza; the Dragon circles; the Wither circles above the Core in a cage of lasers.
+     * Where boss b stands: {x, y (feet), z, yaw, scale, appear, settle}. Every boss stands at once at its place between two
+     * pillars (north Elder Guardian, east Warden, south Ender Dragon, west Wither), in a cage of rings, looking at the Core:
+     * there is no roaming about, that would need far too much room. The scale is already multiplied by how far it has
+     * appeared. {@code appear} runs 0..1 while the stage rises to the stage of the boss, {@code settle} 0..1 while the next
+     * stage rises (the boss is no longer the active one: it only feeds the antenna).
      */
     private static float[] bossAt(int b, float time, float vs, float vr, float height) {
         float ap = ease(Mth.clamp(vs - b, 0.0F, 1.0F));
         float st = b == 3 ? 0.0F : ease(Mth.clamp(vs - (b + 1), 0.0F, 1.0F));
-        float s = ACTIVE_SCALE[b];
-        float ax;
-        float ay;
-        float az;
-        float ayaw;
-        if (b == 0) {
-            float a = time * 0.004F + 0.8F;
-            ax = 0.5F + 3.7F * Mth.cos(a);
-            az = 0.5F + 3.7F * Mth.sin(a);
-            ay = 5.3F - BOSS_MID[0] * s + 0.3F * Mth.sin(time * 0.04F);
-            ayaw = (float) Math.atan2(0.5F - ax, 0.5F - az);
-        } else if (b == 1) {
-            float a = time * 0.02F;
-            ax = 0.5F + 1.9F * Mth.cos(a);
-            az = 0.5F + 1.9F * Mth.sin(a);
-            ay = -6.0F; // the floor of its prison under the plaza
-            ayaw = -a;
-        } else if (b == 2) {
-            float a = time * 0.0075F;
-            ax = 0.5F + 9.5F * Mth.cos(a);
-            az = 0.5F + 9.5F * Mth.sin(a);
-            ay = 12.5F + 1.2F * Mth.sin(a * 2.0F + 1.0F);
-            ayaw = -a;
-        } else {
-            float a = time * 0.004F + 2.0F;
-            ax = 0.5F + 12.5F * Mth.cos(a);
-            az = 0.5F + 12.5F * Mth.sin(a);
-            ay = 13.0F + witherBob(time);
-            ayaw = (float) Math.atan2(0.5F - ax, 0.5F - az);
-        }
         float[] g = gapAt(b, vr);
         float tsc = TROPHY_SCALE[b];
         float ty = trophyMid(height) - BOSS_MID[b] * tsc + 0.12F * Mth.sin(time * 0.05F + b);
         float tyaw = (float) Math.atan2(0.5F - g[0], 0.5F - g[1]);
-        float scale = Mth.lerp(st, s, tsc) * Mth.clamp(ap * 2.0F, 0.0F, 1.0F);
-        if (b == 1) {
-            // the Warden cannot climb out of its prison: it fades away down there and appears between the pillars
-            float f = Math.abs(1.0F - 2.0F * st);
-            return st < 0.5F ? new float[]{ax, ay, az, ayaw, scale * f, ap, st} : new float[]{g[0], ty, g[1], tyaw, scale * f, ap, st};
-        }
-        return new float[]{Mth.lerp(st, ax, g[0]), Mth.lerp(st, ay, ty), Mth.lerp(st, az, g[1]), lerpAngle(st, ayaw, tyaw), scale, ap, st};
+        return new float[]{g[0], ty, g[1], tyaw, tsc * Mth.clamp(ap * 2.0F, 0.0F, 1.0F), ap, st};
     }
 
     /** A point of a boss that faces along its yaw (own frame: x to the side, y up, z forwards) in the world. */
@@ -2046,7 +2009,7 @@ final class SarcophagusRenderer {
                     boolean calm = a[6] > 0.5F || a[5] < 0.95F;
                     if ((int) time != bs.walkTick) {
                         bs.walkTick = (int) time;
-                        warden.walkAnimation.update(calm ? 0.0F : 0.55F, 0.4F);
+                        warden.walkAnimation.update(0.0F, 0.4F); // it stands still in its cage
                     }
                     if (!calm && phase < 12 && !warden.sonicBoomAnimationState.isStarted()) {
                         warden.sonicBoomAnimationState.start((int) time);
