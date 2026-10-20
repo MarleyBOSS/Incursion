@@ -337,7 +337,7 @@ final class SarcophagusRenderer {
             if (dragonAt[5] > 0.5F && dragonAt[4] > 0.1F) {
                 float[] mouth = dragonMouth(dragonAt);
                 level.addParticle(ParticleTypes.DRAGON_BREATH, core.getBlockPos().getX() + mouth[0], core.getBlockPos().getY() + mouth[1],
-                        core.getBlockPos().getZ() + mouth[2], (level.random.nextDouble() - 0.5) * 0.02, 0.03, (level.random.nextDouble() - 0.5) * 0.02);
+                        core.getBlockPos().getZ() + mouth[2], (level.random.nextDouble() - 0.5) * 0.01, 0.008, (level.random.nextDouble() - 0.5) * 0.01);
             }
         }
         // From stage 2 on the glass windows swing open (slowly, and they breathe a little afterwards).
@@ -1784,7 +1784,8 @@ final class SarcophagusRenderer {
     /** Where the mouth of the (reared) Ender Dragon is. */
     private static float[] dragonMouth(float[] a) {
         float th = DRAGON_PITCH * 0.017453292F;
-        return dragonPoint(a, 0.0F, DRAGON_PIVOT_Y + DRAGON_MOUTH * Mth.sin(th), DRAGON_PIVOT_Z - DRAGON_MOUTH * Mth.cos(th));
+        // measured against a screenshot: the snout lies a bit higher and farther out than the plain estimate
+        return dragonPoint(a, 0.0F, DRAGON_PIVOT_Y + DRAGON_MOUTH * Mth.sin(th) + 0.8F, DRAGON_PIVOT_Z - DRAGON_MOUTH * Mth.cos(th) - 0.6F);
     }
 
     /** The beat of the Warden's heart: 1 as it beats (every 40 ticks, as in the game), then it fades within 10 ticks. */
@@ -2505,7 +2506,10 @@ final class SarcophagusRenderer {
         float s = a[4];
         float sn = Mth.sin(a[3]);
         float cs = Mth.cos(a[3]);
-        float[] join = {head[0] + (tip[0] - head[0]) * 0.3F, head[1] + (tip[1] - head[1]) * 0.3F, head[2] + (tip[2] - head[2]) * 0.3F};
+        // the main hose arcs upwards (lift 0.5): its height at 35 % is the straight line plus 0.5 * 4 * u * (1 - u)
+        float u = 0.35F;
+        float[] join = {head[0] + (tip[0] - head[0]) * u, head[1] + (tip[1] - head[1]) * u + 0.5F * 4.0F * u * (1.0F - u),
+                head[2] + (tip[2] - head[2]) * u};
         for (int side = -1; side <= 1; side += 2) {
             float[] from = {a[0] + cs * 1.12F * s * side, a[1] + 2.5F * s, a[2] - sn * 1.12F * s * side};
             hose(lines, packets, time, from, join, 0.0F, 0.085F, 1.3F, k * 0.9F, bc[0], bc[1], bc[2], seed + side);

@@ -305,17 +305,18 @@ public final class Config {
         BUILDER.comment("The big explosion when an active Core is destroyed or removed").push("explosion");
     }
 
+    // The keys are new (blastRadius...): the values of the old explosionRadius... keys were far too small and are ignored.
     public static final ModConfigSpec.DoubleValue EXPLOSION_RADIUS_BASE = BUILDER
-            .comment("Crater radius in blocks = explosionRadiusBase + explosionRadiusPerLevel * level.")
-            .defineInRange("explosionRadiusBase", 10.0, 2.0, 64.0);
+            .comment("Crater radius in blocks = blastRadiusBase + blastRadiusPerLevel * level.")
+            .defineInRange("blastRadiusBase", 14.0, 2.0, 64.0);
 
     public static final ModConfigSpec.DoubleValue EXPLOSION_RADIUS_PER_LEVEL = BUILDER
-            .comment("Additional crater radius per level (see explosionRadiusBase).")
-            .defineInRange("explosionRadiusPerLevel", 1.5, 0.0, 16.0);
+            .comment("Additional crater radius per level (see blastRadiusBase). Level 20 with the defaults: 74 blocks.")
+            .defineInRange("blastRadiusPerLevel", 3.0, 0.0, 16.0);
 
     public static final ModConfigSpec.IntValue EXPLOSION_RADIUS_MAX = BUILDER
-            .comment("Upper limit for the crater radius in blocks.")
-            .defineInRange("explosionRadiusMax", 48, 2, 64);
+            .comment("Upper limit for the crater radius in blocks (the crater is stored with a limit of about 105).")
+            .defineInRange("blastRadiusMax", 96, 2, 100);
 
     public static final ModConfigSpec.IntValue EXPLOSION_BLOCKS_PER_TICK = BUILDER
             .comment("How many blocks the crater removes per tick. Lower = smoother but slower explosion.")
@@ -339,7 +340,7 @@ public final class Config {
             .defineInRange("fireDensity", 4, 1, 100);
 
     public static final ModConfigSpec.DoubleValue CONTAMINATION_RADIUS_FACTOR = BUILDER
-            .comment("Contaminated zone radius = crater radius * this factor (max 96 blocks).")
+            .comment("Contaminated zone radius = crater radius * this factor (max 112 blocks).")
             .defineInRange("contaminationRadiusFactor", 1.5, 1.0, 4.0);
 
     public static final ModConfigSpec.IntValue CONTAMINATION_MINUTES = BUILDER
@@ -1063,7 +1064,7 @@ public final class Config {
     }
 
     public static int contaminationRadius(int craterRadius) {
-        return Math.min(96, (int) Math.round(craterRadius * CONTAMINATION_RADIUS_FACTOR.get()));
+        return Math.min(112, (int) Math.round(craterRadius * CONTAMINATION_RADIUS_FACTOR.get()));
     }
 
     public static int defuseTicks(int level) {
