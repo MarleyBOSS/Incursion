@@ -735,7 +735,11 @@ final class SarcophagusRenderer {
             float shaftBottom = 0.42F;
             float shaftTop = top - 0.42F;
             if (shaftTop > shaftBottom + 0.1F) {
-                fbox(vc, p, light, marble, wall, cx - hw, cx + hw, shaftBottom, shaftTop, cz - hw, cz + hw);
+                int tiles = Math.max(1, Math.round((shaftTop - shaftBottom) / (2.0F * hw)));
+                float tileH = (shaftTop - shaftBottom) / tiles;
+                for (int t = 0; t < tiles; t++) {
+                    fbox(vc, p, light, marble, wall, cx - hw, cx + hw, shaftBottom + t * tileH, shaftBottom + (t + 1) * tileH, cz - hw, cz + hw);
+                }
                 float pw = 0.045F;
                 for (int c = 0; c < 4; c++) {
                     float px = cx + (c % 2 == 0 ? -hw : hw);
@@ -1713,8 +1717,8 @@ final class SarcophagusRenderer {
     /** Biome and profession of the villager heads (their textures are the game's own). */
     private static final String[][] SOUL_LOOKS = {{"plains", "farmer"}, {"desert", "librarian"}, {"snow", "cleric"}, {"savanna", "shepherd"},
             {"swamp", "fletcher"}};
-    /** Scale of the villager head: 1 gives half a block (the model is measured in 16ths); 2.2 makes the head 1.1 blocks wide. */
-    private static final float SOUL_SCALE = 2.2F;
+    /** Scale of the villager head: 1 gives half a block (the model is measured in 16ths); 1.4 makes the head 0.7 blocks wide. */
+    private static final float SOUL_SCALE = 1.4F;
     /** One pixel of the villager head in blocks. */
     private static final float SOUL_PX = SOUL_SCALE / 16.0F;
     private static ModelPart soulHead;
@@ -2141,7 +2145,7 @@ final class SarcophagusRenderer {
             if (toR > 0.03F) {
                 pose.pushPose();
                 pose.translate(e[0], cy - 0.1F * toR, e[2]);
-                pose.mulPose(Axis.YP.rotation(yaw));
+                pose.mulPose(Axis.YP.rotation(yaw + (float) Math.PI)); // the face of a skull item looks the other way
                 pose.scale(0.8F * toR, 0.8F * toR, 0.8F * toR);
                 Minecraft.getInstance().getItemRenderer().renderStatic(skullStack, ItemDisplayContext.FIXED, LightTexture.FULL_BRIGHT,
                         OverlayTexture.NO_OVERLAY, pose, buffer, level, i);

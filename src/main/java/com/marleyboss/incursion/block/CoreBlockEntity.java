@@ -207,6 +207,9 @@ public class CoreBlockEntity extends BlockEntity {
         if (built == stage && stage >= 1 && tickCounter % 4 == 0) {
             clearStrays(level);
         }
+        if (stage >= 1 && tickCounter % 10 == 0) {
+            rescuePlayers(level);
+        }
         if (!ghosts.isEmpty() && steps.isEmpty()) {
             ghosts.removeIf(g -> g.boom() + 40 < now);
         }
@@ -327,6 +330,21 @@ public class CoreBlockEntity extends BlockEntity {
         }
         setChanged();
         forceSync();
+    }
+
+    /** A player who fell into the hollow under the plaza (while it was being built) is put back on top of the plaza. */
+    private void rescuePlayers(ServerLevel level) {
+        int reach = CoreEvolution.areaRadius(stage) + 2;
+        net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(worldPosition).inflate(reach, 0.0, reach)
+                .expandTowards(0.0, CoreEvolution.areaBottom(stage) - 1.0, 0.0);
+        for (net.minecraft.server.level.ServerPlayer player : level.getEntitiesOfClass(net.minecraft.server.level.ServerPlayer.class, box)) {
+            BlockPos at = player.blockPosition();
+            if (CoreEvolution.inPrison(stage, at.getX() - worldPosition.getX(), at.getY() - worldPosition.getY(), at.getZ() - worldPosition.getZ())) {
+                double x = worldPosition.getX() + 0.5 + CoreEvolution.discRadius(stage) - 1.5;
+                player.teleportTo(level, x, worldPosition.getY() + 1.0, worldPosition.getZ() + 0.5, player.getYRot(), player.getXRot());
+                player.fallDistance = 0.0F;
+            }
+        }
     }
 
     /** Removes whatever got into the protected area (flowing water, a piston, ...) without a drop. */
