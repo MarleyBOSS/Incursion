@@ -7,7 +7,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-/** Own sounds (synthesized by tools/gen_table_sounds.py, listed in assets/incursion/sounds.json). */
+/** Own sounds (synthesized by tools/gen_table_sounds.py and tools/gen_core_music.py, listed in assets/incursion/sounds.json). */
 public final class ModSounds {
     public static final DeferredRegister<SoundEvent> SOUNDS = DeferredRegister.create(Registries.SOUND_EVENT, Incursion.MODID);
 
@@ -18,6 +18,8 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> TABLE_AMBIENT = register("table_ambient");
     public static final DeferredHolder<SoundEvent, SoundEvent> CORE_OPEN = register("core_open");
     public static final DeferredHolder<SoundEvent, SoundEvent> CORE_HUM = register("core_hum");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CORE_EVOLVE_RISE = register("core_evolve_rise");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CORE_EVOLVE_FINALE = register("core_evolve_finale");
 
     private ModSounds() {
     }

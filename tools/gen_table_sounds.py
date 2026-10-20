@@ -204,5 +204,5 @@ if __name__ == "__main__":
     write_ogg("ambient", ambient_sound())
     core_dir = os.path.join(OUT, "..", "core")
     write_ogg("open", core_open_sound(), core_dir)
-    write_ogg("hum", core_hum_sound(), core_dir)
+    # the hum (and the music of the evolution) now come from tools/gen_core_music.py
     print("written to", os.path.abspath(OUT))

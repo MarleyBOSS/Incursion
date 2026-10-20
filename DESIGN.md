@@ -234,3 +234,4 @@ Maximale Stufe, Upgrade-Kosten, Aktivierungs-Rohstoff, Kernzonen- und Belagerung
 - Mechanik zum Entschärfen
 - Brennstoff-Verbrauch (ja/nein, welcher)
 - Lizenz der Mod
+- **Einheitliche Linie (Wunsch des Spielers, 20.10.):** Jeder Boss schickt genau einen Strahl in die Antenne, in seiner Farbe (Elder Guardian beige, Warden blau, Drache violett, Wither weiß); sonst keine Strahlen. Besiegte Bosse hängen an goldenen Ketten zwischen den Pfeilern. Keine Schattenwächter-Statuen, keine Villager-Köpfe. Die frühere Stufe 15 ist die Endgröße (Stufe 20), die anderen Stufen wachsen proportional dorthin. Musik: ruhiger Dauerklang ohne Akkordwechsel (immer D-Klangraum), damit das Upgrade-Stück an jeder Stelle passt; das Finale kommt immer nach 6 Sekunden.

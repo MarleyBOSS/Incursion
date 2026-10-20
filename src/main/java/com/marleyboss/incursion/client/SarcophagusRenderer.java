@@ -245,8 +245,8 @@ final class SarcophagusRenderer {
         state.rising = state.open > before;
         float t = state.open;
         if (active && t >= 1.0F && time >= state.nextHum) {
-            level.playLocalSound(px, py, pz, ModSounds.CORE_HUM.get(), SoundSource.BLOCKS, 0.45F, 1.0F, false);
-            state.nextHum = time + 78.0F;
+            level.playLocalSound(px, py, pz, ModSounds.CORE_HUM.get(), SoundSource.BLOCKS, 0.4F, 1.0F, false);
+            state.nextHum = time + 1277.0F; // the piece is 64 s (1280 ticks) and fades at both ends: the next round starts just before its end
         }
 
         // Light: from above the block (its own position is solid).
@@ -403,13 +403,12 @@ final class SarcophagusRenderer {
             VertexConsumer fresh = buffer.getBuffer(Sheets.solidBlockSheet()); // a fresh consumer: the old one was flushed
             drawLava(pose, fresh, time, vp, sc);
             drawChains(pose, fresh, time, sc, vs);
-            drawSentinels(pose, fresh, sc, vs);
             drawCages(pose, fresh, time, vs, vp);
+            drawCageChains(pose, fresh, time, vs, vp);
             drawPillars(pose, fresh, time, vp);
             flushSolid(buffer);
             drawEnderEyes(pose, buffer, time, vp);
             drawBosses(pose, buffer, level, core, time, partialTick, vs, vp, yawCam);
-            drawSoulHeads(pose, buffer, level, time, vs);
         }
 
         // 2. Everything see-through (additive glow, orb, rays, glass) is drawn later, after the water and the other
@@ -594,7 +593,7 @@ final class SarcophagusRenderer {
 
     /** Size factor of the pillars. */
     private static float pillarSize(float vp) {
-        return 1.25F + 0.06F * Mth.clamp(vp - 1.0F, 0.0F, 3.0F) + 0.10F * Math.max(0.0F, CoreEvolution.pillarAt(vp) - 6.0F);
+        return 1.25F + 0.04F * Mth.clamp(vp - 1.0F, 0.0F, 3.0F) + 0.10F * Math.max(0.0F, CoreEvolution.pillarAt(vp) - 6.0F);
     }
 
     /** Half width of the stone shaft: it gets slimmer with the later forms. */
@@ -604,15 +603,15 @@ final class SarcophagusRenderer {
 
     /** From stage 4 on the crystals leave their holders and float above them. */
     private static float crystalLift(float vp) {
-        return 0.9F * toRift(vp);
+        return 0.0F;
     }
 
     private static float crystalH(float vp) {
-        return Mth.lerp(toRift(vp), Mth.lerp(toSoul(vp), 1.0F, 1.35F), 1.15F);
+        return Mth.lerp(toSoul(vp), 1.0F, 1.35F);
     }
 
     private static float crystalR(float vp) {
-        return Mth.lerp(toRift(vp), Mth.lerp(toSoul(vp), 0.55F, 0.38F), 0.34F);
+        return Mth.lerp(toSoul(vp), 0.55F, 0.38F);
     }
 
     /** Height of the middle of the crystal (above the hammer head in the forge form, inside the cage in the soul form). */
@@ -624,9 +623,7 @@ final class SarcophagusRenderer {
     /** Glow colour of the crystals: forge-hot red, then the violet of the dragon. */
     private static float[] crystalColor(float vp) {
         float b = toSoul(vp);
-        float c = toRift(vp);
-        return new float[]{Mth.lerp(c, Mth.lerp(b, 1.0F, 0.72F), 0.62F), Mth.lerp(c, Mth.lerp(b, 0.38F, 0.35F), 0.3F),
-                Mth.lerp(b, 0.1F, 1.0F)};
+        return new float[]{Mth.lerp(b, 1.0F, 0.72F), Mth.lerp(b, 0.38F, 0.35F), Mth.lerp(b, 0.1F, 1.0F)};
     }
 
     /** Height of the eye that sits in a pillar of the given stone height. */
@@ -702,7 +699,7 @@ final class SarcophagusRenderer {
         float s = pillarSize(vp);
         float toB = toSoul(vp);
         float wA = 1.0F - toB;
-        float wB = toB * (1.0F - toRift(vp));
+        float wB = toB; // the cage over the crystal stays in stage 4
         PoseStack.Pose p = pose.last();
         TextureAtlasSprite wall = sprite(vp >= 2.5F ? WALL_AWAKE : WALL);
         TextureAtlasSprite marble = sprite(MARBLE);
@@ -1277,7 +1274,7 @@ final class SarcophagusRenderer {
      */
     /** Height of the tip of the antenna in the pose of the lid (blocks of the unscaled Sarcophagus). */
     private static float antennaHeight(float vs) {
-        return 1.7F + 0.17F * Mth.clamp(vs, 0.0F, 4.0F);
+        return 1.7F + 0.1275F * Mth.clamp(vs, 0.0F, 4.0F);
     }
 
     /** Height of the tip of the antenna in the world (it stands on the axis of the Sarcophagus). */
@@ -1700,95 +1697,6 @@ final class SarcophagusRenderer {
         }
     }
 
-    // --- stage 4: the possessed villagers (the souls the Wither drained from the Order) ---
-
-    private static final int LANTERNS = 5;
-
-    /** Position of lantern i (x, y, z) and its size (0..1). */
-    private static float[] lanternAt(int i, float time, float vs) {
-        float g = ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F));
-        float ang = time * 0.012F + i * (float) (Math.PI * 2.0 / LANTERNS);
-        float rad = (4.6F + 0.15F * Mth.sin(i * 2.1F + time * 0.02F)) * g;
-        float y = Mth.lerp(g, 1.4F, 4.3F + 0.35F * Mth.sin(time * 0.03F + i * 1.9F));
-        return new float[]{0.5F + Mth.cos(ang) * rad, y, 0.5F + Mth.sin(ang) * rad, g};
-    }
-
-    /** Biome and profession of the villager heads (their textures are the game's own). */
-    private static final String[][] SOUL_LOOKS = {{"plains", "farmer"}, {"desert", "librarian"}, {"snow", "cleric"}, {"savanna", "shepherd"},
-            {"swamp", "fletcher"}};
-    /** Scale of the villager head: 1 gives half a block (the model is measured in 16ths); 1.4 makes the head 0.7 blocks wide. */
-    private static final float SOUL_SCALE = 1.4F;
-    /** One pixel of the villager head in blocks. */
-    private static final float SOUL_PX = SOUL_SCALE / 16.0F;
-    private static ModelPart soulHead;
-    private static Level soulLevel;
-    private static boolean soulFailed;
-
-    private static ResourceLocation villagerTexture(String path) {
-        return ResourceLocation.withDefaultNamespace("textures/entity/villager/" + path + ".png");
-    }
-
-    /**
-     * The souls the Wither drained from the Order: villager heads (the head of the game's own villager model with its
-     * textures: base, biome, profession) that circle the Core, looking into it. Their eyes glow violet (see drawEvolution).
-     */
-    private static void drawSoulHeads(PoseStack pose, MultiBufferSource buffer, Level level, float time, float vs) {
-        if (vs < 3.03F || soulFailed) {
-            return;
-        }
-        try {
-            if (soulHead == null || soulLevel != level) {
-                Entity v = EntityType.VILLAGER.create(level);
-                EntityRenderer<?> r = Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(v);
-                if (r instanceof LivingEntityRenderer<?, ?> lr && lr.getModel() instanceof HeadedModel hm) {
-                    soulHead = hm.getHead();
-                    soulLevel = level;
-                } else {
-                    soulFailed = true;
-                    return;
-                }
-            }
-            try {
-                ModelPart hat = soulHead.getChild("hat");
-                hat.visible = true;
-                hat.getChild("hat_rim").visible = true;
-            } catch (RuntimeException ignored) {
-                // a model without these parts: the plain head is fine
-            }
-            int light = LightTexture.pack(13, 15);
-            for (int i = 0; i < LANTERNS; i++) {
-                float[] l = lanternAt(i, time, vs);
-                float sc = SOUL_SCALE * l[3];
-                if (sc < 0.02F) {
-                    continue;
-                }
-                float phi = (float) Math.atan2(0.5F - l[0], 0.5F - l[2]);
-                String[] look = SOUL_LOOKS[i % SOUL_LOOKS.length];
-                pose.pushPose();
-                pose.translate(l[0], l[1] - 5.0F * sc / 16.0F, l[2]);
-                pose.mulPose(Axis.YP.rotation(phi + (float) Math.PI));
-                pose.mulPose(Axis.ZP.rotation(0.12F * Mth.sin(time * 0.05F + i * 1.3F)));
-                pose.scale(-sc, -sc, sc);
-                for (String tex : new String[]{"villager", "type/" + look[0], "profession/" + look[1]}) {
-                    soulHead.render(pose, buffer.getBuffer(RenderType.entityCutoutNoCull(villagerTexture(tex))), light, OverlayTexture.NO_OVERLAY,
-                            0xFFFFFFFF);
-                }
-                pose.popPose();
-            }
-        } catch (RuntimeException ex) {
-            soulFailed = true; // never take the game down because of a decoration
-        }
-    }
-
-    /** A point on the ribbon that drains energy from the Core into lantern {@code l}, u = 0 (Core) .. 1 (lantern). */
-    private static float[] ribbonPoint(float[] l, float coreY, float time, int i, float u) {
-        float wob = Mth.sin(u * (float) Math.PI) * 0.35F;
-        return new float[]{
-                0.5F + (l[0] - 0.5F) * u + Mth.sin(time * 0.11F + u * 6.0F + i * 1.7F) * wob,
-                coreY + (l[1] - coreY) * u + Mth.cos(time * 0.09F + u * 5.0F + i) * wob * 0.8F,
-                0.5F + (l[2] - 0.5F) * u + Mth.sin(time * 0.1F + u * 5.5F + i * 2.3F + 1.0F) * wob};
-    }
-
     // ------------------------------------------------------------------
     // The bosses. Only the boss that was defeated last is active (it does its thing: the Elder Guardian floats and fires its
     // beam, the Warden climbs out of the ground, the Ender Dragon circles, the Wither hangs over the plaza). With the next
@@ -1797,8 +1705,8 @@ final class SarcophagusRenderer {
     // ------------------------------------------------------------------
 
     private static final ResourceLocation ENDER_EYE = ResourceLocation.withDefaultNamespace("item/ender_eye");
-    /** Colour of the energy of every boss: Elder Guardian, Warden, Ender Dragon, Wither. */
-    private static final float[][] BOSS_COL = {{0.25F, 1.0F, 0.8F}, {0.2F, 0.85F, 1.0F}, {0.78F, 0.42F, 1.0F}, {0.7F, 0.55F, 1.0F}};
+    /** Colour of the beam of every boss: Elder Guardian (beige like its skin), Warden (its blue), Ender Dragon (violet), Wither (pale bone white: black cannot be drawn additively). */
+    private static final float[][] BOSS_COL = {{0.82F, 0.74F, 0.56F}, {0.2F, 0.85F, 1.0F}, {0.78F, 0.42F, 1.0F}, {0.9F, 0.9F, 1.0F}};
     private static final float[] ACTIVE_SCALE = {0.9F, 0.9F, 0.55F, 1.2F};
     private static final float[] TROPHY_SCALE = {0.75F, 0.8F, 0.38F, 0.8F};
     /** Height of the middle of a boss above its feet, in units of its scale. */
@@ -1898,36 +1806,6 @@ final class SarcophagusRenderer {
         return new float[]{a[0] + (lx * cs + lz * sn) * sc, a[1] + ly * sc, a[2] + (-lx * sn + lz * cs) * sc};
     }
 
-    /** Which point of the dragon each crystal drains: the assignment with the shortest total distance (result[crystal] = point). */
-    private static int[] assignPoints(float[][] pts, float[][] gems) {
-        int[] best = {0, 1, 2, 3};
-        float bestD = Float.MAX_VALUE;
-        for (int a = 0; a < 4; a++) {
-            for (int b = 0; b < 4; b++) {
-                if (b == a) {
-                    continue;
-                }
-                for (int c = 0; c < 4; c++) {
-                    if (c == a || c == b) {
-                        continue;
-                    }
-                    int d = 6 - a - b - c;
-                    int[] cur = {a, b, c, d};
-                    float sum = 0.0F;
-                    for (int i = 0; i < 4; i++) {
-                        float dd = dist3(pts[cur[i]], gems[i]);
-                        sum += dd * dd;
-                    }
-                    if (sum < bestD) {
-                        bestD = sum;
-                        best = cur;
-                    }
-                }
-            }
-        }
-        return best;
-    }
-
     /** The Warden's sonic boom: 0 most of the time, a swell between tick 30 and 75 of every 200 (the animation starts at 0). */
     private static float wardenPulse(float time) {
         float t = (time % 200.0F - 30.0F) / 45.0F;
@@ -1946,7 +1824,7 @@ final class SarcophagusRenderer {
             return new float[]{a[0] + sn * 0.3F * s, a[1] + 2.35F * s, a[2] + cs * 0.3F * s};
         }
         if (b == 2) {
-            return dragonPoint(a, 0.0F, 0.8F, -5.6F);
+            return dragonPoint(a, 0.0F, 1.0F, 0.2F);
         }
         return new float[]{a[0], a[1] + 2.9F * s, a[2]};
     }
@@ -2038,7 +1916,7 @@ final class SarcophagusRenderer {
 
     /**
      * The cages (solid, gold): three rings turn about every boss, active or defeated. They are the prison of the active
-     * bosses; the defeated ones between the pillars are also held by beams from the crystals (see holdTo).
+     * bosses; the defeated ones between the pillars are also held by gold chains (see drawCageChains).
      */
     private static void drawCages(PoseStack pose, VertexConsumer vc, float time, float vs, float vp) {
         float vr = CoreEvolution.pillarRadiusAt(vp);
@@ -2060,6 +1938,71 @@ final class SarcophagusRenderer {
             ring(vc, p, light, gold, a[0], cy, a[2], r * 1.12F, -0.45F, -rot * 0.8F, n, w);
             ring(vc, p, light, gold, a[0], cy, a[2], r * 1.24F, 1.5708F, rot * 0.6F, n, w);
         }
+    }
+
+    /**
+     * The gold chains that hold the defeated bosses: from the crystals of the two pillars next to a boss to the cage of rings
+     * round it. They grow out of the pillars while the boss settles.
+     */
+    private static void drawCageChains(PoseStack pose, VertexConsumer vc, float time, float vs, float vp) {
+        float vr = CoreEvolution.pillarRadiusAt(vp);
+        float height = CoreEvolution.pillarAt(vp);
+        if (height < 1.0F) {
+            return;
+        }
+        TextureAtlasSprite gold = sprite(GOLD);
+        int light = LightTexture.pack(13, 15);
+        PoseStack.Pose p = pose.last();
+        float yc = crystalCenter(vp);
+        for (int b = 0; b < 4; b++) {
+            float[] a = bossAt(b, time, vs, vr, height);
+            if (a[6] < 0.03F || a[4] < 0.05F) {
+                continue;
+            }
+            float r = CAGE_R[b] * a[4];
+            float mx = a[0];
+            float my = a[1] + BOSS_MID[b] * a[4];
+            float mz = a[2];
+            for (int pil : gapPillars(b)) {
+                float cx = 0.5F + (pil % 2 == 0 ? -vr : vr);
+                float cz = 0.5F + (pil < 2 ? -vr : vr);
+                float dx = cx - mx;
+                float dy = yc - my;
+                float dz = cz - mz;
+                float len = Math.max(0.01F, Mth.sqrt(dx * dx + dy * dy + dz * dz));
+                float hx = mx + dx / len * r;
+                float hy = my + dy / len * r;
+                float hz = mz + dz / len * r;
+                float span = Mth.sqrt((cx - hx) * (cx - hx) + (yc - hy) * (yc - hy) + (cz - hz) * (cz - hz));
+                int n = Math.max(4, (int) (span / 0.24F));
+                int shown = (int) (n * a[6]);
+                float sag = 0.14F * span;
+                float px = -(cz - hz);
+                float pz = cx - hx;
+                float pl = Math.max(0.01F, Mth.sqrt(px * px + pz * pz));
+                px /= pl;
+                pz /= pl;
+                for (int k = 0; k < shown; k++) {
+                    float u = (k + 0.5F) / n;
+                    float u2 = (k + 1.0F) / n;
+                    float[] c0 = chainPoint(cx, yc, cz, hx, hy, hz, u, sag, time, k);
+                    float[] c1 = chainPoint(cx, yc, cz, hx, hy, hz, u2, sag, time, k + 1);
+                    if (k % 2 == 0) {
+                        beam(vc, p, light, gold, c0[0], c0[1], c0[2], c1[0], c1[1], c1[2], 0.05F);
+                    } else {
+                        float mx2 = (c0[0] + c1[0]) * 0.5F;
+                        float my2 = (c0[1] + c1[1]) * 0.5F;
+                        float mz2 = (c0[2] + c1[2]) * 0.5F;
+                        beam(vc, p, light, gold, mx2 - px * 0.07F, my2, mz2 - pz * 0.07F, mx2 + px * 0.07F, my2, mz2 + pz * 0.07F, 0.04F);
+                    }
+                }
+            }
+        }
+    }
+
+    /** A point of a sagging chain from (ax, ay, az) to (bx, by, bz), u = 0..1. */
+    private static float[] chainPoint(float ax, float ay, float az, float bx, float by, float bz, float u, float sag, float time, int k) {
+        return new float[]{ax + (bx - ax) * u, ay + (by - ay) * u - sag * 4.0F * u * (1.0F - u) + 0.01F * Mth.sin(time * 0.07F + k), az + (bz - az) * u};
     }
 
     /** Position of the Eye of Ender set into the shaft of pillar i, in front of its niche. */
@@ -2124,68 +2067,6 @@ final class SarcophagusRenderer {
 
     // --- restored helpers ---
 
-    private static void blade(VertexConsumer vc, PoseStack.Pose q, int light, TextureAtlasSprite gold, float x0, float y0,
-                              float z0, float x1, float y1, float z1, float bulge) {
-        float px = x0;
-        float py = y0;
-        float pz = z0;
-        for (int k = 1; k <= 6; k++) {
-            float u = k / 6.0F;
-            float x = x0 + (x1 - x0) * u;
-            float y = y0 + (y1 - y0) * u;
-            float z = z0 + (z1 - z0) * u + bulge * Mth.sin(u * (float) Math.PI);
-            beam(vc, q, light, gold, px, py, pz, x, y, z, 0.03F * (1.0F - 0.75F * u) + 0.006F);
-            px = x;
-            py = y;
-            pz = z;
-        }
-    }
-
-
-    /**
-     * Stage 1, the Scout: on the dark pad at the end of every chain stands a hooded shadow sentinel (solid), a cloak that
-     * tapers up into a hood with an empty face and two curved blades crossed on the chest. They step out of the floor.
-     */
-    private static void drawSentinels(PoseStack pose, VertexConsumer vc, float scale, float vs) {
-        float g = ease(Mth.clamp((vs - 0.1F) / 0.9F, 0.0F, 1.0F));
-        if (g < 0.03F) {
-            return;
-        }
-        TextureAtlasSprite wall = sprite(WALL);
-        TextureAtlasSprite marble = sprite(MARBLE);
-        TextureAtlasSprite dark = sprite(INNER);
-        TextureAtlasSprite gold = sprite(GOLD);
-        int light = LightTexture.pack(11, 15);
-        for (int i = 0; i < 4; i++) {
-            float[] an = anchorAt(i, scale, vs);
-            float yaw = (float) Math.atan2(0.5F - an[0], 0.5F - an[1]);
-            pose.pushPose();
-            pose.translate(an[0], -2.7F * (1.0F - g), an[1]);
-            pose.mulPose(Axis.YP.rotation(yaw));
-            PoseStack.Pose q = pose.last();
-            fbox(vc, q, light, marble, wall, -0.32F, 0.32F, 0.0F, 0.10F, -0.32F, 0.32F);
-            goldFrame(vc, q, light, gold, -0.32F, 0.32F, 0.10F, -0.32F, 0.32F, 0.016F);
-            fbox(vc, q, light, wall, wall, -0.25F, 0.25F, 0.10F, 0.75F, -0.21F, 0.21F);
-            fbox(vc, q, light, wall, wall, -0.21F, 0.21F, 0.75F, 1.30F, -0.17F, 0.17F);
-            fbox(vc, q, light, wall, wall, -0.34F, 0.34F, 1.30F, 1.50F, -0.16F, 0.16F);
-            fbox(vc, q, light, wall, wall, -0.19F, 0.19F, 1.50F, 1.74F, -0.17F, 0.19F);
-            fbox(vc, q, light, wall, wall, -0.17F, 0.17F, 1.74F, 2.05F, -0.17F, 0.20F);
-            float[] tip = {0.0F, 2.42F, -0.14F};
-            float[][] bs = {{-0.17F, 2.05F, -0.17F}, {0.17F, 2.05F, -0.17F}, {0.17F, 2.05F, 0.20F}, {-0.17F, 2.05F, 0.20F}};
-            for (int e = 0; e < 4; e++) {
-                float[] a0 = bs[e];
-                float[] a1 = bs[(e + 1) % 4];
-                polyUV(vc, q, light, wall, (a0[0] + a1[0]) * 0.5F, 0.3F, (a0[2] + a1[2]) * 0.5F, new float[][]{a0, a1, tip}, FACET_UV);
-            }
-            fbox(vc, q, light, dark, dark, -0.11F, 0.11F, 1.80F, 2.0F, 0.195F, 0.215F);
-            fbox(vc, q, light, dark, wall, -0.20F, 0.20F, 0.30F, 1.28F, -0.27F, -0.17F);
-            beam(vc, q, light, wall, -0.34F, 1.38F, 0.0F, 0.12F, 1.05F, 0.24F, 0.075F);
-            beam(vc, q, light, wall, 0.34F, 1.38F, 0.0F, -0.12F, 1.05F, 0.24F, 0.075F);
-            blade(vc, q, light, gold, 0.14F, 1.0F, 0.26F, -0.34F, 1.95F, 0.30F, 0.16F);
-            blade(vc, q, light, gold, -0.14F, 1.0F, 0.26F, 0.34F, 1.95F, 0.30F, 0.16F);
-            pose.popPose();
-        }
-    }
 
 
     /** A thin beam with energy packets running along it, from a to b. */
@@ -2467,53 +2348,6 @@ final class SarcophagusRenderer {
         hose(lines, packets, time, a, b, 1.5F, 0.34F, 1.8F, k, r, g, bl, seed);
     }
 
-    /**
-     * The beam that holds a cage: two strands of pale gold that twist about each other from a to b (the same for every
-     * boss, in a neutral colour that suits the red pillars as well as the violet ones).
-     */
-    private static void tendril(Lines lines, List<float[]> packets, float time, float[] a, float[] b, float sag, float k, int seed) {
-        if (k < 0.02F) {
-            return;
-        }
-        final int n = 20;
-        float dx = b[0] - a[0];
-        float dz = b[2] - a[2];
-        float dl = Math.max(0.01F, Mth.sqrt(dx * dx + dz * dz));
-        float px = -dz / dl;
-        float pz = dx / dl;
-        for (int sd = 0; sd < 2; sd++) {
-            float[] prev = null;
-            float[][] pts = new float[n + 1][];
-            for (int m = 0; m <= n; m++) {
-                float u = m / (float) n;
-                float ph = u * 12.0F - time * 0.1F + sd * (float) Math.PI + seed;
-                float off = 0.2F * Mth.sin(u * (float) Math.PI);
-                float[] q = {a[0] + dx * u + px * Mth.cos(ph) * off, a[1] + (b[1] - a[1]) * u - sag * 4.0F * u * (1.0F - u) + Mth.sin(ph) * off,
-                        a[2] + dz * u + pz * Mth.cos(ph) * off};
-                pts[m] = q;
-                if (prev != null) {
-                    float kk = k * (0.6F + 0.4F * Mth.sin(u * (float) Math.PI));
-                    lines.add(prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.16F, 0.45F * kk * 0.5F, 0.36F * kk * 0.5F, 0.2F * kk * 0.5F);
-                    lines.add(prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.055F, 1.0F * kk, 0.9F * kk, 0.68F * kk);
-                }
-                prev = q;
-            }
-            float u = (time * 0.014F + sd * 0.5F + seed * 0.19F) % 1.0F;
-            float[] at = pointAt(pts, u);
-            packets.add(new float[]{at[0], at[1], at[2], 0.7F * k * Mth.sin(u * (float) Math.PI), 1.0F, 0.88F, 0.6F, 0.2F});
-        }
-    }
-
-    /** One holding beam: from src to the point of the cage (radius r) round mid that faces it. */
-    private static void holdTo(Lines lines, List<float[]> packets, float time, float[] src, float[] mid, float r, float k, int seed) {
-        float dx = src[0] - mid[0];
-        float dy = src[1] - mid[1];
-        float dz = src[2] - mid[2];
-        float len = Math.max(0.01F, Mth.sqrt(dx * dx + dy * dy + dz * dz));
-        float[] hit = {mid[0] + dx / len * r, mid[1] + dy / len * r, mid[2] + dz / len * r};
-        tendril(lines, packets, time, src, hit, 0.5F, k, seed);
-    }
-
     /** A beam that twists about itself (the beam of the Elder Guardian), from a to b. */
     private static void twistBeam(Lines lines, List<float[]> packets, float time, float[] a, float[] b, float k, float r, float g, float bl) {
         if (k < 0.02F) {
@@ -2527,7 +2361,7 @@ final class SarcophagusRenderer {
         }
         for (int m = 0; m < n; m++) {
             lines.add(pts[m][0], pts[m][1], pts[m][2], pts[m + 1][0], pts[m + 1][1], pts[m + 1][2], 0.16F, r * k * 0.18F, g * k * 0.18F, bl * k * 0.18F);
-            lines.add(pts[m][0], pts[m][1], pts[m][2], pts[m + 1][0], pts[m + 1][1], pts[m + 1][2], 0.035F, 0.9F * k, 1.0F * k, 0.95F * k);
+            lines.add(pts[m][0], pts[m][1], pts[m][2], pts[m + 1][0], pts[m + 1][1], pts[m + 1][2], 0.035F, (0.55F + 0.45F * r) * k, (0.55F + 0.45F * g) * k, (0.55F + 0.45F * bl) * k);
         }
         for (int strand = 0; strand < 2; strand++) {
             float[] prev = pts[0];
@@ -2607,30 +2441,6 @@ final class SarcophagusRenderer {
         }
     }
 
-    /** The Wither's souls: they rise from the plaza to the Wither, which circles above the Core. */
-    private static void witherEnergy(Lines lines, List<float[]> packets, Late d, float[] w, float g) {
-        float time = d.time;
-        for (int i = 0; i < 10; i++) {
-            float period = 210.0F + (i % 4) * 23.0F;
-            float q = time / period + i * 0.173F;
-            int cyc = (int) Math.floor(q);
-            float u = q - cyc;
-            float a = rnd(cyc * 31 + i, 5) * 6.2832F;
-            float rr = 3.2F + 4.2F * rnd(cyc * 31 + i, 7);
-            for (int tail = 0; tail < 3; tail++) {
-                float uu = Math.max(0.0F, u - tail * 0.018F);
-                float e = ease(uu);
-                float rad = rr * (float) Math.pow(1.0F - e, 1.2);
-                float ang = a + uu * 4.5F;
-                float k = g * (float) Math.pow(Mth.sin(uu * (float) Math.PI), 0.6) * (1.0F - 0.3F * tail);
-                float px = 0.5F + Mth.cos(ang) * rad;
-                float pz = 0.5F + Mth.sin(ang) * rad;
-                packets.add(new float[]{px * (1.0F - e) + w[0] * e, 0.4F + (w[1] + 1.5F * w[4] - 0.4F) * e, pz * (1.0F - e) + w[2] * e, k, 0.78F, 0.6F, 1.0F,
-                        0.2F - 0.04F * tail});
-            }
-        }
-    }
-
     /**
      * Everything that glows outside the Sarcophagus (blended, never added): the energy of the bosses on its way into the Core.
      * The boss that was defeated last is active: 5 the Elder Guardian fires its twisted beam, 10 the Warden sends rings of
@@ -2677,13 +2487,6 @@ final class SarcophagusRenderer {
         float pf = ease(Mth.clamp(height / 3.0F, 0.0F, 1.0F));
         // how active the Ender Dragon is: it drains into the crystals only while it is the boss of the stage
         float dragon = boss[2][5] * (1.0F - boss[2][6]);
-        // the four crystals drain the dragon at one common point (its heart), the four hoses meet there
-        float[][] dpts = null;
-        if (height > 0.3F && dragon > 0.03F) {
-            float[] dr = boss[2];
-            float[] heart = dragonPoint(dr, 0.0F, 1.0F, 0.2F);
-            dpts = new float[][]{heart, heart, heart, heart};
-        }
         if (height > 0.3F) {
             float yc = crystalCenter(vp);
             float top = height - 1.7F;
@@ -2714,145 +2517,40 @@ final class SarcophagusRenderer {
                         lines.add(x0, y0, z0, x0 - ox / ol * 0.05F, y1, z0 - oz / ol * 0.05F, 0.013F, 1.0F * fk, 0.62F * fk, 0.2F * fk);
                     }
                 }
-                // dragon: its energy is drained into the crystal, runs down the shaft and leaves through the Eye of Ender
-                float eB = pf * toB * dragon;
-                if (eB > 0.03F) {
-                    float pulse = 0.85F + 0.15F * Mth.sin(time * 0.17F + i * 1.9F);
-                    siphon(lines, packets, time, dpts[i], gems[i], eB * pulse, 0.78F, 0.4F, 1.0F, i);
-                    feed += eB * 0.3F;
-                    float[] ey = eyeAt(i, vp);
-                    float ang = (float) Math.atan2(cz - 0.5F, cx - 0.5F);
-                    float hw = shaftHalf(vp);
-                    float sxf = cx - Mth.cos(ang) * (hw + 0.02F);
-                    float szf = cz - Mth.sin(ang) * (hw + 0.02F);
-                    flow(lines, packets, time, new float[][]{{cx, y - crystalH(vp) * 0.9F, cz}, {sxf, top - 0.02F, szf}, {sxf, ey[1] + 0.3F, szf}},
-                            eB * pulse, 0.75F, 0.45F, 1.0F, i);
-                    hose(lines, packets, time, ey, tip, 0.5F, 0.1F, 1.0F, eB * pulse, 0.55F, 1.0F, 0.85F, i + 8);
-                    packets.add(new float[]{ey[0], ey[1], ey[2], 0.5F * eB * pulse, 0.3F, 1.0F, 0.6F, 0.45F});
-                }
             }
         }
-        // the Elder Guardian (stage 1): held prisoner in its cage and turned about the Core, which holds it by a tendril of dark
-        // matter; its energy is drawn out through its eye (the twisted beam) into the antenna
-        float[] g0 = boss[0];
-        float guardian = g0[5] * (1.0F - g0[6]);
-        if (guardian > 0.03F) {
-            twistBeam(lines, packets, time, bossHead(0, g0), tip, guardian, BOSS_COL[0][0], BOSS_COL[0][1], BOSS_COL[0][2]);
-            feed += guardian * 0.7F;
-        }
-        // the Warden (stage 2): it stands at the side of the ways and fires its sonic boom (the rings of sound run into the antenna)
-        float[] w1 = boss[1];
-        float warden = w1[5] * (1.0F - w1[6]);
-        if (warden > 0.03F) {
-            float pz = wardenPulse(time);
-            float[] head = bossHead(1, w1);
-            sonicRings(lines, time, head, tip, warden * (0.2F + 0.8F * pz), 0.2F, 0.9F, 1.0F);
-            packets.add(new float[]{head[0], head[1], head[2], warden * (0.15F + 0.7F * pz), 0.1F, 0.9F, 0.9F, 0.4F + 0.4F * pz});
-            feed += warden * (0.4F + 0.5F * pz);
-        }
-        // the defeated bosses between the pillars: dark matter from the neighbouring pillars holds them, a hose of energy from
-        // their heads runs into the antenna
-        for (int b = 0; b < 3; b++) {
-            float st = boss[b][6];
-            if (st < 0.03F) {
-                continue;
-            }
-            float[] head = bossHead(b, boss[b]);
-            float[] bc = BOSS_COL[b];
-            float pulse = 0.85F + 0.15F * Mth.sin(time * 0.1F + b * 2.0F);
-            hose(lines, packets, time, head, tip, 0.5F, 0.15F, 1.3F, st * pulse, bc[0], bc[1], bc[2], b + 20);
-            feed += st * 0.5F;
-        }
-        // every boss hangs in its cage of rings; the active ones are held by the rings alone, the defeated ones between the
-        // pillars by the same neutral beam from the crystals of the two pillars next to them
+        // every boss sends exactly ONE beam into the antenna, in its own colour: the active one in its own kind (the twisted beam
+        // of the Elder Guardian, the rings of sound of the Warden, a hose for the Dragon and the Wither), the defeated ones pump a
+        // hose of the same colour. No other beams: the cages are only held by chains (see drawCageChains).
         for (int b = 0; b < 4; b++) {
             float[] a = boss[b];
-            if (a[5] < 0.05F || a[4] < 0.05F || a[6] < 0.03F) {
+            if (a[5] < 0.03F || a[4] < 0.05F) {
                 continue;
             }
-            float r = CAGE_R[b] * a[4];
-            float[] mid = {a[0], a[1] + BOSS_MID[b] * a[4], a[2]};
-            for (int pil : gapPillars(b)) {
-                if (gems[pil] != null) {
-                    holdTo(lines, packets, time, gems[pil], mid, r, a[6], b * 10 + pil);
+            float[] head = bossHead(b, a);
+            float[] bc = BOSS_COL[b];
+            float act = a[5] * (1.0F - a[6]);
+            float pulse = 0.85F + 0.15F * Mth.sin(time * 0.1F + b * 2.0F);
+            if (act > 0.03F) {
+                float pz = wardenPulse(time);
+                if (b == 0) {
+                    twistBeam(lines, packets, time, head, tip, act, bc[0], bc[1], bc[2]);
+                } else if (b == 1) {
+                    sonicRings(lines, time, head, tip, act * (0.2F + 0.8F * pz), bc[0], bc[1], bc[2]);
+                    packets.add(new float[]{head[0], head[1], head[2], act * (0.15F + 0.7F * pz), bc[0], bc[1], bc[2], 0.4F + 0.4F * pz});
+                } else {
+                    hose(lines, packets, time, head, tip, 0.5F, 0.18F, 1.5F, act * pulse, bc[0], bc[1], bc[2], b + 30);
                 }
+                feed += act * (b == 1 ? 0.4F + 0.5F * pz : 0.8F);
+            }
+            if (a[6] > 0.03F) {
+                hose(lines, packets, time, head, tip, 0.5F, 0.15F, 1.3F, a[6] * pulse, bc[0], bc[1], bc[2], b + 20);
+                feed += a[6] * 0.5F;
             }
         }
-        // the shadow sentinels (stage 1): slit eyes with a corrupted face, shadow running along the chains into the Sarcophagus
-        float gs = ease(Mth.clamp((vs - 0.1F) / 0.9F, 0.0F, 1.0F));
-        if (gs > 0.05F) {
-            for (int i = 0; i < 4; i++) {
-                float[] an = anchorAt(i, d.scale, vs);
-                float yaw = (float) Math.atan2(0.5F - an[0], 0.5F - an[1]);
-                float base = -2.7F * (1.0F - gs);
-                float ey = 1.90F + base;
-                float flick = (0.8F + 0.2F * Mth.sin(time * 0.31F + i * 2.0F) * Mth.sin(time * 0.11F + i)) * gs;
-                for (int sd = -1; sd <= 1; sd += 2) {
-                    float[] in = yawPoint(an[0], an[1], yaw, 0.02F * sd, 0.226F);
-                    float[] out = yawPoint(an[0], an[1], yaw, 0.098F * sd, 0.226F);
-                    float[] a = {in[0], ey - 0.022F, in[1]};
-                    float[] b = {out[0], ey + 0.026F, out[1]};
-                    lines.add(a[0], a[1], a[2], b[0], b[1], b[2], 0.016F, 0.5F * flick, 0.14F * flick, 0.03F * flick);
-                    lines.add(a[0], a[1], a[2], b[0], b[1], b[2], 0.0085F, 1.0F * flick, 0.6F * flick, 0.18F * flick);
-                    lines.add(a[0], a[1], a[2], b[0], b[1], b[2], 0.0034F, 1.0F * flick, 0.96F * flick, 0.82F * flick);
-                    for (int v = 0; v < 3; v++) {
-                        float lx = 0.098F * sd + sd * 0.004F * v;
-                        float ly = 1.92F - 0.014F * v;
-                        float prog = 2.4F + 1.6F * Mth.sin(time * 0.035F + i * 1.3F + v + sd);
-                        float[] last = yawPoint(an[0], an[1], yaw, lx, hoodZ(ly));
-                        float ly0 = ly;
-                        for (int sg = 0; sg < 5; sg++) {
-                            float nlx = lx + sd * (0.012F + 0.03F * rnd(i * 9 + v, sg + sd * 5 + 20));
-                            float nly = ly0 - (0.045F + 0.05F * rnd(i * 9 + v, sg + 40));
-                            float[] nxt = yawPoint(an[0], an[1], yaw, nlx, hoodZ(nly));
-                            float kk = Mth.clamp(prog - sg, 0.0F, 1.0F) * gs;
-                            if (kk > 0.02F) {
-                                lines.add(last[0], ly0 + base, last[1], nxt[0], nly + base, nxt[1], 0.0075F * (1.0F - 0.12F * sg), 0.55F * kk, 0.1F * kk, 0.75F * kk);
-                            }
-                            last = nxt;
-                            lx = nlx;
-                            ly0 = nly;
-                        }
-                    }
-                }
-                if (vs > 0.9F) {
-                    for (int q = 0; q < 2; q++) {
-                        float f = 1.0F - ((time * 0.011F + i * 0.25F + q * 0.5F) % 1.0F);
-                        float[] cp = chainAt(i, d.scale, vs, time, f);
-                        packets.add(new float[]{cp[0], cp[1], cp[2], gs * Mth.sin((1.0F - f) * (float) Math.PI), 0.45F, 0.18F, 0.85F, 0.16F});
-                    }
-                }
-            }
-        }
-        // the Wither (stage 4): souls, the funnel into the Core, soul lanterns, a beacon into the sky
+        // the Wither (stage 4): a beacon rises from the tip of the antenna into the sky
         float gw = ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F));
         if (gw > 0.03F) {
-            for (int i = 0; i < LANTERNS; i++) {
-                float[] l = lanternAt(i, time, vs);
-                float[] prev = {0.5F, coreY, 0.5F};
-                for (int sg = 1; sg <= 10; sg++) {
-                    float u = sg / 10.0F;
-                    float[] q = ribbonPoint(l, coreY, time, i, u);
-                    float kk = (0.2F + 0.45F * u) * l[3];
-                    lines.add(prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.012F + 0.008F * u, 0.55F * kk, 0.25F * kk, 1.0F * kk);
-                    prev = q;
-                }
-                float u = 1.0F - ((time * 0.012F + i * 0.2F) % 1.0F);
-                float[] pk = ribbonPoint(l, coreY, time, i, u);
-                packets.add(new float[]{pk[0], pk[1], pk[2], Mth.sin(u * (float) Math.PI) * l[3], 0.75F, 0.5F, 1.0F, 0.2F});
-            }
-            float[] wb = boss[3];
-            witherEnergy(lines, packets, d, wb, gw);
-            // all three heads send a curly ribbon (as the soul lanterns do) into the antenna while it circles the Core
-            float[][] heads = {bossPoint(wb, 0.0F, 2.95F, 0.15F), bossPoint(wb, -1.25F, 2.45F, 0.15F), bossPoint(wb, 1.25F, 2.45F, 0.15F)};
-            for (int h = 0; h < 3; h++) {
-                curl(lines, packets, time, heads[h], tip, gw, h + 60, 0.7F, 0.45F, 1.0F);
-            }
-            feed += gw * 0.9F;
-            for (int i = 0; i < 4; i++) {
-                float[] sk = eyeAt(i, vp);
-                hose(lines, packets, time, sk, tip, 0.6F, 0.09F, 1.0F, gw * 0.8F, 0.6F, 0.32F, 1.0F, i + 40);
-            }
             float pulse = 0.85F + 0.15F * Mth.sin(time * 0.11F);
             float y0 = tipY + 0.1F;
             for (int sg = 0; sg < 8; sg++) {
@@ -2910,25 +2608,6 @@ final class SarcophagusRenderer {
                 float ks = toR * (0.35F + 0.5F * ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F)));
                 billboard(buffer.getBuffer(glow(HALO)), p, ey[0], ey[1], ey[2], 0.6F, 0.0F, 0.5F * ks, 0.3F * ks, 0.9F * ks);
             }
-        }
-        // the eyes of the possessed villagers: violet
-        for (int i = 0; gw > 0.03F && i < LANTERNS; i++) {
-            float[] l = lanternAt(i, time, vs);
-            float k = l[3] * (0.85F + 0.15F * Mth.sin(time * 0.12F + i));
-            float sc = SOUL_PX * l[3];
-            float phi = (float) Math.atan2(0.5F - l[0], 0.5F - l[2]);
-            float fx = Mth.sin(phi);
-            float fz = Mth.cos(phi);
-            float lx = Mth.cos(phi);
-            float lz = -Mth.sin(phi);
-            for (int sd = -1; sd <= 1; sd += 2) {
-                float ex = l[0] + fx * 4.6F * sc + lx * sd * 2.0F * sc;
-                float ez = l[2] + fz * 4.6F * sc + lz * sd * 2.0F * sc;
-                float ey = l[1] + 0.5F * sc;
-                billboard(buffer.getBuffer(glow(HALO)), p, ex, ey, ez, 3.0F * sc, 0.0F, 0.8F * k, 0.3F * k, 1.0F * k);
-                billboard(buffer.getBuffer(glow(HALO)), p, ex, ey, ez, 1.2F * sc, 0.0F, 1.0F * k, 0.85F * k, 1.0F * k);
-            }
-            billboard(buffer.getBuffer(glow(HALO)), p, l[0], l[1], l[2], 1.5F * l[3], 0.0F, 0.28F * k, 0.1F * k, 0.5F * k);
         }
     }
 

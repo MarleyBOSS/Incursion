@@ -5,6 +5,7 @@ import com.marleyboss.incursion.entity.CoreTargetEntity;
 import com.marleyboss.incursion.registry.ModBlockEntities;
 import com.marleyboss.incursion.registry.ModBlocks;
 import com.marleyboss.incursion.registry.ModEntities;
+import com.marleyboss.incursion.registry.ModSounds;
 import com.marleyboss.incursion.siege.Shields;
 import com.marleyboss.incursion.siege.SiegeManager;
 import net.minecraft.ChatFormatting;
@@ -109,6 +110,8 @@ public class CoreBlockEntity extends BlockEntity {
     private int built = -1;
     /** Game time the last evolution started (synced, not saved). */
     private long evoStart = 0L;
+    /** Server: a new stage is being raised (music and finale play); not saved. */
+    private boolean announce;
     /** Blocks that were in the way, shown shaking until they blow up (client side copy, synced, not saved). */
     private final List<Ghost> ghosts = new ArrayList<>();
     /** Blocks still to place (server side). */
@@ -219,6 +222,7 @@ public class CoreBlockEntity extends BlockEntity {
      */
     public void evolve(ServerLevel level, int newStage) {
         long now = level.getGameTime();
+        int oldStage = stage;
         stage = newStage;
         built = -1;
         evoStart = now;
@@ -238,7 +242,6 @@ public class CoreBlockEntity extends BlockEntity {
                 level.setBlock(pos, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
             }
         }
-        level.playSound(null, worldPosition, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.BLOCKS, 4.0F, 0.55F);
         int pillar = CoreEvolution.pillarHeight(newStage);
         int radius = CoreEvolution.plazaRadius(newStage);
         for (CoreEvolution.Cell cell : plan) {
@@ -322,6 +325,12 @@ public class CoreBlockEntity extends BlockEntity {
                 }
             }
         }
+        // a new stage (not a rebuild after loading the world): the music builds up and the finale comes after a fixed time
+        announce = newStage != oldStage && newStage >= 1;
+        if (announce) {
+            steps.add(new Step(worldPosition, null, null, now + CoreEvolution.EVOLVE_TICKS, 0)); // does nothing, only holds the finale back
+            level.playSound(null, worldPosition, ModSounds.CORE_EVOLVE_RISE.get(), SoundSource.BLOCKS, 2.0F, 1.0F);
+        }
         if (steps.isEmpty()) {
             built = stage;
         }
@@ -396,8 +405,11 @@ public class CoreBlockEntity extends BlockEntity {
         double x = worldPosition.getX() + 0.5;
         double y = worldPosition.getY() + 1.0;
         double z = worldPosition.getZ() + 0.5;
-        level.playSound(null, worldPosition, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, 6.0F, 0.8F);
-        level.playSound(null, worldPosition, SoundEvents.END_PORTAL_SPAWN, SoundSource.BLOCKS, 1.2F, 1.4F);
+        if (announce) {
+            announce = false;
+            level.playSound(null, worldPosition, ModSounds.CORE_EVOLVE_FINALE.get(), SoundSource.BLOCKS, 2.0F, 1.0F);
+            level.playSound(null, worldPosition, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, 2.0F, 0.8F);
+        }
         level.sendParticles(ParticleTypes.FLASH, x, y + 0.5, z, 1, 0.0, 0.0, 0.0, 0.0);
         level.sendParticles(ParticleTypes.END_ROD, x, y + 0.5, z, 120, 1.5, 1.5, 1.5, 0.25);
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);

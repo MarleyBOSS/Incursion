@@ -22,13 +22,15 @@ public final class CoreEvolution {
     public static final int MAX_STAGE = 4;
     /** Ticks the blocks in the way shake before they blow up. */
     public static final int SHAKE = 40;
-    private static final float[] SCALE = {1.0F, 1.4F, 1.8F, 2.4F, 3.0F};
-    private static final int[] PLAZA = {0, 3, 5, 6, 7};
-    private static final int[] PILLAR = {0, 0, 6, 8, 10};
+    /** Ticks from the start of a new stage to its finale (flash, music): the same for every stage, the music is timed to it. */
+    public static final int EVOLVE_TICKS = 120;
+    private static final float[] SCALE = {1.0F, 1.35F, 1.7F, 2.05F, 2.4F};
+    private static final int[] PLAZA = {0, 3, 4, 5, 6};
+    private static final int[] PILLAR = {0, 0, 5, 6, 8};
     /** Radius of the plaza disc (blocks from the middle): stage 1 is a 3x3 square, then a circle that holds the pillars. */
-    private static final float[] DISC = {0.0F, 4.6F, 8.0F, 9.4F, 10.8F};
+    private static final float[] DISC = {0.0F, 4.2F, 6.2F, 7.6F, 8.8F};
     /** Where the pillars stand (diagonal offset); they do not exist before stage 2. */
-    private static final float[] PILLAR_R = {4.0F, 4.0F, 5.0F, 6.0F, 7.0F};
+    private static final float[] PILLAR_R = {3.5F, 3.5F, 4.0F, 5.0F, 6.0F};
     /** Strength of the energy beams per stage. */
     private static final float[] BEAMS = {0.0F, 0.0F, 0.5F, 0.75F, 1.0F};
 
@@ -37,7 +39,7 @@ public final class CoreEvolution {
     }
 
     /** The largest radius of the protected area (stage 4). */
-    public static final int MAX_AREA_RADIUS = 11;
+    public static final int MAX_AREA_RADIUS = 9;
 
     /** Thickness of the hull of the old pyramid (see legacyPyramid). */
     private static final float HULL = 1.3F;
@@ -261,7 +263,7 @@ public final class CoreEvolution {
     }
 
     /** Radii of the gold rings inlaid in the plaza. */
-    private static final float[] RINGS = {3.2F, 5.6F, 8.0F};
+    private static final float[] RINGS = {2.6F, 4.6F, 6.6F};
 
     private static boolean onRing(double d, int stage, float disc) {
         if (stage < 2) {
