@@ -40,6 +40,7 @@ public class Incursion {
         SiegeEvents.register();
         Rewards.register();
         Fallout.register();
+        com.marleyboss.incursion.block.EternalFire.register();
         Ritual.register();
         com.marleyboss.incursion.block.CoreAreaGuard.register();
         com.marleyboss.incursion.command.CoreCommands.register();

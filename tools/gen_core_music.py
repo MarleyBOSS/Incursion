@@ -284,8 +284,64 @@ def finale():
     return normalize(mix, 0.92) * swell(n, 0.003, 0.9)
 
 
+def meltdown():
+    """The Core overloads: 5.5 s of charging (a drone that swells, a tone that climbs from D3 to D6, noise that opens, crackle
+    that gets denser, heartbeat timpani) that ends exactly on the explosion (boom, crack, a long rumble and falling debris).
+    The game starts it with the charge and the explosion follows after 110 ticks = 5.5 s."""
+    seconds = 11.0
+    boom = 5.5
+    n = int(seconds * SR)
+    t = taxis(seconds)
+    mix = np.zeros(n)
+    prog = np.clip(t / boom, 0.0, 1.0)
+    pre = np.clip((boom - t) / 0.015, 0.0, 1.0)  # the charge stops dead on the boom
+    # a sub drone on D with a tremolo that gets faster and faster
+    f0 = hz(26)
+    trem = np.sin(2 * np.pi * np.cumsum(2.0 + 14.0 * prog ** 2) / SR)
+    drone = np.sin(2 * np.pi * f0 * t) + 0.6 * np.sin(2 * np.pi * 2 * f0 * t) + 0.4 * np.sin(2 * np.pi * 3 * f0 * t)
+    mix += drone * (0.25 + 0.75 * prog ** 1.5) * (0.75 + 0.25 * trem) * 0.5 * pre
+    # the climbing shriek: D3 -> D6 with the fifth above it
+    f = hz(50) * 2.0 ** (3.0 * prog ** 1.6)
+    phase = np.cumsum(f) / SR
+    shriek = lowpass(2.0 * (phase % 1.0) - 1.0, 3200) + 0.6 * lowpass(2.0 * ((phase * 1.5) % 1.0) - 1.0, 3200)
+    mix += shriek * prog ** 2.5 * 0.33 * pre
+    # noise that opens band by band
+    noise = rng(31).standard_normal(n)
+    for j, fc in enumerate((180, 400, 900, 1900, 3800, 7500)):
+        mix += bandpass(noise, fc, 1.3) * prog ** (2.2 - 0.1 * j) * (0.2 - 0.015 * j) * pre
+    # crackle: impulses that get denser
+    p_imp = (3.0 + 500.0 * prog ** 2.2) / SR
+    imp = (rng(32).random(n) < p_imp) * rng(33).uniform(0.3, 1.0, n)
+    kt = np.arange(int(0.02 * SR)) / SR
+    crackle = highpass(signal.fftconvolve(imp, np.exp(-kt / 0.004) * np.sin(2 * np.pi * 2300 * kt))[:n], 900)
+    mix += crackle * prog ** 1.2 * 1.3 * pre
+    # a heartbeat on D that quickens
+    hits = [0.5, 1.6, 2.6, 3.4, 4.0, 4.5, 4.9, 5.2, 5.4]
+    for i, h in enumerate(hits):
+        k = 0.35 + 0.65 * i / (len(hits) - 1)
+        place(mix, timpani(hz(38 if i % 2 == 0 else 33), 1.4, 0.45, 60 + i) * 0.9 * k, h)
+    # the explosion
+    post = (t >= boom).astype(float)
+    tb = np.maximum(t - boom, 0.0)
+    fall = 70.0 * np.exp(-tb / 0.8) + 28.0
+    mix += np.sin(2 * np.pi * np.cumsum(fall) / SR) * np.exp(-tb / 1.7) * 1.3 * post
+    mix += lowpass(rng(34).standard_normal(n), 2200) * np.exp(-tb / 0.6) * 1.3 * post
+    mix += highpass(rng(35).standard_normal(n), 3500) * np.exp(-tb / 0.05) * 0.9 * post
+    mix += lowpass(rng(36).standard_normal(n), 160) * np.exp(-tb / 2.6) * 2.2 * post
+    place(mix, timpani(hz(26), 3.0, 1.1, 70) * 1.2, boom)
+    place(mix, timpani(hz(38), 2.5, 0.9, 71) * 0.9, boom)
+    # falling debris afterwards
+    p_tail = (260.0 * np.exp(-tb / 1.8)) / SR
+    tail = (rng(37).random(n) < p_tail) * rng(38).uniform(0.2, 1.0, n) * post
+    mix += highpass(signal.fftconvolve(tail, np.exp(-kt / 0.006) * np.sin(2 * np.pi * 1500 * kt))[:n], 500) * 0.8
+    mix = highpass(mix, 22)
+    mix = reverb(mix, 4.0, 0.3)
+    return normalize(mix, 0.95) * swell(n, 0.01, 1.6)
+
+
 if __name__ == "__main__":
     write_ogg("hum", ambient())
     write_ogg("evolve_rise", rise())
     write_ogg("evolve_finale", finale())
+    write_ogg("meltdown", meltdown())
     print("written to", os.path.abspath(OUT))

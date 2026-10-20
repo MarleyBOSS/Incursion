@@ -36,6 +36,7 @@ public class IncursionClient {
         modEventBus.addListener(IncursionClient::registerRenderers);
         modEventBus.addListener(IncursionClient::registerItemExtensions);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(CoreRenderer::onRenderLevel);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(CoreBlastRenderer::onCameraAngles);
     }
 
     /** The loot chest item is drawn like a chest (with the chest renderer), not as a flat cube. */
@@ -73,6 +74,8 @@ public class IncursionClient {
     private static void registerRenderers(EntityRenderersEvent.RegisterRenderers event) {
         // The Core target is invisible.
         event.registerEntityRenderer(ModEntities.CORE_TARGET.get(), NoopRenderer::new);
+        // The meltdown of a Core is drawn by CoreBlastRenderer in the late pass of the level.
+        event.registerEntityRenderer(ModEntities.CORE_BLAST.get(), NoopRenderer::new);
         // Shield domes and border beams.
         event.registerBlockEntityRenderer(ModBlockEntities.CORE.get(), CoreRenderer::new);
         // Health bar above ward totems.

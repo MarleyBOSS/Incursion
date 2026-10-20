@@ -329,6 +329,14 @@ public final class Config {
             .comment("If true, the explosion leaves a contaminated wasteland around the crater.")
             .define("contaminationEnabled", true);
 
+    public static final ModConfigSpec.BooleanValue BURN_ENABLED = BUILDER
+            .comment("If true, the land burns after the explosion with eternal fire (it comes back somewhere nearby when put out).")
+            .define("burnEnabled", true);
+
+    public static final ModConfigSpec.IntValue BURN_DENSITY = BUILDER
+            .comment("Share (in percent) of the ground in the crater that burns; towards the edge of the zone it falls off.")
+            .defineInRange("burnDensity", 55, 1, 100);
+
     public static final ModConfigSpec.DoubleValue CONTAMINATION_RADIUS_FACTOR = BUILDER
             .comment("Contaminated zone radius = crater radius * this factor (max 96 blocks).")
             .defineInRange("contaminationRadiusFactor", 1.5, 1.0, 4.0);

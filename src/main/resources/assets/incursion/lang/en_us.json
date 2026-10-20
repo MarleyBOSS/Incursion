@@ -1,4 +1,5 @@
 {
+  "block.incursion.eternal_fire": "Eternal Fire",
   "block.incursion.core": "Sarcophagus",
   "block.incursion.core_part": "Sarcophagus (space)",
   "block.incursion.core_floor": "Core Plaza",
@@ -104,6 +105,8 @@
   "incursion.configuration.explosionRadiusMax": "Crater radius maximum",
   "incursion.configuration.explosionBlocksPerTick": "Blocks removed per tick",
   "incursion.configuration.explosionDamage": "Explosion damage",
+  "incursion.configuration.burnEnabled": "Land burns after the explosion",
+  "incursion.configuration.burnDensity": "Fire density (%)",
   "incursion.configuration.contaminationEnabled": "Contamination enabled",
   "incursion.configuration.contaminationRadiusFactor": "Contamination radius (× crater)",
   "incursion.configuration.contaminationMinutes": "Contamination duration (minutes, -1 = forever)",
@@ -359,6 +362,8 @@
   "subtitles.incursion.core_open": "Core Seal unfolds",
   "subtitles.incursion.core_hum": "Core hums",
   "subtitles.incursion.core_evolve_rise": "Core gathers power",
+  "subtitles.incursion.core_meltdown": "Core overloads and explodes",
+  "message.incursion.core.meltdown": "Core overloaded – explosion in 5 seconds!",
   "subtitles.incursion.core_evolve_finale": "Core awakens to a new stage",
   "item.incursion.core_rune": "Core Rune",
   "item.incursion.mythic_potion": "Mythic Potion",

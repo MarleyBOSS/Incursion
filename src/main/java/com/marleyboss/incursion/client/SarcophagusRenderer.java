@@ -80,12 +80,12 @@ final class SarcophagusRenderer {
     private static final ResourceLocation GOLD = block("sarkophag_gold");
     private static final ResourceLocation GUNPOWDER = block("sarkophag_gunpowder");
     private static final ResourceLocation BLAZE = block("sarkophag_blaze");
-    private static final ResourceLocation TRIM = effect("trim");
-    private static final ResourceLocation ORB = effect("orb");
-    private static final ResourceLocation HALO = effect("halo");
-    private static final ResourceLocation FLARE = effect("flare");
+    static final ResourceLocation TRIM = effect("trim");
+    static final ResourceLocation ORB = effect("orb");
+    static final ResourceLocation HALO = effect("halo");
+    static final ResourceLocation FLARE = effect("flare");
     private static final ResourceLocation RUNE_ITEM = ResourceLocation.fromNamespaceAndPath(NS, "item/core_rune");
-    private static final ResourceLocation RING = effect("rune_circle");
+    static final ResourceLocation RING = effect("rune_circle");
     private static final ResourceLocation HALO_A = effect("halo_a");
     private static final ResourceLocation FLARE_A = effect("flare_a");
     private static final ResourceLocation RING_A = effect("rune_circle_a");
@@ -115,7 +115,7 @@ final class SarcophagusRenderer {
      */
     private static final float INSET = -0.0025F;
     /** Height of the orb's centre, relative to the block. */
-    private static final float ORB_Y = 1.12F;
+    static final float ORB_Y = 1.12F;
     /** Height of the four corner tips of the lower half: exactly where the slab begins, so the frame lines meet there. */
     private static final float TIP = 1.0F - SLAB;
     /** Rise of the lower half's surface per block from the notch to the corner. */
@@ -124,7 +124,7 @@ final class SarcophagusRenderer {
     /** Width of the corner posts: the horizontal width of the slanted gold bars at their tip, so the posts are flush with them. */
     private static final float POST_W = GOLD_HALF * (float) Math.sqrt(1.0F + (0.5F / (TIP - 0.5F)) * (0.5F / (TIP - 0.5F)));
     private static final float CORNER_W = 0.010F * (float) Math.sqrt(1.0F + (0.5F / (TIP - 0.5F)) * (0.5F / (TIP - 0.5F)));
-    private static final float ORB_RADIUS = 0.15F;
+    static final float ORB_RADIUS = 0.15F;
 
     private static final float[] C = {0.5F, 0.5F, 0.5F};
     private static final float[] N = {0.5F, 0.5F, 0.0F};
@@ -186,7 +186,7 @@ final class SarcophagusRenderer {
         return ResourceLocation.fromNamespaceAndPath(NS, "textures/effect/" + name + ".png");
     }
 
-    private static float ease(float t) {
+    static float ease(float t) {
         t = Mth.clamp(t, 0.0F, 1.0F);
         return t * t * (3.0F - 2.0F * t);
     }
@@ -444,7 +444,7 @@ final class SarcophagusRenderer {
     }
 
     /** What the block needs for the see-through part of its drawing, collected while the block entities are drawn. */
-    private static final class Late {
+    static final class Late {
         BlockPos pos;
         float time;
         float t;
@@ -474,7 +474,11 @@ final class SarcophagusRenderer {
     /** Draws the collected see-through parts once the translucent blocks (water, ice, glass) are in the picture. */
     static void renderLate(RenderLevelStageEvent event) {
         // After the weather: the clouds are drawn before it, and what is drawn earlier fades behind them against the sky.
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER || LATE.isEmpty()) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_WEATHER) {
+            return;
+        }
+        boolean blasts = CoreBlastRenderer.collect();
+        if (LATE.isEmpty() && !blasts) {
             return;
         }
         MultiBufferSource.BufferSource buffer = Minecraft.getInstance().renderBuffers().bufferSource();
@@ -490,6 +494,9 @@ final class SarcophagusRenderer {
                 PoseStack pose = new PoseStack();
                 pose.translate(d.pos.getX() - cam.x, d.pos.getY() - cam.y, d.pos.getZ() - cam.z);
                 drawLate(d, pose, buffer);
+            }
+            if (blasts) {
+                CoreBlastRenderer.draw(buffer, cam, event.getPartialTick().getGameTimeDeltaPartialTick(false));
             }
             buffer.endBatch();
         } finally {
@@ -558,7 +565,7 @@ final class SarcophagusRenderer {
         pose.popPose();
     }
 
-    private static void flushAdditive(MultiBufferSource buffer) {
+    static void flushAdditive(MultiBufferSource buffer) {
         if (buffer instanceof MultiBufferSource.BufferSource source) {
             source.endBatch(fx());
             source.endBatch(fxFire());
@@ -632,7 +639,7 @@ final class SarcophagusRenderer {
     }
 
     /** A repeatable pseudo random number in [0, 1) from two integers. */
-    private static float rnd(int a, int b) {
+    static float rnd(int a, int b) {
         double v = Math.sin((a % 9973) * 12.9898 + (b % 9973) * 78.233) * 43758.5453;
         return (float) (v - Math.floor(v));
     }
@@ -922,7 +929,7 @@ final class SarcophagusRenderer {
      * Stage 0 (the shut ritual just lit): the Core is a star. Thin golden rays run from it to the frame in every direction,
      * a flare burns in its middle and a ring of runes turns round it. They give way to the flames of the later stages.
      */
-    private static void drawStar(PoseStack pose, MultiBufferSource buffer, Late d) {
+    static void drawStar(PoseStack pose, MultiBufferSource buffer, Late d) {
         float k = d.orb * (1.0F - ease(Mth.clamp(d.vs, 0.0F, 1.0F)));
         if (k < 0.02F) {
             return;
@@ -963,7 +970,7 @@ final class SarcophagusRenderer {
      * elsewhere (3 at stage 1, one more per stage). At stage 4 the Core also grows purple tongues that lick upward, the souls
      * it drinks. All fire is kept inside the cavity, so it never passes through the lid or the walls.
      */
-    private static void drawCorona(PoseStack pose, MultiBufferSource buffer, Late d) {
+    static void drawCorona(PoseStack pose, MultiBufferSource buffer, Late d) {
         float vs = d.vs;
         if (vs < 0.02F) {
             return;
@@ -3127,7 +3134,7 @@ final class SarcophagusRenderer {
     }
 
     /** The lightning strike on the shut Sarcophagus: a jagged bolt from high above, flickering. {@code k}: 1 .. 0 fading. */
-    private static void drawBolt(PoseStack pose, MultiBufferSource buffer, float time, float k) {
+    static void drawBolt(PoseStack pose, MultiBufferSource buffer, float time, float k) {
         VertexConsumer vc = buffer.getBuffer(glow(TRIM));
         PoseStack.Pose p = pose.last();
         java.util.Random rnd = new java.util.Random(((long) (time * 0.5F)) * 7919L + 13L);
@@ -3216,7 +3223,7 @@ final class SarcophagusRenderer {
         }
     }
 
-    private static void drawOrb(PoseStack pose, MultiBufferSource buffer, float time, float scale, float flash, float vs) {
+    static void drawOrb(PoseStack pose, MultiBufferSource buffer, float time, float scale, float flash, float vs) {
         float pulse = 0.93F + 0.07F * Mth.sin(time * 0.19F);
         float cy = ORB_Y + 0.02F * Mth.sin(time * 0.08F);
         float flick = 0.95F + 0.05F * Mth.sin(time * 0.43F) * Mth.sin(time * 0.27F + 2.0F);
@@ -3294,7 +3301,7 @@ final class SarcophagusRenderer {
     // ------------------------------------------------------------------
 
     /** A square facing the camera (centre, half size, turned by rot radians). */
-    private static void billboard(VertexConsumer vc, PoseStack.Pose pose, float cx, float cy, float cz, float half,
+    static void billboard(VertexConsumer vc, PoseStack.Pose pose, float cx, float cy, float cz, float half,
                                   float rot, float r, float g, float b) {
         Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
         Vector3f left = camera.getLeftVector();
@@ -3307,7 +3314,7 @@ final class SarcophagusRenderer {
     }
 
     /** A sphere (outside faces only), additive; {@code uShift}/{@code vShift} move the texture over it. */
-    private static void sphere(VertexConsumer vc, PoseStack.Pose pose, float radius, float uShift, float vShift, float r,
+    static void sphere(VertexConsumer vc, PoseStack.Pose pose, float radius, float uShift, float vShift, float r,
                                float g, float b) {
         final int seg = 20;
         final int stacks = 12;
@@ -3409,7 +3416,7 @@ final class SarcophagusRenderer {
     }
 
     /** A ribbon (two crossed quads) from a to b, drawn from both sides. */
-    private static void laser(VertexConsumer vc, PoseStack.Pose pose, float ax, float ay, float az, float bx, float by,
+    static void laser(VertexConsumer vc, PoseStack.Pose pose, float ax, float ay, float az, float bx, float by,
                               float bz, float width, float r, float g, float b) {
         float dx = bx - ax;
         float dy = by - ay;
@@ -3448,7 +3455,7 @@ final class SarcophagusRenderer {
      * A parallelogram around (cx, cy, cz) spanned by the half vectors a and b, drawn from both sides (the additive
      * type culls back faces). u runs along b, v along a.
      */
-    private static void plane(VertexConsumer vc, PoseStack.Pose pose, float cx, float cy, float cz, float ax, float ay,
+    static void plane(VertexConsumer vc, PoseStack.Pose pose, float cx, float cy, float cz, float ax, float ay,
                               float az, float bx, float by, float bz, float r, float g, float b) {
         glowVertex(vc, pose, cx - ax - bx, cy - ay - by, cz - az - bz, 0, 0, r, g, b);
         glowVertex(vc, pose, cx + ax - bx, cy + ay - by, cz + az - bz, 0, 1, r, g, b);
@@ -3493,16 +3500,16 @@ final class SarcophagusRenderer {
     }
 
     /** How much of its brightness an added effect keeps (1 at night, less by day: the sky is bright already). */
-    private static float addK = 1.0F;
+    static float addK = 1.0F;
 
     /** True while the late pass draws: colours are then sent as colour plus opacity (see {@link #glowVertex}). */
-    private static boolean alphaMode;
+    static boolean alphaMode;
 
     /**
      * A glow layer. While the late pass draws it is blended (colour with opacity from the soft textures with an alpha channel),
      * never added: added light on a bright sky burns out to white, blended light keeps its colour.
      */
-    private static RenderType glow(ResourceLocation texture) {
+    static RenderType glow(ResourceLocation texture) {
         if (!alphaMode) {
             return RenderType.eyes(texture);
         }
@@ -3516,12 +3523,12 @@ final class SarcophagusRenderer {
     }
 
     /** Blended (not added) white: effects that must stay visible against a bright sky. */
-    private static RenderType fx() {
+    static RenderType fx() {
         return RenderType.entityTranslucentEmissive(TRIM);
     }
 
     /** Blended fire texture: the solid body of the Core. */
-    private static RenderType fxFire() {
+    static RenderType fxFire() {
         return RenderType.entityTranslucentEmissive(ORB);
     }
 }

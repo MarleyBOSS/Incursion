@@ -2,7 +2,7 @@ package com.marleyboss.incursion.block;
 
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.data.CoreWorldData;
-import com.marleyboss.incursion.fallout.Fallout;
+import com.marleyboss.incursion.entity.CoreBlastEntity;
 import com.marleyboss.incursion.item.UpgradeToolItem;
 import com.marleyboss.incursion.menu.CoreMenu;
 import com.marleyboss.incursion.registry.ModBlockEntities;
@@ -179,8 +179,10 @@ public class CoreBlock extends BaseEntityBlock {
 
     @Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState, boolean movedByPiston) {
+        int grownStage = 0;
         if (!state.is(newState.getBlock()) && !level.isClientSide && level instanceof ServerLevel structureLevel
                 && level.getBlockEntity(pos) instanceof CoreBlockEntity grown) {
+            grownStage = grown.getStage();
             grown.dismantle(structureLevel); // the grown Sarcophagus, plaza and pillars go with the Core
         }
         if (!state.is(newState.getBlock()) && !level.isClientSide && state.getValue(ACTIVE)
@@ -194,7 +196,8 @@ public class CoreBlock extends BaseEntityBlock {
             } else {
                 CoreWorldData.get(serverLevel.getServer()).clearIfMatches(level.dimension(), pos);
             }
-            Fallout.detonate(serverLevel, pos, coreLevel);
+            // the Core does not just vanish: it overloads first (the explosion follows when the fuse has run down)
+            CoreBlastEntity.start(serverLevel, pos, coreLevel, grownStage);
         } else if (!state.is(newState.getBlock()) && !level.isClientSide && level instanceof ServerLevel serverLevel
                 && level.getBlockEntity(pos) instanceof CoreBlockEntity core) {
             Rewards.dropShards(serverLevel, pos, core); // an inactive Core was picked up: keep the shards

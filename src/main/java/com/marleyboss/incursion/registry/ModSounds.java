@@ -20,6 +20,7 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> CORE_HUM = register("core_hum");
     public static final DeferredHolder<SoundEvent, SoundEvent> CORE_EVOLVE_RISE = register("core_evolve_rise");
     public static final DeferredHolder<SoundEvent, SoundEvent> CORE_EVOLVE_FINALE = register("core_evolve_finale");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CORE_MELTDOWN = register("core_meltdown");
 
     private ModSounds() {
     }

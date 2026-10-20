@@ -1,6 +1,7 @@
 package com.marleyboss.incursion.registry;
 
 import com.marleyboss.incursion.Incursion;
+import com.marleyboss.incursion.entity.CoreBlastEntity;
 import com.marleyboss.incursion.entity.CoreTargetEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
@@ -24,6 +25,17 @@ public final class ModEntities {
                     .clientTrackingRange(8)
                     .updateInterval(20)
                     .build("core_target"));
+
+    /** The meltdown of a Core (see CoreBlastEntity): invisible, the animation is drawn by CoreBlastRenderer. */
+    public static final DeferredHolder<EntityType<?>, EntityType<CoreBlastEntity>> CORE_BLAST =
+            ENTITY_TYPES.register("core_blast", () -> EntityType.Builder
+                    .<CoreBlastEntity>of(CoreBlastEntity::new, MobCategory.MISC)
+                    .sized(0.2F, 0.2F)
+                    .noSummon()
+                    .fireImmune()
+                    .clientTrackingRange(12)
+                    .updateInterval(40)
+                    .build("core_blast"));
 
     private ModEntities() {
     }

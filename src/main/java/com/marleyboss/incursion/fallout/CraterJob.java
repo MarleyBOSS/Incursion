@@ -1,7 +1,9 @@
 package com.marleyboss.incursion.fallout;
 
 import com.marleyboss.incursion.Config;
+import com.marleyboss.incursion.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -29,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
  *     <li>BLAST: flash, sound, damage to creatures.</li>
  *     <li>CARVE: remove the crater blocks from the centre outwards.</li>
  *     <li>SCORCH: turn the crater floor and the contaminated surroundings into wasteland.</li>
+ *     <li>BURN: the ground burns with eternal fire (see EternalFireBlock).</li>
  *     <li>FINISH: remove dropped items in the crater, release the chunks.</li>
  * </ol>
  */
@@ -37,6 +40,8 @@ public class CraterJob {
     private static final int PHASE_CARVE = 1;
     private static final int PHASE_SCORCH = 2;
     private static final int PHASE_FINISH = 3;
+    /** Numbered last so that jobs saved by older versions keep their phase. */
+    private static final int PHASE_BURN = 4;
     private static final int MAX_CHUNK_WAIT_TICKS = 200;
 
     final ResourceKey<Level> dimension;
@@ -115,6 +120,7 @@ public class CraterJob {
             }
             case PHASE_CARVE -> carve(level);
             case PHASE_SCORCH -> scorch(level);
+            case PHASE_BURN -> burn(level);
             default -> {
                 finish(level);
                 return true;
@@ -209,7 +215,7 @@ public class CraterJob {
         if (cursor >= offsets.length) {
             offsets = null;
             cursor = 0;
-            phase = contaminationRadius > 0 ? PHASE_SCORCH : PHASE_FINISH;
+            phase = contaminationRadius > 0 ? PHASE_SCORCH : nextAfterScorch();
         }
     }
 
@@ -231,6 +237,54 @@ public class CraterJob {
             }
             double distance = Math.sqrt(dx * dx + dz * dz);
             scorchColumn(level, pos, x, z, distance, random);
+        }
+        if (cursor >= offsets.length) {
+            offsets = null;
+            cursor = 0;
+            phase = nextAfterScorch();
+        }
+    }
+
+    private int nextAfterScorch() {
+        return Config.BURN_ENABLED.get() ? PHASE_BURN : PHASE_FINISH;
+    }
+
+    /** Lights the ground: dense in the crater, thinner and thinner towards the edge of the zone. */
+    private void burn(ServerLevel level) {
+        int radius = Math.max(craterRadius, contaminationRadius);
+        if (offsets == null) {
+            offsets = CraterShape.columns(radius, seed ^ 0x5DEECE66DL);
+        }
+        int budget = Math.max(50, Config.EXPLOSION_BLOCKS_PER_TICK.get() / 6);
+        double density = Config.BURN_DENSITY.get() / 100.0;
+        RandomSource random = level.getRandom();
+        BlockState fire = ModBlocks.ETERNAL_FIRE.get().defaultBlockState();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+        while (cursor < offsets.length && budget-- > 0) {
+            int packed = offsets[cursor++];
+            int dx = CraterShape.dx(packed);
+            int dz = CraterShape.dz(packed);
+            int x = center.getX() + dx;
+            int z = center.getZ() + dz;
+            if (!level.hasChunk(x >> 4, z >> 4)) {
+                continue;
+            }
+            double distance = Math.sqrt(dx * dx + dz * dz);
+            double chance = distance <= craterRadius + 0.5 ? density
+                    : density * (0.85 - 0.7 * (distance - craterRadius) / Math.max(1.0, radius - craterRadius));
+            if (random.nextDouble() > chance) {
+                continue;
+            }
+            int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+            pos.set(x, y, z);
+            if (y <= level.getMinBuildHeight() || !level.getBlockState(pos).isAir()) {
+                continue;
+            }
+            BlockState below = level.getBlockState(pos.below());
+            if (!below.getFluidState().isEmpty() || !below.isFaceSturdy(level, pos.below(), Direction.UP)) {
+                continue;
+            }
+            level.setBlock(pos, fire, Block.UPDATE_CLIENTS);
         }
         if (cursor >= offsets.length) {
             offsets = null;

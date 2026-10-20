@@ -7,5 +7,6 @@
   "core_hum": { "subtitle": "subtitles.incursion.core_hum", "sounds": [ { "name": "incursion:block/core/hum", "stream": true, "attenuation_distance": 24 } ] },
   "core_evolve_rise": { "subtitle": "subtitles.incursion.core_evolve_rise", "sounds": [ { "name": "incursion:block/core/evolve_rise", "attenuation_distance": 48 } ] },
   "core_evolve_finale": { "subtitle": "subtitles.incursion.core_evolve_finale", "sounds": [ { "name": "incursion:block/core/evolve_finale", "attenuation_distance": 48 } ] },
+  "core_meltdown": { "subtitle": "subtitles.incursion.core_meltdown", "sounds": [ { "name": "incursion:block/core/meltdown", "attenuation_distance": 160 } ] },
   "table_ambient": { "subtitle": "subtitles.incursion.table_ambient", "sounds": [ "incursion:block/table/ambient" ] }
 }
