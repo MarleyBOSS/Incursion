@@ -1784,7 +1784,8 @@ final class SarcophagusRenderer {
     /** The middle of the cage of boss b: the dragon's cage follows its body, which is tilted about its own middle. */
     private static float[] cageCenter(int b, float[] a) {
         if (b == 2) {
-            return dragonPoint(a, 0.0F, DRAGON_PIVOT_Y + 0.2F, DRAGON_PIVOT_Z);
+            // measured against a screenshot: the real middle of the body lies well above the model's pivot
+            return dragonPoint(a, 0.0F, DRAGON_PIVOT_Y + 2.0F, DRAGON_PIVOT_Z);
         }
         return new float[]{a[0], a[1] + BOSS_MID[b] * a[4], a[2]};
     }
@@ -2516,13 +2517,15 @@ final class SarcophagusRenderer {
         float sn = Mth.sin(a[3]);
         float cs = Mth.cos(a[3]);
         // the main hose arcs upwards (lift 0.5): its height at 35 % is the straight line plus 0.5 * 4 * u * (1 - u)
-        float u = 0.35F;
+        float u = 0.25F;
         float[] join = {head[0] + (tip[0] - head[0]) * u, head[1] + (tip[1] - head[1]) * u + 0.5F * 4.0F * u * (1.0F - u),
                 head[2] + (tip[2] - head[2]) * u};
         for (int side = -1; side <= 1; side += 2) {
             // measured against screenshots: the outer heads sit about 1.4 (scaled) blocks from the middle, a little lower than the middle one
+            // the beam leaves the face (a little in front of the head's middle) so it does not run through the head
             float off = 1.5F * s;
-            float[] from = {a[0] + cs * off * side, a[1] + 2.1F * s, a[2] - sn * off * side};
+            float fw = 0.55F * s;
+            float[] from = {a[0] + cs * off * side + sn * fw, a[1] + 2.1F * s, a[2] - sn * off * side + cs * fw};
             hose(lines, packets, time, from, join, 0.0F, 0.085F, 1.3F, k * 0.9F, bc[0], bc[1], bc[2], seed + side);
         }
     }
