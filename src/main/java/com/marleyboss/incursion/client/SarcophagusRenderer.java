@@ -1781,6 +1781,14 @@ final class SarcophagusRenderer {
     private static final float DRAGON_PIVOT_Z = 2.0F;
     private static final float DRAGON_MOUTH = 6.0F;
 
+    /** The middle of the cage of boss b: the dragon's cage follows its body, which is tilted about its own middle. */
+    private static float[] cageCenter(int b, float[] a) {
+        if (b == 2) {
+            return dragonPoint(a, 0.0F, DRAGON_PIVOT_Y + 0.2F, DRAGON_PIVOT_Z);
+        }
+        return new float[]{a[0], a[1] + BOSS_MID[b] * a[4], a[2]};
+    }
+
     /** Where the mouth of the (reared) Ender Dragon is. */
     private static float[] dragonMouth(float[] a) {
         float th = DRAGON_PITCH * 0.017453292F;
@@ -1983,13 +1991,13 @@ final class SarcophagusRenderer {
             if (r < 0.1F) {
                 continue;
             }
-            float cy = a[1] + BOSS_MID[b] * a[4];
+            float[] cc = cageCenter(b, a);
             float rot = time * 0.03F + b;
             float w = 0.018F + 0.012F * r;
             int n = r > 2.5F ? 28 : 18;
-            ring(vc, p, light, gold, a[0], cy, a[2], r, 0.45F, rot, n, w);
-            ring(vc, p, light, gold, a[0], cy, a[2], r * 1.12F, -0.45F, -rot * 0.8F, n, w);
-            ring(vc, p, light, gold, a[0], cy, a[2], r * 1.24F, 1.5708F, rot * 0.6F, n, w);
+            ring(vc, p, light, gold, cc[0], cc[1], cc[2], r, 0.45F, rot, n, w);
+            ring(vc, p, light, gold, cc[0], cc[1], cc[2], r * 1.12F, -0.45F, -rot * 0.8F, n, w);
+            ring(vc, p, light, gold, cc[0], cc[1], cc[2], r * 1.24F, 1.5708F, rot * 0.6F, n, w);
         }
     }
 
@@ -2016,9 +2024,10 @@ final class SarcophagusRenderer {
             }
             float k = Mth.clamp(a[5] * 1.5F, 0.0F, 1.0F);
             float r = CAGE_R[b] * a[4] * k;
-            float mx = a[0];
-            float my = a[1] + BOSS_MID[b] * a[4];
-            float mz = a[2];
+            float[] cc = cageCenter(b, a);
+            float mx = cc[0];
+            float my = cc[1];
+            float mz = cc[2];
             int rn = r > 2.5F ? 28 : 18;
             float fit = 0.5F * (1.0F + Mth.cos((float) Math.PI / rn)); // the rings are polygons: a little inside the circle
             float[] radii = {r * fit, r * 1.12F * fit, r * 1.24F * fit};
@@ -2511,9 +2520,9 @@ final class SarcophagusRenderer {
         float[] join = {head[0] + (tip[0] - head[0]) * u, head[1] + (tip[1] - head[1]) * u + 0.5F * 4.0F * u * (1.0F - u),
                 head[2] + (tip[2] - head[2]) * u};
         for (int side = -1; side <= 1; side += 2) {
-            // the outer heads of the model sit at 10 px (its left) and 8 px (its right) from the middle, at twice the size
-            float off = (side > 0 ? 1.25F : 1.0F) * s;
-            float[] from = {a[0] + cs * off * side, a[1] + 2.5F * s, a[2] - sn * off * side};
+            // measured against screenshots: the outer heads sit about 1.4 (scaled) blocks from the middle, a little lower than the middle one
+            float off = 1.5F * s;
+            float[] from = {a[0] + cs * off * side, a[1] + 2.1F * s, a[2] - sn * off * side};
             hose(lines, packets, time, from, join, 0.0F, 0.085F, 1.3F, k * 0.9F, bc[0], bc[1], bc[2], seed + side);
         }
     }
