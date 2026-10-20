@@ -190,37 +190,50 @@ public final class RoutePlanner {
         }
         this.maxY = Math.min(level.getMaxBuildHeight() - 2, top);
 
-        // Seeds: every spot next to the Core from which a mob can hit it (feet or head at the Core's height).
+        // Seeds: every spot next to the Core from which a mob can hit it (feet or head at the Core's height). From the first
+        // stage on, the grown Sarcophagus (unbreakable) fills the cells right next to the Core: the attackers then stand
+        // one cell farther out, on the plaza (a melee hit reaches that far), so a seed may be up to two cells away.
         for (Direction side : Direction.Plane.HORIZONTAL) {
             for (int dy = -1; dy <= 0; dy++) {
-                BlockPos spot = core.relative(side).above(dy);
-                if (cell(spot.getX(), spot.getY(), spot.getZ()).clear() == INF
-                        || cell(spot.getX(), spot.getY() + 1, spot.getZ()).clear() == INF) {
-                    continue;
+                for (int along = 1; along <= 2; along++) {
+                    BlockPos spot = core.relative(side, along).above(dy);
+                    if (along == 2 && !(inStructure(core.relative(side).above(dy)) || inStructure(core.relative(side).above(dy + 1)))) {
+                        break; // the cell next to the Core is not part of the Sarcophagus: seeds stay right next to it
+                    }
+                    if (cell(spot.getX(), spot.getY(), spot.getZ()).clear() == INF
+                            || cell(spot.getX(), spot.getY() + 1, spot.getZ()).clear() == INF) {
+                        continue;
+                    }
+                    Cell below = cell(spot.getX(), spot.getY() - 1, spot.getZ());
+                    float support = supportCost(below);
+                    if (support == INF) {
+                        continue;
+                    }
+                    long supportKey = BlockPos.asLong(spot.getX(), spot.getY() - 1, spot.getZ());
+                    if (below.support() == SUPPORT_PLACEABLE && avoidClear.contains(supportKey)) {
+                        continue;
+                    }
+                    if (avoidSupport.contains(spot.asLong()) || avoidSupport.contains(spot.above().asLong())) {
+                        continue;
+                    }
+                    Node node = node(spot.getX(), spot.getY(), spot.getZ());
+                    node.g = support + (usedSides.contains(side) ? SAME_SIDE_PENALTY : 0.0F);
+                    node.h = heuristic(node.x, node.y, node.z);
+                    node.side = side.get2DDataValue();
+                    node.support = supportKey;
+                    open.add(new Entry(node, node.g + node.h * HEURISTIC_WEIGHT));
+                    break;
                 }
-                Cell below = cell(spot.getX(), spot.getY() - 1, spot.getZ());
-                float support = supportCost(below);
-                if (support == INF) {
-                    continue;
-                }
-                long supportKey = BlockPos.asLong(spot.getX(), spot.getY() - 1, spot.getZ());
-                if (below.support() == SUPPORT_PLACEABLE && avoidClear.contains(supportKey)) {
-                    continue;
-                }
-                if (avoidSupport.contains(spot.asLong()) || avoidSupport.contains(spot.above().asLong())) {
-                    continue;
-                }
-                Node node = node(spot.getX(), spot.getY(), spot.getZ());
-                node.g = support + (usedSides.contains(side) ? SAME_SIDE_PENALTY : 0.0F);
-                node.h = heuristic(node.x, node.y, node.z);
-                node.side = side.get2DDataValue();
-                node.support = supportKey;
-                open.add(new Entry(node, node.g + node.h * HEURISTIC_WEIGHT));
             }
         }
         if (open.isEmpty()) {
             done = true;
         }
+    }
+
+    /** Is this cell part of the evolved Core structure (Sarcophagus body, plaza, pillars)? */
+    private boolean inStructure(BlockPos pos) {
+        return com.marleyboss.incursion.block.CoreEvolution.isStructure(level.getBlockState(pos));
     }
 
     public boolean isDone() {

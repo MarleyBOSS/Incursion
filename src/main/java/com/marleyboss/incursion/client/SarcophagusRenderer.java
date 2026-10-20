@@ -1638,7 +1638,7 @@ final class SarcophagusRenderer {
     /** Height of the middle of a boss above its feet, in units of its scale. */
     private static final float[] BOSS_MID = {1.0F, 1.45F, 1.0F, 1.7F};
     /** Radius of the cage of rings round a boss, in units of its scale. */
-    private static final float[] CAGE_R = {1.8F, 1.5F, 3.3F, 2.2F};
+    private static final float[] CAGE_R = {1.8F, 1.5F, 3.3F, 1.75F};
 
     /** Height of the middle of the trophies that hang between pillars of the given height (above head height, the ways stay free). */
     private static float trophyMid(float height) {
@@ -1750,7 +1750,7 @@ final class SarcophagusRenderer {
             return new float[]{a[0] + sn * 0.3F * s, a[1] + 2.35F * s, a[2] + cs * 0.3F * s};
         }
         if (b == 2) {
-            return dragonPoint(a, 0.0F, 1.0F, 0.2F);
+            return dragonPoint(a, 0.0F, 1.9F, 0.9F); // above its back: the beam must not run through the body
         }
         return new float[]{a[0], a[1] + 2.9F * s, a[2]};
     }
