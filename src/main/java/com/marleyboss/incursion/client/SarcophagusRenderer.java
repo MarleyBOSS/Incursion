@@ -1785,7 +1785,7 @@ final class SarcophagusRenderer {
     private static float[] dragonMouth(float[] a) {
         float th = DRAGON_PITCH * 0.017453292F;
         // measured against a screenshot: the snout lies a bit higher and farther out than the plain estimate
-        return dragonPoint(a, 0.0F, DRAGON_PIVOT_Y + DRAGON_MOUTH * Mth.sin(th) + 0.8F, DRAGON_PIVOT_Z - DRAGON_MOUTH * Mth.cos(th) - 0.6F);
+        return dragonPoint(a, 0.0F, DRAGON_PIVOT_Y + DRAGON_MOUTH * Mth.sin(th) + 0.8F, DRAGON_PIVOT_Z - DRAGON_MOUTH * Mth.cos(th) - 1.6F);
     }
 
     /** The beat of the Warden's heart: 1 as it beats (every 40 ticks, as in the game), then it fades within 10 ticks. */
@@ -2511,7 +2511,9 @@ final class SarcophagusRenderer {
         float[] join = {head[0] + (tip[0] - head[0]) * u, head[1] + (tip[1] - head[1]) * u + 0.5F * 4.0F * u * (1.0F - u),
                 head[2] + (tip[2] - head[2]) * u};
         for (int side = -1; side <= 1; side += 2) {
-            float[] from = {a[0] + cs * 1.12F * s * side, a[1] + 2.5F * s, a[2] - sn * 1.12F * s * side};
+            // the outer heads of the model sit at 10 px (its left) and 8 px (its right) from the middle, at twice the size
+            float off = (side > 0 ? 1.25F : 1.0F) * s;
+            float[] from = {a[0] + cs * off * side, a[1] + 2.5F * s, a[2] - sn * off * side};
             hose(lines, packets, time, from, join, 0.0F, 0.085F, 1.3F, k * 0.9F, bc[0], bc[1], bc[2], seed + side);
         }
     }
