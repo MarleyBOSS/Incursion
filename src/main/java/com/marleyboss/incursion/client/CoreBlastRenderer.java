@@ -43,7 +43,7 @@ import net.neoforged.neoforge.client.event.ViewportEvent;
  * </ul>
  * Everything is a function of the age of the {@link CoreBlastEntity}, which the server synchronises (start tick, stage, radius).
  */
-final class CoreBlastRenderer {
+public final class CoreBlastRenderer {
     private static final List<CoreBlastEntity> BLASTS = new ArrayList<>();
 
     private CoreBlastRenderer() {
@@ -374,7 +374,7 @@ final class CoreBlastRenderer {
     // The camera shakes with the blast
     // ------------------------------------------------------------------
 
-    static void onCameraAngles(ViewportEvent.ComputeCameraAngles event) {
+    public static void onCameraAngles(ViewportEvent.ComputeCameraAngles event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
             return;

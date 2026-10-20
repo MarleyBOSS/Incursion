@@ -36,7 +36,7 @@ public class IncursionClient {
         modEventBus.addListener(IncursionClient::registerRenderers);
         modEventBus.addListener(IncursionClient::registerItemExtensions);
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(CoreRenderer::onRenderLevel);
-        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(CoreBlastRenderer::onCameraAngles);
+        net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(com.marleyboss.incursion.client.CoreBlastRenderer::onCameraAngles);
     }
 
     /** The loot chest item is drawn like a chest (with the chest renderer), not as a flat cube. */
