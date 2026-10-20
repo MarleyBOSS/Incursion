@@ -2522,10 +2522,9 @@ final class SarcophagusRenderer {
                 head[2] + (tip[2] - head[2]) * u};
         for (int side = -1; side <= 1; side += 2) {
             // measured against screenshots: the outer heads sit about 1.4 (scaled) blocks from the middle, a little lower than the middle one
-            // the beam leaves the face (a little in front of the head's middle) so it does not run through the head
+            // exactly the middle of the outer head (a forward shift moved the start towards the camera and looked too low/outward)
             float off = 1.5F * s;
-            float fw = 0.55F * s;
-            float[] from = {a[0] + cs * off * side + sn * fw, a[1] + 2.1F * s, a[2] - sn * off * side + cs * fw};
+            float[] from = {a[0] + cs * off * side, a[1] + 2.1F * s, a[2] - sn * off * side};
             hose(lines, packets, time, from, join, 0.0F, 0.085F, 1.3F, k * 0.9F, bc[0], bc[1], bc[2], seed + side);
         }
     }
