@@ -201,12 +201,14 @@ public final class SiegeManager {
         if (spawnOpen && (tickCounter / 20) % interval == 0 && level.getDifficulty() != Difficulty.PEACEFUL) {
             int free = max - siegeMobs;
             boolean urgent = SiegeCommander.urgentWorkerNeeded(max);
-            if (free <= 0 && urgent && siegeMobs < max + EXTRA_WORKERS) {
+            if (free <= 0 && urgent && siegeMobs < max + EXTRA_WORKERS + SiegeCommander.frontCount()) {
                 free = 1; // a front has nobody who can do its work: one worker may come on top
             }
             int toSpawn = Math.min(free, 1 + coreLevel / 4 + (stalled || urgent ? 1 : 0));
             if (toSpawn <= 0) {
-                spawnDebug(level, "limit", "Kein Platz im Limit: " + siegeMobs + " Belagerer, Maximum " + max);
+                spawnDebug(level, "limit", "Kein Platz im Limit: " + siegeMobs + " Belagerer, Maximum " + max
+                        + " (Fronten: " + SiegeCommander.frontCount() + ", Baumeister: "
+                        + MobRoles.count(MobRoles.Role.BUILDER) + ")");
             }
             if (toSpawn > 0) {
                 int spawned;

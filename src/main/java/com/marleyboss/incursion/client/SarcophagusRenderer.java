@@ -643,7 +643,7 @@ final class SarcophagusRenderer {
     /** Height of the middle of the crystal (above the hammer head in the forge form, inside the cage in the soul form). */
     private static float crystalCenter(float vp) {
         float top = CoreEvolution.pillarAt(vp) - 1.7F;
-        return top + 0.62F * pillarSize(vp) * (1.0F - toSoul(vp)) + crystalH(vp) - 0.05F + crystalLift(vp);
+        return top + 0.14F * pillarSize(vp) * (1.0F - toSoul(vp)) + crystalH(vp) - 0.05F + crystalLift(vp);
     }
 
     /** Glow colour of the crystals: forge-hot red, then the violet of the dragon. */
@@ -705,9 +705,8 @@ final class SarcophagusRenderer {
     }
 
     /**
-     * The four pillars (solid). Stage 2 (the Breaker, a smith): a thick shaft with a hammer across the top (lava-hot strike
-     * faces) and lava running down the faces that look at the Core. Stage 3 (the Soul Weaver and the Ender Dragon): the hammer
-     * draws in, a slim cage of gold arches rises round a violet crystal that three rings turn about, and an eye is set into the
+     * The four pillars (solid). Stage 2 (the Breaker, a smith): a thick shaft with a crystal over it and lava running
+     * down the faces that look at the Core. Stage 3 (the Soul Weaver and the Ender Dragon): a slim cage of gold arches rises round a violet crystal that three rings turn about, and an eye is set into the
      * shaft. Stage 4 (the Wither): the cage gives way to the ribs. Radius and height follow the (lagged)
      * animated stage, so they grow after the plaza is laid.
      */
@@ -795,36 +794,6 @@ final class SarcophagusRenderer {
                 goldFrame(vc, p, light, gold, cx - 0.42F * sp, cx + 0.42F * sp, cb + 0.16F, cz - 0.42F * sp, cz + 0.42F * sp, 0.02F);
                 fbox(vc, p, light, marble, wall, cx - 0.33F * sp, cx + 0.33F * sp, cb + 0.16F, top, cz - 0.33F * sp, cz + 0.33F * sp);
                 goldFrame(vc, p, light, gold, cx - 0.33F * sp, cx + 0.33F * sp, top, cz - 0.33F * sp, cz + 0.33F * sp, 0.018F);
-            }
-            // forge form: a hammer across the top (the long side tangential to the plaza)
-            if (wA > 0.04F) {
-                pose.pushPose();
-                pose.translate(cx, top, cz);
-                pose.mulPose(Axis.YP.rotationDegrees(-ang * 57.29578F));
-                pose.scale(wA, wA, wA);
-                PoseStack.Pose q = pose.last();
-                float hh = 0.62F * s;
-                float len = 0.80F * s;
-                float cap = 0.13F * s;
-                fbox(vc, q, light, marble, wall, -0.36F * s, 0.36F * s, 0.0F, hh, -len, len);
-                for (int e = -1; e <= 1; e += 2) {
-                    float za = e > 0 ? len : -len - cap;
-                    float zb = e > 0 ? len + cap : -len;
-                    fbox(vc, q, light, marble, wall, -0.43F * s, 0.43F * s, -0.04F * s, hh + 0.04F * s, za, zb);
-                    float fa = e > 0 ? len + cap : -len - cap - 0.015F * s;
-                    float fb = e > 0 ? len + cap + 0.015F * s : -len - cap;
-                    fbox(vc, q, full, lava, lava, -0.30F * s, 0.30F * s, 0.07F * s, hh - 0.03F * s, fa, fb);
-                    float bz = e * 0.45F * s;
-                    box(vc, q, light, gold, 4, -0.385F * s, 0.385F * s, -0.012F * s, hh + 0.012F * s, bz - 0.05F * s, bz + 0.05F * s);
-                    for (int c = 0; c < 4; c++) {
-                        float rx = c % 2 == 0 ? -0.385F * s : 0.385F * s;
-                        float ry = c < 2 ? 0.0F : hh;
-                        box(vc, q, light, gold, 4, rx - 0.035F * s, rx + 0.035F * s, ry - 0.035F * s, ry + 0.035F * s, bz - 0.07F * s, bz + 0.07F * s);
-                    }
-                }
-                fbox(vc, q, full, lava, lava, -0.07F * s, 0.07F * s, hh, hh + 0.014F * s, -len * 0.95F, len * 0.95F);
-                box(vc, q, light, gold, 4, -0.38F * s, 0.38F * s, -0.09F * s, 0.02F * s, -0.38F * s, 0.38F * s);
-                pose.popPose();
             }
             // soul form: a slim cage of four gold arches over the crystal
             if (wB > 0.04F) {
@@ -1898,8 +1867,9 @@ final class SarcophagusRenderer {
     }
 
     /**
-     * The gold chains that hold the defeated bosses: from the crystals of the two pillars next to a boss to the cage of rings
-     * round it. They grow out of the pillars while the boss settles.
+     * The gold chains that hold the bosses: every pillar next to a boss carries a gold bracket with an eyelet on the face that
+     * looks at it, and two taut chains run from there to the nearest points of the rings of the cage. They grow out of the
+     * brackets while the boss appears.
      */
     private static void drawCageChains(PoseStack pose, VertexConsumer vc, float time, float vs, float vp) {
         float vr = CoreEvolution.pillarRadiusAt(vp);
@@ -1910,31 +1880,109 @@ final class SarcophagusRenderer {
         TextureAtlasSprite gold = sprite(GOLD);
         int light = LightTexture.pack(13, 15);
         PoseStack.Pose p = pose.last();
-        float yc = crystalCenter(vp);
+        float hw = shaftHalf(vp);
+        float yb = Math.max(0.9F, height - 1.7F - 0.72F);
         for (int b = 0; b < 4; b++) {
             float[] a = bossAt(b, time, vs, vr, height);
             if (a[5] < 0.03F || a[4] < 0.05F) {
                 continue;
             }
-            // every boss hangs on its two pillars from the moment it appears (active or not); the chain ends at the outer ring
-            float r = CAGE_R[b] * a[4] * 1.24F * Mth.clamp(a[5] * 1.5F, 0.0F, 1.0F);
+            float k = Mth.clamp(a[5] * 1.5F, 0.0F, 1.0F);
+            float r = CAGE_R[b] * a[4] * k;
             float mx = a[0];
             float my = a[1] + BOSS_MID[b] * a[4];
             float mz = a[2];
+            int rn = r > 2.5F ? 28 : 18;
+            float fit = 0.5F * (1.0F + Mth.cos((float) Math.PI / rn)); // the rings are polygons: a little inside the circle
+            float[] radii = {r * fit, r * 1.12F * fit, r * 1.24F * fit};
+            float[] tilts = {0.45F, -0.45F, 1.5708F};
             for (int pil : gapPillars(b)) {
                 float cx = 0.5F + (pil % 2 == 0 ? -vr : vr);
                 float cz = 0.5F + (pil < 2 ? -vr : vr);
-                float dx = cx - mx;
-                float dy = yc - my;
-                float dz = cz - mz;
-                float len = Math.max(0.01F, Mth.sqrt(dx * dx + dy * dy + dz * dz));
-                float hx = mx + dx / len * r;
-                float hy = my + dy / len * r;
-                float hz = mz + dz / len * r;
-                float span = Mth.sqrt((cx - hx) * (cx - hx) + (yc - hy) * (yc - hy) + (cz - hz) * (cz - hz));
-                chainBetween(vc, p, light, gold, cx, yc, cz, hx, hy, hz, 0.14F * span, time, a[5]);
+                // the bracket sits on the face of the shaft that looks at the boss
+                float ox = mx - cx;
+                float oz = mz - cz;
+                float ux = Math.abs(ox) >= Math.abs(oz) ? Math.signum(ox) : 0.0F;
+                float uz = ux == 0.0F ? Math.signum(oz) : 0.0F;
+                float sc = Mth.clamp(a[5] * 3.0F, 0.0F, 1.0F);
+                float f0 = hw - 0.01F;
+                float f1 = hw + 0.075F * sc;
+                float tw = 0.17F * sc;
+                float th = 0.2F * sc;
+                float xa = cx + ux * f0;
+                float xb = cx + ux * f1;
+                float za = cz + uz * f0;
+                float zb = cz + uz * f1;
+                float tx0 = ux != 0.0F ? Math.min(xa, xb) : cx - tw;
+                float tx1 = ux != 0.0F ? Math.max(xa, xb) : cx + tw;
+                float tz0 = uz != 0.0F ? Math.min(za, zb) : cz - tw;
+                float tz1 = uz != 0.0F ? Math.max(za, zb) : cz + tw;
+                box(vc, p, light, gold, 4, tx0, tx1, yb - th, yb + th, tz0, tz1);
+                // a collar round the shaft, so the bracket is held like a clamp
+                box(vc, p, light, gold, 4, cx - hw - 0.03F, cx + hw + 0.03F, yb + th - 0.03F, yb + th + 0.04F, cz - hw - 0.03F, cz + hw + 0.03F);
+                box(vc, p, light, gold, 4, cx - hw - 0.03F, cx + hw + 0.03F, yb - th - 0.04F, yb - th + 0.03F, cz - hw - 0.03F, cz + hw + 0.03F);
+                // the eyelet the chains run through
+                float er = 0.1F * sc;
+                float ex = cx + ux * (f1 + er);
+                float ez = cz + uz * (f1 + er);
+                float[] prev = null;
+                for (int m = 0; m <= 12; m++) {
+                    float ang = m * (float) (Math.PI * 2.0) / 12.0F;
+                    float lo = Mth.cos(ang) * er;
+                    float[] q = {ex + ux * lo, yb + Mth.sin(ang) * er, ez + uz * lo};
+                    if (prev != null) {
+                        beam(vc, p, light, gold, prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.024F);
+                    }
+                    prev = q;
+                }
+                // the two nearest rings of the cage; the chain ends right on them
+                float[][] ends = new float[3][];
+                float[] dist = new float[3];
+                for (int m = 0; m < 3; m++) {
+                    ends[m] = ringNearest(mx, my, mz, radii[m], tilts[m], ex, yb, ez);
+                    float dx = ends[m][0] - ex;
+                    float dy = ends[m][1] - yb;
+                    float dz = ends[m][2] - ez;
+                    dist[m] = dx * dx + dy * dy + dz * dz;
+                }
+                int first = 0;
+                for (int m = 1; m < 3; m++) {
+                    if (dist[m] < dist[first]) {
+                        first = m;
+                    }
+                }
+                int second = first == 0 ? 1 : 0;
+                for (int m = 0; m < 3; m++) {
+                    if (m != first && dist[m] < dist[second]) {
+                        second = m;
+                    }
+                }
+                int[] pick = {first, second};
+                for (int c = 0; c < 2; c++) {
+                    float[] e = ends[pick[c]];
+                    float sy = yb + (c == 0 ? 0.045F : -0.045F) * sc;
+                    float span = Mth.sqrt((e[0] - ex) * (e[0] - ex) + (e[1] - sy) * (e[1] - sy) + (e[2] - ez) * (e[2] - ez));
+                    chainBetween(vc, p, light, gold, ex, sy, ez, e[0], e[1], e[2], 0.012F * span, time, a[5]);
+                }
             }
         }
+    }
+
+    /** The point of a (tilted about the x axis) ring that is nearest to (px, py, pz). */
+    private static float[] ringNearest(float cx, float cy, float cz, float radius, float tilt, float px, float py, float pz) {
+        float sn = Mth.sin(tilt);
+        float cs = Mth.cos(tilt);
+        float u = px - cx;
+        float v = (py - cy) * sn + (pz - cz) * cs;
+        float n = Mth.sqrt(u * u + v * v);
+        if (n < 1.0E-4F) {
+            u = 1.0F;
+            v = 0.0F;
+            n = 1.0F;
+        }
+        float lx = u / n * radius;
+        float lz = v / n * radius;
+        return new float[]{cx + lx, cy + lz * sn, cz + lz * cs};
     }
 
     private static final float LINK_LENGTH = 0.22F;

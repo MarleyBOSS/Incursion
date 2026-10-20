@@ -44,6 +44,8 @@ public final class SiegeCommander {
     private static final long NEXT_FRONT_DELAY = 200;
     /** Each front needs at least this many mobs of the siege's limit (otherwise fewer fronts are built). */
     private static final int MOBS_PER_FRONT = 5;
+    /** Attackers that wait at the foot of a way that is not open yet (per front). */
+    private static final int WAITING_ESCORTS = 2;
     /** With this many ways already planned, another one waits until the landings and platforms of the others are built. */
     private static final int EXPAND_FIRST_FROM = 3;
     /** ... but it waits at most this long after the newest way was planned. */
@@ -461,9 +463,14 @@ public final class SiegeCommander {
         if (best != null) {
             return new SpawnOrder(best, bestRole);
         }
-        // Then attackers (up to the siege's limit), to the front with the fewest members; open ways first.
+        // Then attackers (up to the siege's limit), to the front with the fewest members; open ways first. A way that
+        // is still being built only gets a small escort: a crowd waiting at its foot would use up every slot of the
+        // siege's limit, and the builders and miners the way needs next could not spawn any more.
         int bestScore = Integer.MAX_VALUE;
         for (SiegeFront front : FRONTS) {
+            if (!front.open && front.escorts + front.orderedOthers >= WAITING_ESCORTS) {
+                continue;
+            }
             int score = front.members + (front.open ? 0 : 4);
             if (score < bestScore) {
                 bestScore = score;
@@ -486,14 +493,13 @@ public final class SiegeCommander {
         front.members++;
     }
 
-    /** True if a front has no builder (or no miner) at all although it needs one: the siege may exceed its limit. */
+    /**
+     * True if a front still misses a builder or miner (not only the first one): the siege may exceed its limit by a
+     * few workers. Otherwise the slots fill up with attackers and a second or third builder never comes.
+     */
     static boolean urgentWorkerNeeded(int maxMobs) {
         for (SiegeFront front : FRONTS) {
-            Role role = neededWorker(front, maxMobs);
-            if (role == Role.BUILDER && front.builders() == 0) {
-                return true;
-            }
-            if (role == Role.MINER && front.miners() == 0 && front.hardDig > 0) {
+            if (neededWorker(front, maxMobs) != null) {
                 return true;
             }
         }

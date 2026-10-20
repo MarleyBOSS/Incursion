@@ -106,9 +106,9 @@ public final class CoreBlastRenderer {
         float fuse = CoreEvolution.EVOLVE_TICKS;
         float stage = Mth.clamp(d.vs, 0.0F, 4.0F);
         if (d.evoAge < fuse) {
-            charge(pose, buffer, d.evoAge, fuse, d.time, d.scale, stage, false, 0.65F);
+            charge(pose, buffer, d.evoAge, fuse, d.time, d.scale, stage, false, 0.55F);
         } else if (d.evoAge < fuse + 110.0F) {
-            blast(pose, buffer, d.evoAge - fuse, d.time, d.scale, 8.0F + 1.2F * Math.max(1.0F, stage), true);
+            blast(pose, buffer, d.evoAge - fuse, d.time, d.scale, 6.8F + 1.0F * Math.max(1.0F, stage), true);
         }
     }
 
@@ -271,7 +271,7 @@ public final class CoreBlastRenderer {
     // ------------------------------------------------------------------
 
     private static void blast(PoseStack pose, MultiBufferSource buffer, float e, float time, float sc, float radius, boolean upgrade) {
-        float soft = upgrade ? 0.7F : 1.0F;
+        float soft = upgrade ? 0.6F : 1.0F;
         float oy = ORB_Y * sc;
         pose.pushPose();
         pose.translate(0.5F, oy, 0.5F);
