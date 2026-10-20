@@ -414,6 +414,31 @@ public final class CoreBlastRenderer {
     // The camera shakes with the blast
     // ------------------------------------------------------------------
 
+    private static float upgradeAmp;
+    private static long upgradeTick = Long.MIN_VALUE;
+
+    /** The block renderer reports a running upgrade (every frame): the camera shakes with it, like with the meltdown. */
+    static void noteUpgradeShake(net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos, float evoAge) {
+        Minecraft mc = Minecraft.getInstance();
+        float fuse = CoreEvolution.EVOLVE_TICKS;
+        float amp;
+        if (evoAge < fuse) {
+            float c = evoAge / fuse;
+            amp = 0.1F + 0.9F * c * c;
+        } else {
+            float f = Mth.clamp(1.0F - (evoAge - fuse) / 70.0F, 0.0F, 1.0F);
+            amp = 4.0F * f * f;
+        }
+        Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
+        float falloff = (float) Mth.clamp(1.0 - cam.distanceTo(Vec3.atCenterOf(pos)) / 80.0, 0.0, 1.0);
+        long now = level.getGameTime();
+        if (now != upgradeTick) {
+            upgradeTick = now;
+            upgradeAmp = 0.0F;
+        }
+        upgradeAmp = Math.max(upgradeAmp, amp * falloff);
+    }
+
     public static void onCameraAngles(ViewportEvent.ComputeCameraAngles event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) {
@@ -440,6 +465,9 @@ public final class CoreBlastRenderer {
                 amp = 7.0F * f * f;
             }
             strongest = Math.max(strongest, amp * falloff);
+        }
+        if (mc.level.getGameTime() - upgradeTick <= 2L) {
+            strongest = Math.max(strongest, upgradeAmp);
         }
         if (strongest < 0.01F) {
             return;

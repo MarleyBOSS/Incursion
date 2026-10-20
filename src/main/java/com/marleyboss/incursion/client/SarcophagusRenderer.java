@@ -40,6 +40,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.monster.warden.Warden;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
@@ -164,6 +165,7 @@ final class SarcophagusRenderer {
         float last;
         float nextHum;
         float nextSpark;
+        float nextBurn;
         float scale = -1.0F;
         float window = 0.0F;
         float scaleFrom = 1.0F;
@@ -231,6 +233,7 @@ final class SarcophagusRenderer {
         } else if (active && !state.wasActive) {
             state.open = 0.0F;
             level.playLocalSound(px, py, pz, ModSounds.CORE_OPEN.get(), SoundSource.BLOCKS, 1.6F, 1.0F, false);
+            level.playLocalSound(px, py, pz, SoundEvents.FIRECHARGE_USE, SoundSource.BLOCKS, 1.4F, 0.8F, false); // the powders catch fire
         } else if (!active && state.wasActive) {
             level.playLocalSound(px, py, pz, SoundEvents.BEACON_DEACTIVATE, SoundSource.BLOCKS, 1.2F, 0.8F, false);
         }
@@ -280,6 +283,20 @@ final class SarcophagusRenderer {
         float contents = t > 0.0F ? 1.0F - ease(t / 0.45F) : 1.0F;
         // The powders are destroyed by a defuse: while the countdown runs (and the block closes) only the rune comes back.
         boolean showHeaps = !(active && progress >= 0.0F);
+        // The powders do not vanish: when the potion has landed they catch fire, burn down (the heaps sink, see below) and
+        // leave smoke.
+        if (active && showHeaps && (hasGunpowder || hasBlaze) && contents > 0.02F && contents < 1.0F + 1.0E-3F && t > 0.0F
+                && time >= state.nextBurn) {
+            state.nextBurn = time + 1.0F;
+            float h = 0.5F + 0.3F * contents;
+            for (int k = 0; k < 4; k++) {
+                level.addParticle(ParticleTypes.FLAME, px + (level.random.nextDouble() - 0.5) * 0.7 * contents - 0.0,
+                        core.getBlockPos().getY() + h + level.random.nextDouble() * 0.2,
+                        pz + (level.random.nextDouble() - 0.5) * 0.7 * contents, 0.0, 0.03, 0.0);
+            }
+            level.addParticle(ParticleTypes.LARGE_SMOKE, px + (level.random.nextDouble() - 0.5) * 0.4,
+                    core.getBlockPos().getY() + h + 0.1, pz + (level.random.nextDouble() - 0.5) * 0.4, 0.0, 0.04, 0.0);
+        }
 
         // The visual stage: it follows the stage of the Core slowly (so everything grows or moves to its next form) and,
         // while a defuse runs, falls back with the countdown (a cancelled defuse builds it up again).
@@ -376,7 +393,13 @@ final class SarcophagusRenderer {
 
         if (contents > 0.0F) {
             if (showHeaps) {
+                // burning down: the heaps sink to the floor of the cavity
+                pose.pushPose();
+                pose.translate(0.5F, 0.5F, 0.5F);
+                pose.scale(0.7F + 0.3F * contents, Math.max(0.02F, contents), 0.7F + 0.3F * contents);
+                pose.translate(-0.5F, -0.5F, -0.5F);
                 drawHeaps(pose.last(), solid, light, hasGunpowder, hasBlaze);
+                pose.popPose();
             }
             if (hasRune) {
                 pose.pushPose();
@@ -434,6 +457,9 @@ final class SarcophagusRenderer {
                 float fall = Math.max(0.0F, 1.0F - (evoAge - fuse) / 25.0F);
                 evoBoost = 1.0F + 2.2F * fall * fall;
             }
+        }
+        if (evoAge >= 0.0F) {
+            CoreBlastRenderer.noteUpgradeShake(level, core.getBlockPos(), evoAge);
         }
         late.evoAge = evoAge;
         late.orb = orb * evoBoost;
@@ -1806,6 +1832,9 @@ final class SarcophagusRenderer {
                     living.yRotO = deg;
                     living.setXRot(0.0F);
                     living.xRotO = 0.0F;
+                    if (e instanceof WitherBoss wither) {
+                        faceWitherHeads(wither, deg);
+                    }
                 }
                 if (e instanceof Warden warden) {
                     // every 200 ticks it fires its sonic boom (the animation of the game itself) while it is the active boss
@@ -1837,6 +1866,35 @@ final class SarcophagusRenderer {
             } finally {
                 pose.popPose();
             }
+        }
+    }
+
+    private static java.lang.reflect.Field[] witherFields;
+
+    /**
+     * The two outer heads of the Wither turn by (head rotation - body rotation); on a dummy nobody updates the head rotation,
+     * so they would look to the side. They are set to the body's own direction (the fields are private: reflection, and if
+     * it does not work the heads simply stay as they are).
+     */
+    private static void faceWitherHeads(WitherBoss wither, float deg) {
+        try {
+            if (witherFields == null) {
+                String[] names = {"yRotHeads", "yRotOHeads", "xRotHeads", "xRotOHeads"};
+                java.lang.reflect.Field[] fields = new java.lang.reflect.Field[names.length];
+                for (int i = 0; i < names.length; i++) {
+                    fields[i] = WitherBoss.class.getDeclaredField(names[i]);
+                    fields[i].setAccessible(true);
+                }
+                witherFields = fields;
+            }
+            for (int i = 0; i < witherFields.length; i++) {
+                float[] array = (float[]) witherFields[i].get(wither);
+                for (int k = 0; k < array.length; k++) {
+                    array[k] = i < 2 ? deg : 0.0F;
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException ex) {
+            witherFields = new java.lang.reflect.Field[0]; // not possible here: leave the heads alone
         }
     }
 

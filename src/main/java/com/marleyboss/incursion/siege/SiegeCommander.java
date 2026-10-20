@@ -128,6 +128,7 @@ public final class SiegeCommander {
             front.pendingDig = work[1];
             front.hardDig = work[2];
             front.open = work[0] + work[1] == 0;
+            front.firstPending = front.open ? -1 : front.route.firstPending(level, 1, front.route.last());
             front.platformWork = front.open ? front.countPlatformWork(level) : 0;
             front.landingWork = front.countLandingWork(level);
             boolean stale = !front.open && now - front.route.lastProgress() > STALE_TICKS
@@ -179,8 +180,16 @@ public final class SiegeCommander {
                 continue; // naturally spawned monsters may help, but the siege does not count on them
             }
             Role role = MobRoles.of(mob);
-            front.roleCounts[role.ordinal()]++;
             front.members++;
+            if ((role == Role.BUILDER || role == Role.MINER) && front.firstPending >= 0) {
+                // A worker that is already past the first unfinished step (a step was broken after it had walked on, e.g.
+                // by a creeper) never walks back: it does not count, so the siege sends a new one that repairs the way.
+                SiegeAI.MobState workerState = SiegeAI.stateOf(mob);
+                if (workerState != null && workerState.routeIndex >= front.firstPending) {
+                    continue;
+                }
+            }
+            front.roleCounts[role.ordinal()]++;
             if (role != Role.BUILDER && role != Role.MINER) {
                 front.escorts++;
             }

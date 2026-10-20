@@ -43,6 +43,8 @@ final class SiegeFront {
     int pendingBuild;
     int pendingDig;
     int hardDig;
+    /** Route step of the first work still to do (-1 = none). Builders and miners that are already past it cannot help. */
+    int firstPending = -1;
     int platformWork;
     /** Work left on the landings whose way up is already finished. */
     int landingWork;
