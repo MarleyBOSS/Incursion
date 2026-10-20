@@ -166,6 +166,7 @@ final class SarcophagusRenderer {
         float nextHum;
         float nextSpark;
         float nextBurn;
+        float nextFire;
         float scale = -1.0F;
         float window = 0.0F;
         float scaleFrom = 1.0F;
@@ -330,6 +331,15 @@ final class SarcophagusRenderer {
         }
         float vp = state.vp;
         float sc = CoreEvolution.scaleAt(vs);
+        if (active && time >= state.nextFire) {
+            state.nextFire = time + 2.0F;
+            float[] dragonAt = bossAt(2, time, vs, CoreEvolution.pillarRadiusAt(vp), CoreEvolution.pillarAt(vp));
+            if (dragonAt[5] > 0.5F && dragonAt[4] > 0.1F) {
+                float[] mouth = dragonMouth(dragonAt);
+                level.addParticle(ParticleTypes.DRAGON_BREATH, core.getBlockPos().getX() + mouth[0], core.getBlockPos().getY() + mouth[1],
+                        core.getBlockPos().getZ() + mouth[2], (level.random.nextDouble() - 0.5) * 0.02, 0.03, (level.random.nextDouble() - 0.5) * 0.02);
+            }
+        }
         // From stage 2 on the glass windows swing open (slowly, and they breathe a little afterwards).
         float windowTarget = active ? 62.0F * Mth.clamp(vs - 1.0F, 0.0F, 1.0F) : 0.0F;
         state.window += (windowTarget - state.window) * Math.min(1.0F, 0.035F * dt);
@@ -1764,6 +1774,50 @@ final class SarcophagusRenderer {
         return t > 0.0F && t < 1.0F ? Mth.sin(t * (float) Math.PI) : 0.0F;
     }
 
+    /** The Ender Dragon rears its head: the whole body is turned this far (degrees) about its middle. */
+    private static final float DRAGON_PITCH = 38.0F;
+    /** Its body's middle and the distance from there to the mouth, in the model's own units (from the vanilla model). */
+    private static final float DRAGON_PIVOT_Y = 0.5F;
+    private static final float DRAGON_PIVOT_Z = 2.0F;
+    private static final float DRAGON_MOUTH = 6.0F;
+
+    /** Where the mouth of the (reared) Ender Dragon is. */
+    private static float[] dragonMouth(float[] a) {
+        float th = DRAGON_PITCH * 0.017453292F;
+        return dragonPoint(a, 0.0F, DRAGON_PIVOT_Y + DRAGON_MOUTH * Mth.sin(th), DRAGON_PIVOT_Z - DRAGON_MOUTH * Mth.cos(th));
+    }
+
+    /** The beat of the Warden's heart: 1 as it beats (every 40 ticks, as in the game), then it fades within 10 ticks. */
+    private static float heartBeat(float time) {
+        float x = Mth.clamp(1.0F - (time % 40.0F) / 10.0F, 0.0F, 1.0F);
+        return x * x;
+    }
+
+    private static java.lang.reflect.Field[] heartFields;
+
+    /**
+     * The heart of the Warden lights up when {@code heartAnimation} jumps to 10 and runs down to 0 (the game's own tick does that,
+     * not on a dummy): set it from the time, so the glowing heart in its belly beats like in the game.
+     */
+    private static void beatWardenHeart(Warden warden, float time) {
+        try {
+            if (heartFields == null) {
+                java.lang.reflect.Field now = Warden.class.getDeclaredField("heartAnimation");
+                java.lang.reflect.Field old = Warden.class.getDeclaredField("heartAnimationO");
+                now.setAccessible(true);
+                old.setAccessible(true);
+                heartFields = new java.lang.reflect.Field[]{old, now};
+            }
+            if (heartFields.length == 2) {
+                int tick = (int) Math.floor(time);
+                heartFields[0].setFloat(warden, Math.max(0.0F, 10.0F - tick % 40));
+                heartFields[1].setFloat(warden, Math.max(0.0F, 10.0F - (tick + 1) % 40));
+            }
+        } catch (ReflectiveOperationException | RuntimeException ex) {
+            heartFields = new java.lang.reflect.Field[0];
+        }
+    }
+
     /** Where the energy of boss b leaves it (its eye, its head), given its placement. */
     private static float[] bossHead(int b, float[] a) {
         float s = a[4];
@@ -1773,12 +1827,13 @@ final class SarcophagusRenderer {
             return new float[]{a[0] + sn * 1.22F * s, a[1] + 1.175F * s, a[2] + cs * 1.22F * s};
         }
         if (b == 1) {
-            return new float[]{a[0] + sn * 0.3F * s, a[1] + 2.35F * s, a[2] + cs * 0.3F * s};
+            // the Warden's heart: between the ribs on its belly, just in front of the chest
+            return new float[]{a[0] + sn * 0.34F * s, a[1] + 1.4F * s, a[2] + cs * 0.34F * s};
         }
         if (b == 2) {
-            return dragonPoint(a, 0.0F, 1.9F, 0.9F); // above its back: the beam must not run through the body
+            return dragonMouth(a);
         }
-        return new float[]{a[0], a[1] + 2.9F * s, a[2]};
+        return new float[]{a[0], a[1] + 2.95F * s, a[2]}; // the middle head of the Wither
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
@@ -1849,6 +1904,13 @@ final class SarcophagusRenderer {
                     } else if ((calm || phase >= 75) && warden.sonicBoomAnimationState.isStarted()) {
                         warden.sonicBoomAnimationState.stop();
                     }
+                    // the roar (its chest opens, the heart shows) fills the second half of the round
+                    if (!calm && phase >= 100 && phase < 108 && !warden.roarAnimationState.isStarted()) {
+                        warden.roarAnimationState.start((int) time);
+                    } else if ((calm || phase < 100 || phase >= 190) && warden.roarAnimationState.isStarted()) {
+                        warden.roarAnimationState.stop();
+                    }
+                    beatWardenHeart(warden, time);
                 }
                 if (e instanceof EnderDragon dragon) {
                     float flap = time * 0.12F;
@@ -1860,6 +1922,12 @@ final class SarcophagusRenderer {
                     pose.mulPose(Axis.YP.rotation(a[3] + (float) Math.PI)); // the dragon's head points the other way
                 }
                 pose.scale(a[4], a[4], a[4]);
+                if (b == 2) {
+                    // the Dragon rears its head: it breathes its energy into the antenna
+                    pose.translate(0.0F, DRAGON_PIVOT_Y, DRAGON_PIVOT_Z);
+                    pose.mulPose(Axis.XP.rotationDegrees(DRAGON_PITCH));
+                    pose.translate(0.0F, -DRAGON_PIVOT_Y, -DRAGON_PIVOT_Z);
+                }
                 renderEntity(e, partial, pose, buffer, light);
             } catch (RuntimeException ex) {
                 bs.failed[b] = true; // never take the game down because of a decoration
@@ -2355,6 +2423,13 @@ final class SarcophagusRenderer {
      */
     private static void hose(Lines lines, List<float[]> packets, float time, float[] a, float[] b, float lift, float w, float mouth,
                              float k, float r, float g, float bl, int seed) {
+        float[] col = {r, g, bl};
+        hoseColor(lines, packets, time, a, b, lift, w, mouth, k, u -> col, seed);
+    }
+
+    /** Like {@link #hose}, but the colour changes along the hose: {@code col} gives it at u (0 at a, 1 at b). */
+    private static void hoseColor(Lines lines, List<float[]> packets, float time, float[] a, float[] b, float lift, float w, float mouth,
+                                  float k, java.util.function.Function<Float, float[]> col, int seed) {
         if (k < 0.02F) {
             return;
         }
@@ -2366,6 +2441,10 @@ final class SarcophagusRenderer {
         }
         for (int m = 0; m < n; m++) {
             float u = (m + 0.5F) / n;
+            float[] c = col.apply(u);
+            float r = c[0];
+            float g = c[1];
+            float bl = c[2];
             float wide = 1.0F + (mouth - 1.0F) * (1.0F - u) * (1.0F - u);
             float ph = Mth.sin((u * 3.0F - time * 0.03F + seed * 0.13F) * (float) (Math.PI * 2.0));
             float ww = w * wide * (0.78F + 0.32F * ph);
@@ -2383,10 +2462,54 @@ final class SarcophagusRenderer {
                 u += 1.0F;
             }
             float[] at = pointAt(pts, u);
-            packets.add(new float[]{at[0], at[1], at[2], k * 0.8F * Mth.sin(u * (float) Math.PI), r, g, bl, 0.5F * w + 0.1F});
+            float[] cc = col.apply(u);
+            packets.add(new float[]{at[0], at[1], at[2], k * 0.8F * Mth.sin(u * (float) Math.PI), cc[0], cc[1], cc[2], 0.5F * w + 0.1F});
         }
-        packets.add(new float[]{a[0], a[1], a[2], 0.5F * k, r, g, bl, 0.9F * w + 0.2F});
-        packets.add(new float[]{b[0], b[1], b[2], 0.6F * k, r, g, bl, 0.9F * w + 0.2F});
+        float[] c0 = col.apply(0.0F);
+        float[] c1 = col.apply(1.0F);
+        packets.add(new float[]{a[0], a[1], a[2], 0.5F * k, c0[0], c0[1], c0[2], 0.9F * w + 0.2F});
+        packets.add(new float[]{b[0], b[1], b[2], 0.6F * k, c1[0], c1[1], c1[2], 0.9F * w + 0.2F});
+    }
+
+    /** Purple fire in the mouth of the Dragon: tongues of flame that lick along the beam, and a glow. */
+    private static void dragonFire(Lines lines, List<float[]> packets, float time, float[] head, float[] tip, float k) {
+        if (k < 0.03F) {
+            return;
+        }
+        float dx = tip[0] - head[0];
+        float dy = tip[1] - head[1];
+        float dz = tip[2] - head[2];
+        float len = Math.max(0.01F, Mth.sqrt(dx * dx + dy * dy + dz * dz));
+        float nx = dx / len;
+        float ny = dy / len;
+        float nz = dz / len;
+        for (int i = 0; i < 7; i++) {
+            float ph = time * 0.33F + i * 1.7F;
+            float l = 0.3F + 0.4F * (0.5F + 0.5F * Mth.sin(ph * 1.3F));
+            float ox = Mth.sin(ph) * 0.16F;
+            float oy = Mth.cos(ph * 1.1F + i) * 0.16F;
+            float oz = Mth.sin(ph * 0.9F + 2.0F * i) * 0.16F;
+            float kk = k * (0.55F + 0.45F * Mth.sin(ph * 2.1F + i));
+            float ex = head[0] + nx * l + ox;
+            float ey = head[1] + ny * l + oy + 0.08F;
+            float ez = head[2] + nz * l + oz;
+            lines.add(head[0], head[1], head[2], ex, ey, ez, 0.16F, 0.5F * kk * 0.25F, 0.15F * kk * 0.25F, 0.9F * kk * 0.25F);
+            lines.add(head[0], head[1], head[2], ex, ey, ez, 0.06F, 0.85F * kk, 0.4F * kk, 1.0F * kk);
+        }
+        packets.add(new float[]{head[0], head[1], head[2], k * (0.75F + 0.25F * Mth.sin(time * 0.4F)), 0.85F, 0.35F, 1.0F, 0.5F});
+    }
+
+    /** The two outer heads of the Wither send smaller beams that run into the main beam. */
+    private static void witherSides(Lines lines, List<float[]> packets, float time, float[] a, float[] head, float[] tip, float k,
+                                    float[] bc, int seed) {
+        float s = a[4];
+        float sn = Mth.sin(a[3]);
+        float cs = Mth.cos(a[3]);
+        float[] join = {head[0] + (tip[0] - head[0]) * 0.3F, head[1] + (tip[1] - head[1]) * 0.3F, head[2] + (tip[2] - head[2]) * 0.3F};
+        for (int side = -1; side <= 1; side += 2) {
+            float[] from = {a[0] + cs * 1.12F * s * side, a[1] + 2.5F * s, a[2] - sn * 1.12F * s * side};
+            hose(lines, packets, time, from, join, 0.0F, 0.085F, 1.3F, k * 0.9F, bc[0], bc[1], bc[2], seed + side);
+        }
     }
 
     /** Energy that is sucked out of a (the dragon) into b (a crystal): a thick pumping hose, wide at the dragon. */
@@ -2578,7 +2701,7 @@ final class SarcophagusRenderer {
             float act = a[5] * (1.0F - a[6]);
             float pulse = 0.85F + 0.15F * Mth.sin(time * 0.1F + b * 2.0F);
             if (act > 0.03F) {
-                float pz = wardenPulse(time);
+                float pz = heartBeat(time); // the beam of the Warden beats with its heart
                 if (b == 0) {
                     twistBeam(lines, packets, time, head, tip, act, bc[0], bc[1], bc[2]);
                 } else if (b == 1) {
@@ -2586,26 +2709,56 @@ final class SarcophagusRenderer {
                     packets.add(new float[]{head[0], head[1], head[2], act * (0.15F + 0.7F * pz), bc[0], bc[1], bc[2], 0.4F + 0.4F * pz});
                 } else {
                     hose(lines, packets, time, head, tip, 0.5F, 0.18F, 1.5F, act * pulse, bc[0], bc[1], bc[2], b + 30);
+                    if (b == 2) {
+                        dragonFire(lines, packets, time, head, tip, act);
+                    } else {
+                        witherSides(lines, packets, time, a, head, tip, act * pulse, bc, b + 40);
+                    }
                 }
                 feed += act * (b == 1 ? 0.4F + 0.5F * pz : 0.8F);
             }
             if (a[6] > 0.03F) {
-                hose(lines, packets, time, head, tip, 0.5F, 0.15F, 1.3F, a[6] * pulse, bc[0], bc[1], bc[2], b + 20);
+                float kd = b == 1 ? a[6] * (0.35F + 0.65F * heartBeat(time)) : a[6] * pulse;
+                hose(lines, packets, time, head, tip, 0.5F, 0.15F, 1.3F, kd, bc[0], bc[1], bc[2], b + 20);
+                if (b == 2) {
+                    dragonFire(lines, packets, time, head, tip, a[6] * 0.7F);
+                } else if (b == 3) {
+                    witherSides(lines, packets, time, a, head, tip, kd, bc, b + 50);
+                }
                 feed += a[6] * 0.5F;
             }
         }
         // the Wither (stage 4): a beacon rises from the tip of the antenna into the sky
         float gw = ease(Mth.clamp(vs - 3.0F, 0.0F, 1.0F));
         if (gw > 0.03F) {
+            // in the colours of the Core: fire. The column boils (its width breathes, flames lick up it, embers rise) and the
+            // spiral round it stays.
             float pulse = 0.85F + 0.15F * Mth.sin(time * 0.11F);
             float y0 = tipY + 0.1F;
             for (int sg = 0; sg < 8; sg++) {
                 float ya = y0 + sg * 40.0F;
                 float yb = ya + 40.0F;
                 float fade = gw * pulse * (1.0F - 0.09F * sg);
-                lines.add(0.5F, ya, 0.5F, 0.5F, yb, 0.5F, 0.62F, 0.35F * fade * 0.22F, 0.15F * fade * 0.22F, 0.8F * fade * 0.22F);
-                lines.add(0.5F, ya, 0.5F, 0.5F, yb, 0.5F, 0.3F, 0.6F * fade * 0.55F, 0.35F * fade * 0.55F, 1.0F * fade * 0.55F);
-                lines.add(0.5F, ya, 0.5F, 0.5F, yb, 0.5F, 0.1F, 0.95F * fade, 0.88F * fade, 1.0F * fade);
+                float boil = 0.88F + 0.12F * Mth.sin(time * 0.23F + sg * 1.3F);
+                lines.add(0.5F, ya, 0.5F, 0.5F, yb, 0.5F, 0.7F * boil, 1.0F * fade * 0.2F, 0.3F * fade * 0.2F, 0.04F * fade * 0.2F);
+                lines.add(0.5F, ya, 0.5F, 0.5F, yb, 0.5F, 0.36F * boil, 1.0F * fade * 0.5F, 0.55F * fade * 0.5F, 0.12F * fade * 0.5F);
+                lines.add(0.5F, ya, 0.5F, 0.5F, yb, 0.5F, 0.12F, 1.0F * fade, 0.9F * fade, 0.62F * fade);
+            }
+            // flames that lick up the column
+            for (int st = 0; st < 5; st++) {
+                float[] prev = null;
+                for (int m = 0; m <= 64; m++) {
+                    float y = y0 + m * 1.3F;
+                    float amp = 0.1F + 0.32F * (m / 64.0F) * (0.7F + 0.3F * Mth.sin(time * 0.17F + st));
+                    float[] q = {0.5F + Mth.sin(y * 0.8F - time * 0.31F + st * 1.9F) * amp, y,
+                            0.5F + Mth.cos(y * 0.65F - time * 0.27F + st * 2.7F) * amp};
+                    if (prev != null) {
+                        float kk = gw * pulse * (1.0F - m / 70.0F) * (0.55F + 0.45F * Mth.sin(time * 0.4F + m * 0.9F + st));
+                        lines.add(prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.2F, 1.0F * kk * 0.3F, 0.32F * kk * 0.3F, 0.05F * kk * 0.3F);
+                        lines.add(prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.07F, 1.0F * kk, 0.6F * kk, 0.15F * kk);
+                    }
+                    prev = q;
+                }
             }
             for (int st = 0; st < 2; st++) {
                 float[] prev = null;
@@ -2615,16 +2768,54 @@ final class SarcophagusRenderer {
                     float[] q = {0.5F + Mth.cos(th) * 0.4F, y, 0.5F + Mth.sin(th) * 0.4F};
                     if (prev != null) {
                         float kk = gw * pulse * (1.0F - m / 75.0F);
-                        lines.add(prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.03F, 0.7F * kk, 0.45F * kk, 1.0F * kk);
+                        lines.add(prev[0], prev[1], prev[2], q[0], q[1], q[2], 0.03F, 1.0F * kk, 0.62F * kk, 0.2F * kk);
                     }
                     prev = q;
                 }
+            }
+            // embers rise out of the fire
+            for (int i = 0; i < 18; i++) {
+                float u = (time * 0.011F + i * 0.0556F) % 1.0F;
+                float ang = i * 2.4F + time * 0.02F;
+                float rad = 0.12F + 0.3F * rnd(i, 5) * (0.4F + u);
+                float kk = gw * (1.0F - u) * (0.6F + 0.4F * Mth.sin(time * 0.3F + i));
+                packets.add(new float[]{0.5F + Mth.cos(ang) * rad, y0 + u * 60.0F, 0.5F + Mth.sin(ang) * rad, kk, 1.0F, 0.55F, 0.15F, 0.24F});
             }
         }
         // the antenna passes everything on: a thick, pumping hose from its tip down into the Core
         float flowK = Mth.clamp(feed, 0.0F, 1.0F);
         if (flowK > 0.03F) {
-            hose(lines, packets, time, tip, new float[]{0.5F, coreY + 0.25F, 0.5F}, 0.0F, 0.2F, 1.0F, flowK, 1.0F, 0.72F, 0.38F, 99);
+            // the colours of the bosses that feed the antenna flow together (violet, blue, white, beige) and turn into the
+            // orange of the Core on the way down
+            List<float[]> mix = new ArrayList<>();
+            for (int b = 0; b < 4; b++) {
+                if (boss[b][5] > 0.03F && boss[b][4] > 0.05F) {
+                    mix.add(BOSS_COL[b]);
+                }
+            }
+            final float timeF = time;
+            hoseColor(lines, packets, time, tip, new float[]{0.5F, coreY + 0.25F, 0.5F}, 0.0F, 0.2F, 1.0F, flowK, u -> {
+                float e = Mth.clamp((u - 0.3F) / 0.6F, 0.0F, 1.0F);
+                e = e * e * (3.0F - 2.0F * e);
+                float cr = 1.0F;
+                float cg = 0.72F;
+                float cb = 0.38F;
+                if (!mix.isEmpty()) {
+                    float pos = ((u * 1.4F - timeF * 0.012F) % 1.0F + 1.0F) % 1.0F * mix.size();
+                    int i0 = (int) Math.floor(pos) % mix.size();
+                    int i1 = (i0 + 1) % mix.size();
+                    float f = pos - (float) Math.floor(pos);
+                    float[] c0 = mix.get(i0);
+                    float[] c1 = mix.get(i1);
+                    float mr = c0[0] + (c1[0] - c0[0]) * f;
+                    float mg = c0[1] + (c1[1] - c0[1]) * f;
+                    float mb = c0[2] + (c1[2] - c0[2]) * f;
+                    cr = mr + (cr - mr) * e;
+                    cg = mg + (cg - mg) * e;
+                    cb = mb + (cb - mb) * e;
+                }
+                return new float[]{cr, cg, cb};
+            }, 99);
             packets.add(new float[]{0.5F, tipY, 0.5F, 0.8F * flowK, 1.0F, 0.75F, 0.4F, 0.6F + 0.2F * flowK});
         }
         lines.flush(buffer, p);
