@@ -3,6 +3,8 @@ package com.marleyboss.incursion.block;
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.data.CoreWorldData;
 import com.marleyboss.incursion.entity.CoreBlastEntity;
+import com.marleyboss.incursion.item.InsigniaItem;
+import com.marleyboss.incursion.item.TabletItem;
 import com.marleyboss.incursion.item.UpgradeToolItem;
 import com.marleyboss.incursion.menu.CoreMenu;
 import com.marleyboss.incursion.registry.ModBlockEntities;
@@ -123,6 +125,21 @@ public class CoreBlock extends BaseEntityBlock {
             if (ritual != null) {
                 return ritual;
             }
+        }
+        if (active && stack.getItem() instanceof InsigniaItem) {
+            // The insignia of a fallen general completes the waiting upgrade.
+            if (!level.isClientSide) {
+                CoreActions.insertInsignia((ServerLevel) level, pos, player, stack);
+            }
+            return level.isClientSide ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
+        }
+        if (active && stack.getItem() instanceof TabletItem) {
+            // Tablet in this hand: the Upgrade Tool must be in the other one (the upgrade checks both hands).
+            if (!level.isClientSide) {
+                InteractionHand other = hand == InteractionHand.MAIN_HAND ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+                CoreActions.tryUpgrade((ServerLevel) level, pos, player, player.getItemInHand(other));
+            }
+            return level.isClientSide ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
         }
         // With the tool requirement on, only an Upgrade Tool in the hand upgrades (the items are paid from the
         // inventory); with it off, the upgrade item itself works as before.

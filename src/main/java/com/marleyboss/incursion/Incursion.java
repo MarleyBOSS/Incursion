@@ -39,6 +39,8 @@ public class Incursion {
         modEventBus.addListener(Fallout::registerTickets);
         SiegeEvents.register();
         Rewards.register();
+        com.marleyboss.incursion.siege.Generals.register();
+        com.marleyboss.incursion.story.StoryEvents.register();
         Fallout.register();
         com.marleyboss.incursion.block.EternalFire.register();
         Ritual.register();
@@ -62,6 +64,12 @@ public class Incursion {
         if (event.getTabKey() == CreativeModeTabs.INGREDIENTS) {
             event.accept(ModItems.CORE_SHARD);
             event.accept(ModItems.CORE_RUNE);
+            for (int stage = 1; stage <= 4; stage++) {
+                event.accept(ModItems.tablet(stage));
+            }
+            for (int stage = 1; stage <= 4; stage++) {
+                event.accept(ModItems.insignia(stage));
+            }
         }
         if (event.getTabKey() == CreativeModeTabs.COMBAT) {
             event.accept(ModItems.MYTHIC_POTION);

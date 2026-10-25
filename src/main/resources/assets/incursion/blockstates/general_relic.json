@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "general=1": {
+      "model": "incursion:block/general_relic_1"
+    },
+    "general=2": {
+      "model": "incursion:block/general_relic_2"
+    },
+    "general=3": {
+      "model": "incursion:block/general_relic_3"
+    },
+    "general=4": {
+      "model": "incursion:block/general_relic_4"
+    }
+  }
+}

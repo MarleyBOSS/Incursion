@@ -52,7 +52,7 @@ public final class Config {
 
     public static final ModConfigSpec.IntValue UPGRADE_TOOL_LEVELS = BUILDER
             .comment("Core levels covered by one Upgrade Tool tier. With 5: tier I reaches level 5, tier II level 10,",
-                    "tier III level 15, tier IV every level above. Stronger tools are crafted from the weaker one.")
+                    "tier III level 15, tier IV every level above. Tier I is crafted, the stronger ones are traded at the Toolsmith.")
             .defineInRange("upgradeToolLevels", 5, 1, 100);
 
     public static final ModConfigSpec.IntValue CORE_HEALTH_BASE = BUILDER
@@ -839,6 +839,83 @@ public final class Config {
         BUILDER.pop();
     }
 
+    // ------------------------------------------------------------------
+    // Story: tablets, boss night with the generals, villager trades
+    // ------------------------------------------------------------------
+
+    static {
+        BUILDER.comment("Story: the upgrades to Core level 5, 10, 15 and 20 need the tablet of a guardian (dropped by the",
+                        "Elder Guardian, the Warden, the Ender Dragon and the Wither). After the tablet is set in, a general",
+                        "comes in the following night; his insignia completes the upgrade. Villagers trade the Core Rune,",
+                        "the Mythic Potion and the stronger Upgrade Tools.")
+                .push("story");
+    }
+
+    public static final ModConfigSpec.BooleanValue TABLETS_REQUIRED = BUILDER
+            .comment("If true, the upgrades to Core level 5, 10, 15 and 20 need the matching tablet in the other hand",
+                    "(Upgrade Tool in one hand, tablet in the other, right-click the Core).")
+            .define("tabletsRequired", true);
+
+    public static final ModConfigSpec.BooleanValue BOSS_NIGHT = BUILDER
+            .comment("If true, setting in a tablet does not upgrade at once: in the following night a general attacks.",
+                    "Killing him leaves his insignia (a block to mine); setting the insignia into the Core completes the",
+                    "upgrade. A general who is still alive at dawn vanishes and comes back the next night.",
+                    "If false, the tablet upgrades the Core at once.")
+            .define("bossNight", true);
+
+    public static final ModConfigSpec.BooleanValue TABLET_DROPS = BUILDER
+            .comment("If true, the Elder Guardian, the Warden, the Ender Dragon and the Wither drop their tablet when they die.")
+            .define("tabletDrops", true);
+
+    public static final ModConfigSpec.ConfigValue<List<? extends Integer>> GENERAL_HEALTH = BUILDER
+            .comment("Health of general I to IV (level 5, 10, 15, 20). The siege health bonus per Core level does not apply.")
+            .defineListAllowEmpty("generalHealth", List.of(150, 250, 400, 600), () -> 150, Config::isPositiveInt);
+
+    public static final ModConfigSpec.ConfigValue<List<? extends Integer>> GENERAL_DAMAGE = BUILDER
+            .comment("Attack damage of general I to IV without the weapon (a zombie has 3).")
+            .defineListAllowEmpty("generalDamage", List.of(6, 8, 10, 13), () -> 6, Config::isPositiveInt);
+
+    public static final ModConfigSpec.ConfigValue<List<? extends Integer>> GENERAL_ARMOR = BUILDER
+            .comment("Extra armor points of general I to IV on top of the armor he wears.")
+            .defineListAllowEmpty("generalArmor", List.of(4, 6, 8, 10), () -> 4, Config::isPositiveInt);
+
+    public static final ModConfigSpec.DoubleValue GENERAL_SPEED = BUILDER
+            .comment("Movement speed of the generals (a zombie has 0.23).")
+            .defineInRange("generalSpeed", 0.27, 0.05, 1.0);
+
+    public static final ModConfigSpec.BooleanValue TRADES_ENABLED = BUILDER
+            .comment("If true, villagers offer the story items: the Librarian the Core Rune, the Cleric the Mythic Potion,",
+                    "the Toolsmith the next Upgrade Tool. The trades are added when a player opens the trading screen of a",
+                    "villager that has the needed level (also for villagers that existed before).")
+            .define("tradesEnabled", true);
+
+    public static final ModConfigSpec.IntValue RUNE_TRADE_LEVEL = BUILDER
+            .comment("Librarian level (1 = Novice ... 5 = Master) that sells the Core Rune.")
+            .defineInRange("runeTradeLevel", 5, 1, 5);
+
+    public static final ModConfigSpec.IntValue RUNE_TRADE_EMERALDS = BUILDER
+            .comment("Emeralds the Core Rune costs (plus one book).")
+            .defineInRange("runeTradeEmeralds", 32, 1, 64);
+
+    public static final ModConfigSpec.IntValue POTION_TRADE_LEVEL = BUILDER
+            .comment("Cleric level (1 = Novice ... 5 = Master) that sells the Mythic Potion.")
+            .defineInRange("potionTradeLevel", 4, 1, 5);
+
+    public static final ModConfigSpec.IntValue POTION_TRADE_EMERALDS = BUILDER
+            .comment("Emeralds the Mythic Potion costs (plus one blaze rod).")
+            .defineInRange("potionTradeEmeralds", 24, 1, 64);
+
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> TOOL_TRADES = BUILDER
+            .comment("Toolsmith trades: Upgrade Tool I + material = tool II (Journeyman), II + material = III (Expert),",
+                    "III + material = IV (Master). One entry per trade, \"item id=count\" (count 1-64).")
+            .defineListAllowEmpty("toolTrades",
+                    List.of("minecraft:diamond=8", "minecraft:obsidian=32", "minecraft:netherite_ingot=2"),
+                    () -> "minecraft:diamond=8", Config::isValidItemCount);
+
+    static {
+        BUILDER.pop();
+    }
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     /**
@@ -990,6 +1067,59 @@ public final class Config {
             return true;
         } catch (NumberFormatException e) {
             return false;
+        }
+    }
+
+    private static boolean isPositiveInt(Object value) {
+        return value instanceof Integer i && i > 0;
+    }
+
+    /** "item id=count" with a count of 1 to 64 (the item itself is checked when it is used). */
+    private static boolean isValidItemCount(Object value) {
+        if (!(value instanceof String s)) {
+            return false;
+        }
+        int eq = s.indexOf('=');
+        if (eq <= 0 || ResourceLocation.tryParse(s.substring(0, eq).trim()) == null) {
+            return false;
+        }
+        try {
+            int count = Integer.parseInt(s.substring(eq + 1).trim());
+            return count >= 1 && count <= 64;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    /** Value {@code index} (0-based) of a list of numbers, or {@code fallback} if the list is too short. */
+    public static int listValue(List<? extends Integer> list, int index, int fallback) {
+        return index >= 0 && index < list.size() && list.get(index) != null ? list.get(index) : fallback;
+    }
+
+    /**
+     * The material of Toolsmith trade {@code index} (0: tool I to II, 1: II to III, 2: III to IV) as item and count,
+     * or null if the entry is missing or names an unknown item.
+     */
+    @org.jetbrains.annotations.Nullable
+    public static net.minecraft.world.item.ItemStack toolTradeMaterial(int index) {
+        List<? extends String> list = TOOL_TRADES.get();
+        if (index < 0 || index >= list.size()) {
+            return null;
+        }
+        String s = list.get(index);
+        int eq = s.indexOf('=');
+        if (eq <= 0) {
+            return null;
+        }
+        ResourceLocation id = ResourceLocation.tryParse(s.substring(0, eq).trim());
+        if (id == null || !BuiltInRegistries.ITEM.containsKey(id)) {
+            return null;
+        }
+        try {
+            int count = Math.max(1, Math.min(64, Integer.parseInt(s.substring(eq + 1).trim())));
+            return new net.minecraft.world.item.ItemStack(BuiltInRegistries.ITEM.get(id), count);
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 

@@ -34,6 +34,9 @@ public final class SiegeDebug {
     }
 
     static void showName(Mob mob, MobState state, boolean ward) {
+        if (Generals.isGeneral(mob)) {
+            return; // a general keeps his own name
+        }
         Role role = MobRoles.of(mob);
         MutableComponent name = role == Role.NONE
                 ? mob.getType().getDescription().copy()

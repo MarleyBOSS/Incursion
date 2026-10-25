@@ -82,6 +82,18 @@ public final class ModBlocks {
                     .strength(3.0F, 1200.0F)
                     .sound(SoundType.WOOD)));
 
+    /** The insignia a fallen general leaves behind (see GeneralRelicBlock): mined by hand, immune to explosions. */
+    public static final DeferredBlock<com.marleyboss.incursion.block.GeneralRelicBlock> GENERAL_RELIC = BLOCKS.register(
+            "general_relic", () -> new com.marleyboss.incursion.block.GeneralRelicBlock(
+                    BlockBehaviour.Properties.of()
+                            .mapColor(MapColor.COLOR_BLACK)
+                            .strength(1.5F, 3600000.0F)
+                            .sound(SoundType.AMETHYST)
+                            .lightLevel(state -> 10)
+                            .noOcclusion()
+                            .noLootTable()
+                            .pushReaction(PushReaction.BLOCK)));
+
     /** The Core Table: enchantments above the vanilla maximum (needs the active Core, pays with its shards). */
     public static final DeferredBlock<CoreTableBlock> CORE_TABLE = BLOCKS.register("core_table", () -> new CoreTableBlock(
             BlockBehaviour.Properties.of()

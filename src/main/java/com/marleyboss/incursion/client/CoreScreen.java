@@ -29,6 +29,7 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     private static final int COLOR_DEFUSE = 0xFFFFD040;
     private static final int COLOR_SHIELD = 0xFF60C8FF;
     private static final int COLOR_SHARD = 0xFF7FFFD4;
+    private static final int COLOR_STORY = 0xFFFFA040;
 
     private static final int WIDTH = 296;
     private static final int HEIGHT = 208;
@@ -47,6 +48,8 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
     private Button withdrawButton;
     /** TEST TAB (temporary): shows the test buttons instead of the normal ones. */
     private Button testTab;
+    /** TEST TAB: the general of the waiting upgrade comes at once. */
+    private Button testGeneral;
     private boolean testMode = false;
     private final Button[] testButtons = new Button[6];
     private static final String[] TEST_LABELS = {"Level +1", "Level +5", "Auf Level 5", "Auf Level 10", "Auf Level 15",
@@ -84,6 +87,11 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
                             BUTTON_HEIGHT)
                     .tooltip(Tooltip.create(Component.literal("Wie ein echtes Upgrade, nur ohne Kosten und Werkzeug"))).build());
         }
+        testGeneral = addRenderableWidget(Button.builder(Component.literal("General rufen"),
+                        button -> click(CoreMenu.BUTTON_TEST_GENERAL))
+                .bounds(leftPos + WIDTH - 50 - 92, topPos - 18, 88, 16)
+                .tooltip(Tooltip.create(Component.literal("Der General des wartenden Upgrades erscheint sofort "
+                        + "(bleibt bis zum nächsten Morgen)"))).build());
         testTab = addRenderableWidget(Button.builder(Component.literal("Test"), button -> {
             testMode = !testMode;
             updateButton();
@@ -131,6 +139,10 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
                 b.visible = testMode;
                 b.active = active;
             }
+        }
+        if (testGeneral != null) {
+            testGeneral.visible = testMode;
+            testGeneral.active = active && menu.get(CoreMenu.DATA_STORY_STATE) == 2;
         }
         if (testMode) {
             return;
@@ -199,6 +211,15 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
             actionButton.setTooltip(null);
             return;
         }
+        int storyState = menu.get(CoreMenu.DATA_STORY_STATE);
+        int storyStage = Math.max(1, menu.get(CoreMenu.DATA_STORY_STAGE));
+        if (storyState >= 2) {
+            // A tablet is set in: the upgrade waits for the general's insignia.
+            actionButton.setMessage(Component.translatable("gui.incursion.core.button.upgrade_waiting"));
+            actionButton.active = false;
+            actionButton.setTooltip(Tooltip.create(storyText(storyState, storyStage, level + 1)));
+            return;
+        }
         int cost = menu.get(CoreMenu.DATA_NEXT_COST);
         boolean canPay = menu.get(CoreMenu.DATA_UPGRADE_ITEMS_OWNED) >= cost;
         int neededTier = menu.get(CoreMenu.DATA_NEXT_TOOL_TIER);
@@ -206,14 +227,47 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
             // The Core is upgraded by right-clicking it with the Upgrade Tool; the button only explains that.
             actionButton.setMessage(Component.translatable("gui.incursion.core.button.upgrade_tool"));
             actionButton.active = false;
-            actionButton.setTooltip(Tooltip.create(Component.translatable("message.incursion.core.need_tool",
-                    ModItems.upgradeTool(neededTier).get().getDescription(), level + 1)));
+            Component hint = Component.translatable("message.incursion.core.need_tool",
+                    ModItems.upgradeTool(neededTier).get().getDescription(), level + 1);
+            if (storyState == 1) {
+                hint = Component.empty().append(hint).append("\n\n").append(Component.translatable(
+                        "message.incursion.core.need_tablet", ModItems.tablet(storyStage).get().getDescription(), level + 1));
+            }
+            actionButton.setTooltip(Tooltip.create(hint));
             return;
         }
         actionButton.setMessage(Component.translatable("gui.incursion.core.button.upgrade", level + 1));
         actionButton.active = canPay;
         actionButton.setTooltip(canPay ? null : Tooltip.create(Component.translatable(
                 "message.incursion.core.not_enough", cost, menu.getUpgradeItem().getDescription())));
+    }
+
+    /** One short line in the right column: what the next big upgrade needs or where the waiting one stands. */
+    private static Component storyLine(int state, int stage) {
+        String roman = ROMAN[Math.max(1, Math.min(4, stage)) - 1];
+        return switch (state) {
+            case 1 -> Component.translatable("gui.incursion.core.story.tablet",
+                    Component.translatable("gui.incursion.core.guardian_" + Math.max(1, Math.min(4, stage))));
+            case 2 -> Component.translatable("gui.incursion.core.story.night", roman);
+            case 3 -> Component.translatable("gui.incursion.core.story.present", roman);
+            default -> Component.translatable("gui.incursion.core.story.insignia");
+        };
+    }
+
+    private static final String[] ROMAN = {"I", "II", "III", "IV"};
+
+    /** The longer explanation (tooltip of the upgrade button while an upgrade waits). */
+    private static Component storyText(int state, int stage, int targetLevel) {
+        return switch (state) {
+            case 3 -> Component.translatable("message.incursion.general.pending_present", generalName(stage), targetLevel);
+            case 4 -> Component.translatable("message.incursion.general.pending_insignia",
+                    ModItems.insignia(stage).get().getDescription(), targetLevel);
+            default -> Component.translatable("message.incursion.general.pending_night", generalName(stage), targetLevel);
+        };
+    }
+
+    private static Component generalName(int stage) {
+        return Component.translatable("entity.incursion.general_" + Math.max(1, Math.min(4, stage)));
     }
 
     @Override
@@ -320,6 +374,11 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
                 menu.get(CoreMenu.DATA_NIGHTS), menu.get(CoreMenu.DATA_SHARDS_PER_NIGHT)), RIGHT_X, 66, RIGHT_WIDTH, infoColor);
         drawFit(graphics, Component.translatable("gui.incursion.core.kills", menu.get(CoreMenu.DATA_KILLS)),
                 RIGHT_X, 77, RIGHT_WIDTH, infoColor);
+        int storyState = menu.get(CoreMenu.DATA_STORY_STATE);
+        if (active && storyState > 0) {
+            drawFit(graphics, storyLine(storyState, Math.max(1, menu.get(CoreMenu.DATA_STORY_STAGE))),
+                    RIGHT_X, 88, RIGHT_WIDTH, COLOR_STORY);
+        }
 
         int defuseLeft = menu.get(CoreMenu.DATA_DEFUSE_LEFT);
         if (active && defuseLeft > 0) {

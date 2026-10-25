@@ -2,9 +2,12 @@ package com.marleyboss.incursion.block;
 
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.data.CoreWorldData;
+import com.marleyboss.incursion.item.InsigniaItem;
+import com.marleyboss.incursion.item.TabletItem;
 import com.marleyboss.incursion.item.UpgradeToolItem;
 import com.marleyboss.incursion.registry.ModItems;
 import com.marleyboss.incursion.siege.ChunkLoading;
+import com.marleyboss.incursion.siege.Generals;
 import com.marleyboss.incursion.siege.Shields;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -50,6 +53,7 @@ public final class CoreActions {
         core.setCoreLevel(1);
         core.resetShields();
         core.setNightDay(-1);
+        core.clearPendingUpgrade();
         core.setHealth(core.getMaxHealth());
         level.setBlock(pos, state.setValue(CoreBlock.ACTIVE, true), Block.UPDATE_ALL);
         core.evolve(level, CoreEvolution.stageFor(1));
@@ -87,6 +91,12 @@ public final class CoreActions {
             return;
         }
 
+        if (core.hasPendingUpgrade()) {
+            // A tablet is set in already: the upgrade waits for the general's insignia.
+            player.displayClientMessage(Generals.pendingMessage(core).withStyle(ChatFormatting.GOLD), true);
+            return;
+        }
+
         int targetLevel = currentLevel + 1;
         int neededTier = Config.requiredToolTier(targetLevel);
         if (neededTier > 0 && toolTier(heldTool) < neededTier) {
@@ -94,6 +104,17 @@ public final class CoreActions {
                     ModItems.upgradeTool(neededTier).get().getDescription(), targetLevel)
                     .withStyle(ChatFormatting.RED), true);
             return;
+        }
+        // Level 5, 10, 15, 20: the tablet of the stage's guardian goes in with the upgrade (in the other hand).
+        int gate = tabletStage(currentLevel, targetLevel);
+        ItemStack tablet = ItemStack.EMPTY;
+        if (gate > 0) {
+            tablet = findTablet(player, gate);
+            if (tablet.isEmpty()) {
+                player.displayClientMessage(Component.translatable("message.incursion.core.need_tablet",
+                        ModItems.tablet(gate).get().getDescription(), targetLevel).withStyle(ChatFormatting.RED), true);
+                return;
+            }
         }
         int cost = Config.upgradeCost(targetLevel);
         Item upgradeItem = Config.upgradeItem();
@@ -104,7 +125,76 @@ public final class CoreActions {
         }
 
         removeItems(player, upgradeItem, cost);
+        if (gate > 0) {
+            if (!player.getAbilities().instabuild) {
+                tablet.shrink(1);
+            }
+            if (Config.BOSS_NIGHT.get()) {
+                Generals.startBossNight(level, pos, core, player, targetLevel);
+                return;
+            }
+            level.playSound(null, pos, SoundEvents.END_PORTAL_FRAME_FILL, SoundSource.BLOCKS, 1.0F, 0.7F);
+        }
         levelUp(level, pos, core, player, currentLevel, targetLevel);
+    }
+
+    /**
+     * The tablet stage (1 to 4) an upgrade from {@code currentLevel} to {@code targetLevel} needs, or 0 if it needs
+     * none: the upgrades that start a new stage of the Core (level 5, 10, 15, 20).
+     */
+    public static int tabletStage(int currentLevel, int targetLevel) {
+        if (!Config.TABLETS_REQUIRED.get()) {
+            return 0;
+        }
+        int from = CoreEvolution.stageFor(currentLevel);
+        int to = CoreEvolution.stageFor(targetLevel);
+        return to > from ? to : 0;
+    }
+
+    /** The tablet of {@code stage} in one of the player's hands (the one that is not the tool), or EMPTY. */
+    private static ItemStack findTablet(Player player, int stage) {
+        for (ItemStack stack : new ItemStack[]{player.getOffhandItem(), player.getMainHandItem()}) {
+            if (stack.getItem() instanceof TabletItem tablet && tablet.getStage() == stage) {
+                return stack;
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    /**
+     * Right-click with a general's insignia: completes the waiting upgrade (the tablet is in, the general fell).
+     */
+    public static void insertInsignia(ServerLevel level, BlockPos pos, Player player, ItemStack stack) {
+        BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof CoreBlock) || !state.getValue(CoreBlock.ACTIVE)
+                || !(level.getBlockEntity(pos) instanceof CoreBlockEntity core)
+                || !(stack.getItem() instanceof InsigniaItem insignia)) {
+            return;
+        }
+        if (!core.hasPendingUpgrade()) {
+            player.displayClientMessage(Component.translatable("message.incursion.general.no_pending")
+                    .withStyle(ChatFormatting.RED), true);
+            return;
+        }
+        int pending = core.getPendingLevel();
+        int stage = CoreEvolution.stageFor(pending);
+        if (insignia.getStage() != stage) {
+            player.displayClientMessage(Component.translatable("message.incursion.general.wrong_insignia",
+                    ModItems.insignia(stage).get().getDescription()).withStyle(ChatFormatting.RED), true);
+            return;
+        }
+        if (!player.getAbilities().instabuild) {
+            stack.shrink(1);
+        }
+        int current = core.getCoreLevel();
+        Generals.finish(level, pos, core);
+        level.playSound(null, pos, SoundEvents.END_PORTAL_SPAWN, SoundSource.BLOCKS, 0.8F, 1.1F);
+        level.getServer().getPlayerList().broadcastSystemMessage(Component.translatable(
+                "message.incursion.general.insignia_set", insignia.getDescription(), pending)
+                .withStyle(ChatFormatting.LIGHT_PURPLE), false);
+        if (pending > current) {
+            levelUp(level, pos, core, player, current, pending);
+        }
     }
 
     /** What a real upgrade does once it is paid: the new level, health, sound, message, shields (and the evolution follows from the level). */
@@ -138,6 +228,9 @@ public final class CoreActions {
         while (core.getCoreLevel() < target) {
             int current = core.getCoreLevel();
             levelUp(level, pos, core, player, current, current + 1);
+        }
+        if (core.hasPendingUpgrade() && core.getCoreLevel() >= core.getPendingLevel()) {
+            Generals.finish(level, pos, core); // the test skipped the waiting upgrade: its general goes too
         }
     }
 

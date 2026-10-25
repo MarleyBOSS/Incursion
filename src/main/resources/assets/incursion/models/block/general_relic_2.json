@@ -1,0 +1,6 @@
+{
+  "parent": "incursion:block/general_relic_base",
+  "textures": {
+    "crystal": "incursion:block/general_relic_2"
+  }
+}

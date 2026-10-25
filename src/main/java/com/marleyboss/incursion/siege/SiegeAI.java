@@ -354,7 +354,7 @@ public final class SiegeAI {
             state.lastCloser = now;
         }
         int selfDestruct = Config.SELF_DESTRUCT_SECONDS.get();
-        if (selfDestruct > 0 && now - state.lastUseful > selfDestruct * 20L) {
+        if (selfDestruct > 0 && now - state.lastUseful > selfDestruct * 20L && !Generals.isGeneral(mob)) {
             startFuse(level, mob, state, now);
             return;
         }
@@ -1293,8 +1293,19 @@ public final class SiegeAI {
         }
     }
 
+    /** Removes a mob from the siege's bookkeeping and from the world (a general vanishing at dawn). */
+    static void dismiss(Mob mob) {
+        forget(mob);
+        mob.ejectPassengers();
+        mob.discard();
+    }
+
     /** A siege mob that is no use where it is disappears; the siege spawns a new one at a front. */
     static void recall(ServerLevel level, Mob mob) {
+        if (Generals.isGeneral(mob)) {
+            forget(mob); // a general never vanishes like a lost mob: he fights on until dawn (see Generals)
+            return;
+        }
         forget(mob);
         level.sendParticles(ParticleTypes.PORTAL, mob.getX(), mob.getY() + 1.0, mob.getZ(), 30, 0.4, 0.8, 0.4, 0.2);
         mob.ejectPassengers();

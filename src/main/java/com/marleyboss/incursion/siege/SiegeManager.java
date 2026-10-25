@@ -48,8 +48,8 @@ public final class SiegeManager {
     public static final String SIEGE_TAG = "incursion_siege";
 
     private static final ResourceLocation FOLLOW_RANGE_ID = id("siege_follow_range");
-    private static final ResourceLocation HEALTH_BONUS_ID = id("siege_health_bonus");
-    private static final ResourceLocation DAMAGE_BONUS_ID = id("siege_damage_bonus");
+    static final ResourceLocation HEALTH_BONUS_ID = id("siege_health_bonus");
+    static final ResourceLocation DAMAGE_BONUS_ID = id("siege_damage_bonus");
     private static final double MAX_FOLLOW_RANGE = 128.0;
     private static boolean stallAnnounced = false;
     /** Was the spawn window open at the last check? (To restart the stall timer when it opens.) */
@@ -176,6 +176,9 @@ public final class SiegeManager {
         }
         SiegeCommander.tick(level, siege, attackers, wards, max, now);
         PlayerHunt.tick(level, siege, attackers, wards, max, now);
+
+        // 7b. Boss night: the general of a waiting upgrade comes at night and vanishes at dawn (see Generals).
+        Generals.tick(level, pos, core, target, now);
 
         // 8. Show the borders and the AI view, if switched on in the Core GUI.
         // The borders (squares with beams at the corners) are drawn by the client renderer from synced data.
@@ -477,6 +480,73 @@ public final class SiegeManager {
         return spawned;
     }
 
+    /**
+     * Spawns the general of a boss night: a zombie warrior at the assembly point of a front (he then takes its way to
+     * the Core), or somewhere on the ground around the Core outside the safe zone. {@code prepare} turns the zombie
+     * into the general before it is checked for room and added to the world. Returns null if no spot was free.
+     */
+    @Nullable
+    static Mob spawnGeneral(ServerLevel level, BlockPos core, int coreLevel, CoreTargetEntity target, long now,
+                            java.util.function.Consumer<Mob> prepare) {
+        RandomSource random = level.getRandom();
+        List<SiegeFront> fronts = new ArrayList<>(SiegeCommander.fronts());
+        java.util.Collections.shuffle(fronts, new java.util.Random(random.nextLong()));
+        for (SiegeFront front : fronts) {
+            BlockPos spot = assemblySpot(level, front.assembly(), random);
+            if (spot == null) {
+                continue;
+            }
+            Mob mob = placeGeneral(level, spot, coreLevel, random, now, prepare);
+            if (mob != null) {
+                aimAtCore(mob, target);
+                SiegeAI.assign(mob, front, now);
+                return mob;
+            }
+        }
+        // No front (yet): somewhere on the ground around the Core, outside the safe zone.
+        ActiveSiege siege = ActiveSiege.get(level);
+        int minDistance = Config.coreZoneRadius(coreLevel) + 6;
+        int maxDistance = Math.max(minDistance + 4,
+                Math.min(Config.SPAWN_MAX_DISTANCE.get(), Config.siegeRadiusBlocks(coreLevel) - 4));
+        boolean underground = isUnderground(level, core);
+        int elevation = Math.max(0, SiegeAirDrop.elevation(level, core, minDistance));
+        for (int attempt = 0; attempt < 24; attempt++) {
+            double angle = random.nextDouble() * Math.PI * 2.0;
+            double distance = minDistance + random.nextDouble() * (maxDistance - minDistance);
+            int x = core.getX() + Mth.floor(Math.cos(angle) * distance);
+            int z = core.getZ() + Mth.floor(Math.sin(angle) * distance);
+            if (siege != null && siege.isSafe(x, z)) {
+                continue;
+            }
+            BlockPos spot = findStandingPos(level, x, z, core.getY(), underground, elevation);
+            if (spot == null) {
+                continue;
+            }
+            Mob mob = placeGeneral(level, spot, coreLevel, random, now, prepare);
+            if (mob != null) {
+                aimAtCore(mob, target);
+                return mob;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private static Mob placeGeneral(ServerLevel level, BlockPos spot, int coreLevel, RandomSource random, long now,
+                                    java.util.function.Consumer<Mob> prepare) {
+        Mob mob = createSiegeMob(level, EntityType.ZOMBIE, spot, coreLevel, random, now, MobRoles.Role.WARRIOR, true);
+        if (mob == null) {
+            return null;
+        }
+        prepare.accept(mob);
+        if (!level.noCollision(mob) || level.containsAnyLiquid(mob.getBoundingBox())) {
+            mob.discard();
+            return null;
+        }
+        level.addFreshEntity(mob);
+        return mob;
+    }
+
     /** A zombie type for a worker (from the pool if possible). */
     private static EntityType<?> zombieType(List<EntityType<?>> pool, RandomSource random) {
         List<EntityType<?>> zombies = new ArrayList<>();
@@ -749,6 +819,7 @@ public final class SiegeManager {
         AABB area = new AABB(pos).inflate(radius, 96, radius);
         for (Mob mob : level.getEntitiesOfClass(Mob.class, area, m -> m.getTags().contains(SIEGE_TAG))) {
             level.sendParticles(ParticleTypes.POOF, mob.getX(), mob.getY() + 0.5, mob.getZ(), 10, 0.3, 0.5, 0.3, 0.02);
+            Generals.onRemoved(mob);
             mob.discard();
         }
     }
@@ -760,6 +831,7 @@ public final class SiegeManager {
 
     /** Defusing finished: the Core falls back to level 0 without an explosion. */
     public static void defuse(ServerLevel level, BlockPos pos, CoreBlockEntity core) {
+        Generals.cancel(level, pos, core); // a waiting upgrade ends: the tablet comes back
         stopSiege(level, pos, core);
         clearSiegeMobs(level, pos, core.getCoreLevel());
         core.setCoreLevel(0);

@@ -1,0 +1,235 @@
+{
+  "parent": "minecraft:block/block",
+  "ambientocclusion": false,
+  "textures": {
+    "particle": "#crystal",
+    "base": "incursion:block/general_relic_base"
+  },
+  "elements": [
+    {
+      "from": [
+        3,
+        0,
+        3
+      ],
+      "to": [
+        13,
+        3,
+        13
+      ],
+      "faces": {
+        "down": {
+          "uv": [
+            3,
+            3,
+            13,
+            13
+          ],
+          "texture": "#base",
+          "cullface": "down"
+        },
+        "up": {
+          "uv": [
+            3,
+            3,
+            13,
+            13
+          ],
+          "texture": "#base"
+        },
+        "north": {
+          "uv": [
+            3,
+            13,
+            13,
+            16
+          ],
+          "texture": "#base"
+        },
+        "south": {
+          "uv": [
+            3,
+            13,
+            13,
+            16
+          ],
+          "texture": "#base"
+        },
+        "west": {
+          "uv": [
+            3,
+            13,
+            13,
+            16
+          ],
+          "texture": "#base"
+        },
+        "east": {
+          "uv": [
+            3,
+            13,
+            13,
+            16
+          ],
+          "texture": "#base"
+        }
+      }
+    },
+    {
+      "from": [
+        5,
+        3,
+        5
+      ],
+      "to": [
+        11,
+        4,
+        11
+      ],
+      "faces": {
+        "up": {
+          "uv": [
+            5,
+            5,
+            11,
+            11
+          ],
+          "texture": "#base"
+        },
+        "north": {
+          "uv": [
+            5,
+            12,
+            11,
+            13
+          ],
+          "texture": "#base"
+        },
+        "south": {
+          "uv": [
+            5,
+            12,
+            11,
+            13
+          ],
+          "texture": "#base"
+        },
+        "west": {
+          "uv": [
+            5,
+            12,
+            11,
+            13
+          ],
+          "texture": "#base"
+        },
+        "east": {
+          "uv": [
+            5,
+            12,
+            11,
+            13
+          ],
+          "texture": "#base"
+        }
+      }
+    },
+    {
+      "from": [
+        6,
+        5,
+        6
+      ],
+      "to": [
+        10,
+        14,
+        10
+      ],
+      "rotation": {
+        "angle": 45,
+        "axis": "y",
+        "origin": [
+          8,
+          8,
+          8
+        ]
+      },
+      "shade": false,
+      "faces": {
+        "up": {
+          "uv": [
+            6,
+            0,
+            10,
+            4
+          ],
+          "texture": "#crystal"
+        },
+        "down": {
+          "uv": [
+            6,
+            12,
+            10,
+            16
+          ],
+          "texture": "#crystal"
+        },
+        "north": {
+          "uv": [
+            6,
+            1,
+            10,
+            10
+          ],
+          "texture": "#crystal"
+        },
+        "south": {
+          "uv": [
+            6,
+            1,
+            10,
+            10
+          ],
+          "texture": "#crystal"
+        },
+        "west": {
+          "uv": [
+            6,
+            1,
+            10,
+            10
+          ],
+          "texture": "#crystal"
+        },
+        "east": {
+          "uv": [
+            6,
+            1,
+            10,
+            10
+          ],
+          "texture": "#crystal"
+        }
+      }
+    }
+  ],
+  "display": {
+    "gui": {
+      "rotation": [
+        30,
+        225,
+        0
+      ],
+      "translation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.625,
+        0.625,
+        0.625
+      ]
+    }
+  }
+}

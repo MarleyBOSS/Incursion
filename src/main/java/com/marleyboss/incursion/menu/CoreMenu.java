@@ -3,9 +3,11 @@ package com.marleyboss.incursion.menu;
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.block.CoreActions;
 import com.marleyboss.incursion.block.CoreBlockEntity;
+import com.marleyboss.incursion.block.CoreEvolution;
 import com.marleyboss.incursion.registry.ModBlocks;
 import com.marleyboss.incursion.registry.ModItems;
 import com.marleyboss.incursion.registry.ModMenus;
+import com.marleyboss.incursion.siege.Generals;
 import com.marleyboss.incursion.siege.Rewards;
 import com.marleyboss.incursion.siege.Shields;
 import net.minecraft.core.BlockPos;
@@ -37,6 +39,8 @@ public class CoreMenu extends AbstractContainerMenu {
     /** Test tab: level +1, +5 or up to level 5, 10, 15, 20 (ids 10..15). */
     public static final int BUTTON_TEST_FIRST = 10;
     public static final int BUTTON_TEST_LAST = 15;
+    /** Test tab: the general of the waiting upgrade comes at once. */
+    public static final int BUTTON_TEST_GENERAL = 16;
 
     public static final int DATA_ACTIVE = 0;
     public static final int DATA_LEVEL = 1;
@@ -69,7 +73,14 @@ public class CoreMenu extends AbstractContainerMenu {
     public static final int DATA_SHARDS_PER_NIGHT = 27;
     /** Upgrade Tool tier needed for the next level (0 = no tool needed; then the GUI button upgrades). */
     public static final int DATA_NEXT_TOOL_TIER = 28;
-    public static final int DATA_COUNT = 29;
+    /**
+     * Story state: 0 = nothing, 1 = the next level needs a tablet, 2 = tablet in, the general comes at night,
+     * 3 = the general is here, 4 = the general fell, set in his insignia.
+     */
+    public static final int DATA_STORY_STATE = 29;
+    /** The stage (1-4) the story state is about (which tablet, general, insignia). */
+    public static final int DATA_STORY_STAGE = 30;
+    public static final int DATA_COUNT = 31;
 
     private final ContainerData data;
     private final ContainerLevelAccess access;
@@ -134,6 +145,10 @@ public class CoreMenu extends AbstractContainerMenu {
                     case DATA_KILLS -> core.getKilledMobs();
                     case DATA_SHARDS_PER_NIGHT -> Config.SHARDS_ENABLED.get() ? Config.shardsPerNight(Math.max(1, level)) : 0;
                     case DATA_NEXT_TOOL_TIER -> Config.requiredToolTier(level + 1);
+                    case DATA_STORY_STATE -> storyState(core);
+                    case DATA_STORY_STAGE -> core.hasPendingUpgrade()
+                            ? CoreEvolution.stageFor(core.getPendingLevel())
+                            : CoreActions.tabletStage(level, level + 1);
                     default -> 0;
                 };
                 // Data slots are synced as 16-bit numbers.
@@ -150,6 +165,17 @@ public class CoreMenu extends AbstractContainerMenu {
             }
         };
         addDataSlots(data);
+    }
+
+    private static int storyState(CoreBlockEntity core) {
+        if (!core.isActive()) {
+            return 0;
+        }
+        if (core.hasPendingUpgrade()) {
+            return core.isGeneralDefeated() ? 4 : core.isGeneralPresent() ? 3 : 2;
+        }
+        int level = core.getCoreLevel();
+        return level < Config.MAX_LEVEL.get() && CoreActions.tabletStage(level, level + 1) > 0 ? 1 : 0;
     }
 
     /** Lowest Core level at which any shield exists. */
@@ -211,6 +237,10 @@ public class CoreMenu extends AbstractContainerMenu {
         }
         if (id == BUTTON_WITHDRAW) {
             Rewards.withdraw(player, core);
+            return true;
+        }
+        if (id == BUTTON_TEST_GENERAL) {
+            Generals.testSpawn(level, pos, core, player);
             return true;
         }
         if (id >= BUTTON_TEST_FIRST && id <= BUTTON_TEST_LAST) {

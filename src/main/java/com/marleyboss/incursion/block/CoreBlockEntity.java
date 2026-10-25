@@ -71,6 +71,17 @@ public class CoreBlockEntity extends BlockEntity {
     private int killedMobs = 0;
     /** Day number of the night this Core saw begin while active (-1 = none); paid out at the next morning. */
     private long nightDay = -1;
+    /**
+     * Boss night (see Generals): the level a tablet was set in for (0 = no upgrade waiting). The Core stays on its
+     * old level until the general's insignia is set in.
+     */
+    private int pendingLevel = 0;
+    /** Day number of the night in which the general comes (he comes again every night until he is killed). */
+    private long bossDay = -1;
+    /** The general of the waiting upgrade was killed; his insignia completes the upgrade. */
+    private boolean generalDefeated = false;
+    /** Not saved: a general of this Core is alive in the siege area (updated once per second). */
+    private boolean generalPresent = false;
     private float health = 0;
     /** Chunk radius currently force-loaded for this core, or -1 if none. */
     private int loadedChunkRadius = -1;
@@ -758,6 +769,66 @@ public class CoreBlockEntity extends BlockEntity {
         return siegeMobCount;
     }
 
+    // ------------------------------------------------------------------
+    // Boss night (tablet set in, waiting for the general's insignia)
+    // ------------------------------------------------------------------
+
+    public boolean hasPendingUpgrade() {
+        return pendingLevel > 0;
+    }
+
+    public int getPendingLevel() {
+        return pendingLevel;
+    }
+
+    /** A tablet was set in: the upgrade to {@code level} waits for the general who comes in the night of {@code day}. */
+    public void startPendingUpgrade(int level, long day) {
+        pendingLevel = Math.max(0, level);
+        bossDay = day;
+        generalDefeated = false;
+        setChanged();
+    }
+
+    public void clearPendingUpgrade() {
+        if (pendingLevel != 0 || bossDay != -1 || generalDefeated) {
+            pendingLevel = 0;
+            bossDay = -1;
+            generalDefeated = false;
+            setChanged();
+        }
+        generalPresent = false;
+    }
+
+    public long getBossDay() {
+        return bossDay;
+    }
+
+    public void setBossDay(long day) {
+        if (bossDay != day) {
+            bossDay = day;
+            setChanged();
+        }
+    }
+
+    public boolean isGeneralDefeated() {
+        return generalDefeated;
+    }
+
+    public void setGeneralDefeated(boolean defeated) {
+        if (generalDefeated != defeated) {
+            generalDefeated = defeated;
+            setChanged();
+        }
+    }
+
+    public boolean isGeneralPresent() {
+        return generalPresent;
+    }
+
+    public void setGeneralPresent(boolean present) {
+        generalPresent = present;
+    }
+
     public void setSiegeMobCount(int siegeMobCount) {
         this.siegeMobCount = siegeMobCount;
     }
@@ -944,6 +1015,9 @@ public class CoreBlockEntity extends BlockEntity {
         tag.putInt(TAG_NIGHTS, defendedNights);
         tag.putInt(TAG_KILLS, killedMobs);
         tag.putLong(TAG_NIGHT_DAY, nightDay);
+        tag.putInt("PendingLevel", pendingLevel);
+        tag.putLong("BossDay", bossDay);
+        tag.putBoolean("GeneralDefeated", generalDefeated);
         tag.putInt(TAG_GUNPOWDER, gunpowder);
         tag.putInt(TAG_BLAZE_POWDER, blazePowder);
     }
@@ -979,6 +1053,9 @@ public class CoreBlockEntity extends BlockEntity {
         defendedNights = tag.getInt(TAG_NIGHTS);
         killedMobs = tag.getInt(TAG_KILLS);
         nightDay = tag.contains(TAG_NIGHT_DAY) ? tag.getLong(TAG_NIGHT_DAY) : -1;
+        pendingLevel = tag.getInt("PendingLevel");
+        bossDay = tag.contains("BossDay") ? tag.getLong("BossDay") : -1;
+        generalDefeated = tag.getBoolean("GeneralDefeated");
         gunpowder = tag.getInt(TAG_GUNPOWDER);
         blazePowder = tag.getInt(TAG_BLAZE_POWDER);
         syncedWards = tag.contains(TAG_WARDS) ? tag.getLongArray(TAG_WARDS) : new long[0];
