@@ -9,9 +9,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 
 /**
- * The Upgrade Tool: right-click the Core with it in the hand to upgrade it. One tier covers
- * {@link Config#UPGRADE_TOOL_LEVELS} Core levels (default 5: tier I up to level 5, II up to 10, III up to 15,
- * IV everything above). The tool is not used up; stronger tiers are crafted from the weaker one.
+ * The Upgrade Tool: right-click the Core with it in the hand to upgrade it. Tier I is crafted and does level 1-4;
+ * a Master Toolsmith forges tool N with the insignia of general N into tool N+1, which completes the waiting upgrade
+ * (level 5, 10, 15, 20) and does the levels up to the next tablet. The tool is not used up.
  */
 public class UpgradeToolItem extends Item {
     private final int tier;
@@ -36,10 +36,12 @@ public class UpgradeToolItem extends Item {
         } catch (IllegalStateException e) {
             // The config is not loaded yet (e.g. creative tab on the title screen): show the defaults.
         }
-        int from = (tier - 1) * perTier + 1;
-        int to = tier >= Config.UPGRADE_TOOL_MAX_TIER ? Math.max(from, maxLevel) : tier * perTier;
-        tooltip.add(Component.translatable("item.incursion.upgrade_tool.levels", from, to)
-                .withStyle(ChatFormatting.GRAY));
+        // Tier I does the levels below the first tablet; every higher tier is forged with a general's insignia,
+        // completes that tablet's level and does the levels up to the next tablet.
+        int from = tier == 1 ? 1 : (tier - 1) * perTier;
+        int to = tier >= Config.UPGRADE_TOOL_MAX_TIER ? Math.max(from, maxLevel) : tier * perTier - 1;
+        tooltip.add((from == to ? Component.translatable("item.incursion.upgrade_tool.level_single", from)
+                : Component.translatable("item.incursion.upgrade_tool.levels", from, to)).withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("item.incursion.upgrade_tool.use").withStyle(ChatFormatting.DARK_GRAY));
     }
 }

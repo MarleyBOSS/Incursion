@@ -78,6 +78,8 @@ public class CoreBlockEntity extends BlockEntity {
     private int pendingLevel = 0;
     /** Day number of the night in which the general comes (he comes again every night until he is killed). */
     private long bossDay = -1;
+    /** Game time the tablet was set in (the client slides it into its socket). */
+    private long pendingStart = 0L;
     /** The general of the waiting upgrade was killed; his insignia completes the upgrade. */
     private boolean generalDefeated = false;
     /** Not saved: a general of this Core is alive in the siege area (updated once per second). */
@@ -786,7 +788,13 @@ public class CoreBlockEntity extends BlockEntity {
         pendingLevel = Math.max(0, level);
         bossDay = day;
         generalDefeated = false;
+        pendingStart = this.level != null ? this.level.getGameTime() : 0L;
         setChanged();
+        forceSync();
+    }
+
+    public long getPendingStart() {
+        return pendingStart;
     }
 
     public void clearPendingUpgrade() {
@@ -795,6 +803,7 @@ public class CoreBlockEntity extends BlockEntity {
             bossDay = -1;
             generalDefeated = false;
             setChanged();
+            forceSync();
         }
         generalPresent = false;
     }
@@ -1018,6 +1027,7 @@ public class CoreBlockEntity extends BlockEntity {
         tag.putInt("PendingLevel", pendingLevel);
         tag.putLong("BossDay", bossDay);
         tag.putBoolean("GeneralDefeated", generalDefeated);
+        tag.putLong("PendingStart", pendingStart);
         tag.putInt(TAG_GUNPOWDER, gunpowder);
         tag.putInt(TAG_BLAZE_POWDER, blazePowder);
     }
@@ -1056,6 +1066,7 @@ public class CoreBlockEntity extends BlockEntity {
         pendingLevel = tag.getInt("PendingLevel");
         bossDay = tag.contains("BossDay") ? tag.getLong("BossDay") : -1;
         generalDefeated = tag.getBoolean("GeneralDefeated");
+        pendingStart = tag.getLong("PendingStart");
         gunpowder = tag.getInt(TAG_GUNPOWDER);
         blazePowder = tag.getInt(TAG_BLAZE_POWDER);
         syncedWards = tag.contains(TAG_WARDS) ? tag.getLongArray(TAG_WARDS) : new long[0];

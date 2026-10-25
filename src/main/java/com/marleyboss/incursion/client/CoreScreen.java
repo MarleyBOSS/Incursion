@@ -261,7 +261,8 @@ public class CoreScreen extends AbstractContainerScreen<CoreMenu> {
         return switch (state) {
             case 3 -> Component.translatable("message.incursion.general.pending_present", generalName(stage), targetLevel);
             case 4 -> Component.translatable("message.incursion.general.pending_insignia",
-                    ModItems.insignia(stage).get().getDescription(), targetLevel);
+                    ModItems.insignia(stage).get().getDescription(), targetLevel,
+                    ModItems.upgradeTool(stage + 1).get().getDescription());
             default -> Component.translatable("message.incursion.general.pending_night", generalName(stage), targetLevel);
         };
     }

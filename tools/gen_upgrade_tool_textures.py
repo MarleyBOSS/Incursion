@@ -3,7 +3,7 @@
 
   python3 tools/gen_upgrade_tool_textures.py
 
-Writes src/main/resources/assets/incursion/textures/item/upgrade_tool_1.png .. upgrade_tool_4.png.
+Writes src/main/resources/assets/incursion/textures/item/upgrade_tool_1.png .. upgrade_tool_5.png.
 Placeholder art: a dark outline, a brown handle and a shaded head with a glowing gem. Replace the PNGs with your own
 art of the same names at any time; running the script again overwrites them.
 """
@@ -17,10 +17,12 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "src", "main", "resources", 
 
 # (file name, head colour, gem colour)
 TIERS = [
-    ("upgrade_tool_1", (104, 80, 150), (196, 156, 255)),  # violet
-    ("upgrade_tool_2", (206, 164, 62), (255, 238, 150)),  # gold
-    ("upgrade_tool_3", (58, 172, 204), (170, 246, 255)),  # cyan
-    ("upgrade_tool_4", (178, 52, 70), (255, 176, 196)),   # crimson
+    # tier I: plain iron; tiers II-V carry the insignia of the general they were forged with (placeholder art)
+    ("upgrade_tool_1", (128, 128, 138), (210, 210, 222)),  # iron
+    ("upgrade_tool_2", (64, 42, 96), (160, 90, 240)),      # Scout: shadow violet
+    ("upgrade_tool_3", (112, 50, 22), (255, 128, 36)),     # Breaker: lava
+    ("upgrade_tool_4", (28, 88, 100), (70, 226, 236)),     # Soulweaver: soul cyan
+    ("upgrade_tool_5", (96, 22, 38), (236, 52, 80)),       # fourth general: crimson
 ]
 OUTLINE = (22, 16, 30)
 HANDLE = (122, 80, 42)

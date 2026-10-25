@@ -60,6 +60,9 @@ public final class ModItems {
             () -> new UpgradeToolItem(3, new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
     public static final DeferredItem<UpgradeToolItem> UPGRADE_TOOL_4 = ITEMS.register("upgrade_tool_4",
             () -> new UpgradeToolItem(4, new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)));
+    /** Tier V: forged from tool IV and the fourth general's insignia, completes Core level 20. */
+    public static final DeferredItem<UpgradeToolItem> UPGRADE_TOOL_5 = ITEMS.register("upgrade_tool_5",
+            () -> new UpgradeToolItem(5, new Item.Properties().stacksTo(1).rarity(Rarity.EPIC).fireResistant()));
 
     /** Tablets of the guardians (stage 1..4): needed for the upgrades to Core level 5, 10, 15 and 20. */
     public static final DeferredItem<TabletItem> TABLET_ELDER_GUARDIAN = tabletItem("tablet_elder_guardian", 1);
@@ -104,13 +107,14 @@ public final class ModItems {
         };
     }
 
-    /** The Upgrade Tool of the given tier (clamped to 1..4). */
+    /** The Upgrade Tool of the given tier (clamped to 1..5). */
     public static DeferredItem<UpgradeToolItem> upgradeTool(int tier) {
-        return switch (Math.max(1, Math.min(4, tier))) {
+        return switch (Math.max(1, Math.min(5, tier))) {
             case 1 -> UPGRADE_TOOL_1;
             case 2 -> UPGRADE_TOOL_2;
             case 3 -> UPGRADE_TOOL_3;
-            default -> UPGRADE_TOOL_4;
+            case 4 -> UPGRADE_TOOL_4;
+            default -> UPGRADE_TOOL_5;
         };
     }
 

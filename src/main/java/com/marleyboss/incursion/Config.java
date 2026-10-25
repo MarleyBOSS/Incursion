@@ -906,7 +906,7 @@ public final class Config {
 
     public static final ModConfigSpec.IntValue POTION_TRADE_LEVEL = BUILDER
             .comment("Cleric level (1 = Novice ... 5 = Master) from which a cleric may sell the Mythic Potion.")
-            .defineInRange("potionVillagerLevel", 2, 1, 5);
+            .defineInRange("potionMasterLevel", 5, 1, 5);
 
     public static final ModConfigSpec.DoubleValue POTION_TRADE_CHANCE = BUILDER
             .comment("Chance that a cleric offers the Mythic Potion (decided once per villager when he has the level, 0.5 = 50%).")
@@ -916,12 +916,18 @@ public final class Config {
             .comment("Emeralds the Mythic Potion costs (plus one blaze rod).")
             .defineInRange("potionTradeEmeralds", 24, 1, 64);
 
-    public static final ModConfigSpec.ConfigValue<List<? extends String>> TOOL_TRADES = BUILDER
-            .comment("Toolsmith trades: Upgrade Tool I + material = tool II (Journeyman), II + material = III (Expert),",
-                    "III + material = IV (Master). One entry per trade, \"item id=count\" (count 1-64).")
-            .defineListAllowEmpty("toolTrades",
-                    List.of("minecraft:diamond=8", "minecraft:obsidian=32", "minecraft:netherite_ingot=2"),
-                    () -> "minecraft:diamond=8", Config::isValidItemCount);
+    public static final ModConfigSpec.IntValue TOOL_FORGE_LEVEL = BUILDER
+            .comment("Toolsmith level (1 = Novice ... 5 = Master) that forges an Upgrade Tool together with a general's",
+                    "insignia into the next tool (tool in one hand, insignia of the same stage in the other, right-click him).")
+            .defineInRange("toolForgeLevel", 5, 1, 5);
+
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> TOOL_FORGE_COSTS = BUILDER
+            .comment("What the Toolsmith takes for forging, taken from the inventory: tool I + insignia I = tool II,",
+                    "II + II = III, III + III = IV, IV + IV = V. One entry per step, \"item id=count\" (count 1-64).")
+            .defineListAllowEmpty("toolForgeCosts",
+                    List.of("minecraft:emerald=32", "minecraft:diamond=16", "minecraft:netherite_ingot=2",
+                            "minecraft:netherite_ingot=4"),
+                    () -> "minecraft:emerald=32", Config::isValidItemCount);
 
     static {
         BUILDER.pop();
@@ -1108,12 +1114,12 @@ public final class Config {
     }
 
     /**
-     * The material of Toolsmith trade {@code index} (0: tool I to II, 1: II to III, 2: III to IV) as item and count,
+     * The material for forging step {@code index} (0: tool I to II ... 3: IV to V) as item and count,
      * or null if the entry is missing or names an unknown item.
      */
     @org.jetbrains.annotations.Nullable
-    public static net.minecraft.world.item.ItemStack toolTradeMaterial(int index) {
-        List<? extends String> list = TOOL_TRADES.get();
+    public static net.minecraft.world.item.ItemStack toolForgeMaterial(int index) {
+        List<? extends String> list = TOOL_FORGE_COSTS.get();
         if (index < 0 || index >= list.size()) {
             return null;
         }
@@ -1160,7 +1166,7 @@ public final class Config {
     }
 
     /** Highest Upgrade Tool tier; it covers every Core level above the lower tiers. */
-    public static final int UPGRADE_TOOL_MAX_TIER = 4;
+    public static final int UPGRADE_TOOL_MAX_TIER = 5;
 
     /** Upgrade Tool tier needed to reach {@code targetLevel}; 0 if no tool is required. */
     public static int requiredToolTier(int targetLevel) {

@@ -41,6 +41,7 @@ public class Incursion {
         Rewards.register();
         com.marleyboss.incursion.siege.Generals.register();
         com.marleyboss.incursion.story.StoryEvents.register();
+        com.marleyboss.incursion.story.VillagerWorks.register();
         Fallout.register();
         com.marleyboss.incursion.block.EternalFire.register();
         Ritual.register();
@@ -79,6 +80,7 @@ public class Incursion {
             event.accept(ModItems.UPGRADE_TOOL_2);
             event.accept(ModItems.UPGRADE_TOOL_3);
             event.accept(ModItems.UPGRADE_TOOL_4);
+            event.accept(ModItems.UPGRADE_TOOL_5);
         }
     }
 }

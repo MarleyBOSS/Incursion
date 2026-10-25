@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "incursion:item/upgrade_tool_5"
+  }
+}

@@ -134,10 +134,9 @@ public class CoreBlock extends BaseEntityBlock {
             return level.isClientSide ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
         }
         if (active && stack.getItem() instanceof TabletItem) {
-            // Tablet in this hand: the Upgrade Tool must be in the other one (the upgrade checks both hands).
+            // Right-click with a tablet: asks first, a second right-click sets it in (a general comes the next night).
             if (!level.isClientSide) {
-                InteractionHand other = hand == InteractionHand.MAIN_HAND ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
-                CoreActions.tryUpgrade((ServerLevel) level, pos, player, player.getItemInHand(other));
+                CoreActions.insertTablet((ServerLevel) level, pos, player, stack);
             }
             return level.isClientSide ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
         }

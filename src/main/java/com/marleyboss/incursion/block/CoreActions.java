@@ -92,29 +92,30 @@ public final class CoreActions {
         }
 
         if (core.hasPendingUpgrade()) {
-            // A tablet is set in already: the upgrade waits for the general's insignia.
+            // A tablet is set in: the Upgrade Tool forged with the general's insignia completes the upgrade.
+            int stage = CoreEvolution.stageFor(core.getPendingLevel());
+            if (core.isGeneralDefeated() && Config.UPGRADE_TOOL_REQUIRED.get() && toolTier(heldTool) >= stage + 1) {
+                complete(level, pos, core, player, heldTool.getHoverName());
+                return;
+            }
             player.displayClientMessage(Generals.pendingMessage(core).withStyle(ChatFormatting.GOLD), true);
             return;
         }
 
         int targetLevel = currentLevel + 1;
+        // Level 5, 10, 15, 20: the tablet of the stage's guardian is set in first (right-click with the tablet).
+        int gate = tabletStage(currentLevel, targetLevel);
+        if (gate > 0) {
+            player.displayClientMessage(Component.translatable("message.incursion.core.need_tablet",
+                    ModItems.tablet(gate).get().getDescription(), targetLevel).withStyle(ChatFormatting.RED), true);
+            return;
+        }
         int neededTier = Config.requiredToolTier(targetLevel);
         if (neededTier > 0 && toolTier(heldTool) < neededTier) {
             player.displayClientMessage(Component.translatable("message.incursion.core.need_tool",
                     ModItems.upgradeTool(neededTier).get().getDescription(), targetLevel)
                     .withStyle(ChatFormatting.RED), true);
             return;
-        }
-        // Level 5, 10, 15, 20: the tablet of the stage's guardian goes in with the upgrade (in the other hand).
-        int gate = tabletStage(currentLevel, targetLevel);
-        ItemStack tablet = ItemStack.EMPTY;
-        if (gate > 0) {
-            tablet = findTablet(player, gate);
-            if (tablet.isEmpty()) {
-                player.displayClientMessage(Component.translatable("message.incursion.core.need_tablet",
-                        ModItems.tablet(gate).get().getDescription(), targetLevel).withStyle(ChatFormatting.RED), true);
-                return;
-            }
         }
         int cost = Config.upgradeCost(targetLevel);
         Item upgradeItem = Config.upgradeItem();
@@ -125,16 +126,6 @@ public final class CoreActions {
         }
 
         removeItems(player, upgradeItem, cost);
-        if (gate > 0) {
-            if (!player.getAbilities().instabuild) {
-                tablet.shrink(1);
-            }
-            if (Config.BOSS_NIGHT.get()) {
-                Generals.startBossNight(level, pos, core, player, targetLevel);
-                return;
-            }
-            level.playSound(null, pos, SoundEvents.END_PORTAL_FRAME_FILL, SoundSource.BLOCKS, 1.0F, 0.7F);
-        }
         levelUp(level, pos, core, player, currentLevel, targetLevel);
     }
 
@@ -151,18 +142,80 @@ public final class CoreActions {
         return to > from ? to : 0;
     }
 
-    /** The tablet of {@code stage} in one of the player's hands (the one that is not the tool), or EMPTY. */
-    private static ItemStack findTablet(Player player, int stage) {
-        for (ItemStack stack : new ItemStack[]{player.getOffhandItem(), player.getMainHandItem()}) {
-            if (stack.getItem() instanceof TabletItem tablet && tablet.getStage() == stage) {
-                return stack;
-            }
+    /** Ticks a player has to confirm setting in a tablet with a second right-click. */
+    private static final long CONFIRM_TICKS = 100L;
+    /** Player -> game time until which a second right-click with the tablet sets it in. */
+    private static final java.util.Map<java.util.UUID, Long> CONFIRM = new java.util.HashMap<>();
+
+    /**
+     * Right-click with a tablet: the first click asks (a general will come in the next night), a second click within
+     * five seconds sets it in. The upgrade items for the level are paid then; the Core keeps its level until the
+     * upgrade is completed with the Upgrade Tool forged from the general's insignia.
+     */
+    public static void insertTablet(ServerLevel level, BlockPos pos, Player player, ItemStack stack) {
+        BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof CoreBlock) || !state.getValue(CoreBlock.ACTIVE)
+                || !(level.getBlockEntity(pos) instanceof CoreBlockEntity core)
+                || !(stack.getItem() instanceof TabletItem tablet)) {
+            return;
         }
-        return ItemStack.EMPTY;
+        if (core.hasPendingUpgrade()) {
+            player.displayClientMessage(Generals.pendingMessage(core).withStyle(ChatFormatting.GOLD), true);
+            return;
+        }
+        int currentLevel = core.getCoreLevel();
+        int targetLevel = currentLevel + 1;
+        int gate = targetLevel <= Config.MAX_LEVEL.get() ? tabletStage(currentLevel, targetLevel) : 0;
+        if (gate != tablet.getStage()) {
+            player.displayClientMessage(Component.translatable("message.incursion.core.tablet_not_now",
+                    tablet.getStage() * 5).withStyle(ChatFormatting.RED), true);
+            return;
+        }
+        int cost = Config.upgradeCost(targetLevel);
+        Item upgradeItem = Config.upgradeItem();
+        if (countItem(player, upgradeItem) < cost) {
+            player.displayClientMessage(Component.translatable("message.incursion.core.not_enough",
+                    cost, upgradeItem.getDescription()).withStyle(ChatFormatting.RED), true);
+            return;
+        }
+        long now = level.getGameTime();
+        Long until = CONFIRM.get(player.getUUID());
+        if (until == null || now > until) {
+            CONFIRM.put(player.getUUID(), now + CONFIRM_TICKS);
+            player.displayClientMessage(Component.translatable("message.incursion.core.tablet_confirm")
+                    .withStyle(ChatFormatting.GOLD), false);
+            level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.BLOCKS, 1.0F, 0.5F);
+            return;
+        }
+        CONFIRM.remove(player.getUUID());
+        removeItems(player, upgradeItem, cost);
+        if (!player.getAbilities().instabuild) {
+            stack.shrink(1);
+        }
+        if (Config.BOSS_NIGHT.get()) {
+            Generals.startBossNight(level, pos, core, player, targetLevel);
+            return;
+        }
+        level.playSound(null, pos, SoundEvents.END_PORTAL_FRAME_FILL, SoundSource.BLOCKS, 1.0F, 0.7F);
+        levelUp(level, pos, core, player, currentLevel, targetLevel);
+    }
+
+    /** The waiting upgrade is done (forged tool, or the insignia itself without tools): level up, the Core calms down. */
+    private static void complete(ServerLevel level, BlockPos pos, CoreBlockEntity core, Player player, Component with) {
+        int pending = core.getPendingLevel();
+        int current = core.getCoreLevel();
+        Generals.finish(level, pos, core);
+        level.playSound(null, pos, SoundEvents.END_PORTAL_SPAWN, SoundSource.BLOCKS, 0.8F, 1.1F);
+        level.getServer().getPlayerList().broadcastSystemMessage(Component.translatable(
+                "message.incursion.general.upgrade_complete", with, pending).withStyle(ChatFormatting.LIGHT_PURPLE), false);
+        if (pending > current) {
+            levelUp(level, pos, core, player, current, pending);
+        }
     }
 
     /**
-     * Right-click with a general's insignia: completes the waiting upgrade (the tablet is in, the general fell).
+     * Right-click with a general's insignia. With Upgrade Tools (the normal way) it goes to a Master Toolsmith, who
+     * forges it into the tool; without Upgrade Tools ({@code upgradeToolRequired} off) it completes the upgrade itself.
      */
     public static void insertInsignia(ServerLevel level, BlockPos pos, Player player, ItemStack stack) {
         BlockState state = level.getBlockState(pos);
@@ -171,13 +224,17 @@ public final class CoreActions {
                 || !(stack.getItem() instanceof InsigniaItem insignia)) {
             return;
         }
+        if (Config.UPGRADE_TOOL_REQUIRED.get()) {
+            player.displayClientMessage(Component.translatable("message.incursion.general.insignia_to_smith")
+                    .withStyle(ChatFormatting.GOLD), true);
+            return;
+        }
         if (!core.hasPendingUpgrade()) {
             player.displayClientMessage(Component.translatable("message.incursion.general.no_pending")
                     .withStyle(ChatFormatting.RED), true);
             return;
         }
-        int pending = core.getPendingLevel();
-        int stage = CoreEvolution.stageFor(pending);
+        int stage = CoreEvolution.stageFor(core.getPendingLevel());
         if (insignia.getStage() != stage) {
             player.displayClientMessage(Component.translatable("message.incursion.general.wrong_insignia",
                     ModItems.insignia(stage).get().getDescription()).withStyle(ChatFormatting.RED), true);
@@ -186,15 +243,7 @@ public final class CoreActions {
         if (!player.getAbilities().instabuild) {
             stack.shrink(1);
         }
-        int current = core.getCoreLevel();
-        Generals.finish(level, pos, core);
-        level.playSound(null, pos, SoundEvents.END_PORTAL_SPAWN, SoundSource.BLOCKS, 0.8F, 1.1F);
-        level.getServer().getPlayerList().broadcastSystemMessage(Component.translatable(
-                "message.incursion.general.insignia_set", insignia.getDescription(), pending)
-                .withStyle(ChatFormatting.LIGHT_PURPLE), false);
-        if (pending > current) {
-            levelUp(level, pos, core, player, current, pending);
-        }
+        complete(level, pos, core, player, insignia.getDescription());
     }
 
     /** What a real upgrade does once it is paid: the new level, health, sound, message, shields (and the evolution follows from the level). */

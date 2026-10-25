@@ -321,6 +321,13 @@ final class SarcophagusRenderer {
             state.vs += Mth.clamp(stageGoal - state.vs, -0.014F * dt, 0.014F * dt);
         }
         float vs = state.vs;
+        // The plaques: a tablet that was just set in (the upgrade waits for its general) slides into its socket at once.
+        float pv = vs;
+        if (active && core.hasPendingUpgrade()) {
+            int pendingStage = CoreEvolution.stageFor(core.getPendingLevel());
+            float slide = ease(Mth.clamp((level.getGameTime() - core.getPendingStart()) / 40.0F, 0.0F, 1.0F));
+            pv = Math.max(vs, pendingStage - 1 + slide);
+        }
         if (state.vp < 0.0F || !active || state.vp > vs) {
             state.vp = vs;
         } else if (progress < 0.0F && level.getGameTime() < core.getEvoStart() + CoreEvolution.SHAKE + 34L) {
@@ -390,7 +397,7 @@ final class SarcophagusRenderer {
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
         drawLower(pose.last(), solid, light, active && vs >= 2.5F);
         drawLowerFrame(pose.last(), solid, light);
-        drawPlaques(pose.last(), solid, light, vs);
+        drawPlaques(pose.last(), solid, light, pv);
         if (vs > 1.02F) {
             float g = ease(Mth.clamp(vs - 1.0F, 0.0F, 1.0F));
             pose.pushPose();
@@ -483,6 +490,7 @@ final class SarcophagusRenderer {
         late.window = windowDeg;
         late.yaw = yawCam;
         late.vs = active ? vs : 0.0F;
+        late.pv = active ? pv : 0.0F;
         late.vp = active ? vp : 0.0F;
         late.vr = CoreEvolution.pillarRadiusAt(vp);
         late.vh = active ? CoreEvolution.pillarAt(vp) : 0.0F;
@@ -512,6 +520,8 @@ final class SarcophagusRenderer {
         float bolt;
         float scale;
         float vs;
+        /** Visual stage of the plaques: like vs, but a tablet set in for a waiting upgrade is already in. */
+        float pv;
         float vp;
         float vr;
         float vh;
@@ -585,7 +595,7 @@ final class SarcophagusRenderer {
             pose.popPose();
             drawCorona(pose, buffer, d);
         }
-        if (d.vs > 0.02F) {
+        if (d.vs > 0.02F || d.pv > 0.02F) {
             drawPlaqueGlyphs(pose, buffer, d);
             drawPlinthGlow(pose, buffer, d);
         }
@@ -1493,7 +1503,7 @@ final class SarcophagusRenderer {
      * sends its beam, twisted like the beam the guardian fires, from its eye into the Core.
      */
     private static void drawPlaqueGlyphs(PoseStack pose, MultiBufferSource buffer, Late d) {
-        float ext = ease(Mth.clamp(d.vs * 1.4F, 0.0F, 1.0F));
+        float ext = ease(Mth.clamp(d.pv * 1.4F, 0.0F, 1.0F));
         if (ext < 0.1F) {
             return;
         }
@@ -1502,7 +1512,7 @@ final class SarcophagusRenderer {
         float gs = 0.36F * ext;
         float[] lit = new float[4];
         for (int side = 0; side < 4; side++) {
-            lit[side] = ease(Mth.clamp(d.vs - side, 0.0F, 1.0F));
+            lit[side] = ease(Mth.clamp(d.pv - side, 0.0F, 1.0F));
             if (lit[side] < 0.02F) {
                 continue;
             }
