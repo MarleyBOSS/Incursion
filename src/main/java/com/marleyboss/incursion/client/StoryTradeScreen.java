@@ -42,6 +42,8 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
     private static final int ROW_H = 20;
 
     private Button order;
+    private Button plus;
+    private Button minus;
 
     public StoryTradeScreen(StoryTradeMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -60,14 +62,34 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
                     }
                 })
                 .bounds(leftPos + 112, topPos + 54, 150, 18).build());
+        minus = addRenderableWidget(Button.builder(Component.literal("-"), button -> amountClick(StoryTradeMenu.BUTTON_MINUS))
+                .bounds(leftPos + 112, topPos + 54, 16, 18).build());
+        plus = addRenderableWidget(Button.builder(Component.literal("+"), button -> amountClick(StoryTradeMenu.BUTTON_PLUS))
+                .bounds(leftPos + 162, topPos + 54, 16, 18).build());
+        containerTick();
+    }
+
+    private void amountClick(int id) {
+        if (minecraft != null && minecraft.gameMode != null) {
+            minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id);
+        }
     }
 
     @Override
     protected void containerTick() {
         super.containerTick();
-        if (order != null) {
-            order.active = menu.quantity() > 0; // the payment is complete
+        if (order == null) {
+            return;
         }
+        boolean multi = menu.isMulti();
+        minus.visible = multi;
+        plus.visible = multi;
+        minus.active = menu.amount() > 1;
+        plus.active = menu.amount() < menu.maxAmount();
+        // with the amount selector the order button is narrower and sits right of it
+        order.setX(leftPos + (multi ? 184 : 112));
+        order.setWidth(multi ? 78 : 150);
+        order.active = menu.quantity() > 0; // the payment is complete
     }
 
     @Override
@@ -156,6 +178,13 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
                     }
                 }
             }
+        }
+        if (menu.isMulti()) {
+            // the amount between the minus and plus button
+            g.fill(left + 129, top + 54, left + 161, top + 72, COLOR_SLOT_EDGE);
+            g.fill(left + 130, top + 55, left + 160, top + 71, COLOR_SLOT);
+            String amount = "x" + menu.amount();
+            g.drawString(font, amount, left + 145 - font.width(amount) / 2, top + 59, COLOR_TITLE, false);
         }
         g.blitSprite(ARROW, left + 212, top + 34, 10, 9);
         g.drawString(font, Component.translatable("container.inventory"), left + 108, top + 74, COLOR_TITLE, false);

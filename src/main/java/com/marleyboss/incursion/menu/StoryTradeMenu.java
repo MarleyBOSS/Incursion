@@ -28,12 +28,16 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     public static final int RESULT = INPUTS;
     /** Menu button: order (the "Commission" button of the screen). */
     public static final int BUTTON_ORDER = 100;
+    /** Menu buttons: one more / one less of the item (only for items that can be ordered several times). */
+    public static final int BUTTON_PLUS = 200;
+    public static final int BUTTON_MINUS = 201;
     private static final int PLAYER_START = INPUTS + 1;
 
     private final int villagerId;
     private final List<StoryOffer> offers;
     private final SimpleContainer input = new SimpleContainer(INPUTS);
     private final DataSlot selected = DataSlot.standalone();
+    private final DataSlot amount = DataSlot.standalone();
     private final Inventory playerInventory;
 
     /** Server and client constructor (the client reads what the server wrote in the extra data). */
@@ -43,7 +47,9 @@ public class StoryTradeMenu extends AbstractContainerMenu {
         this.offers = List.copyOf(offers);
         this.playerInventory = inventory;
         selected.set(Math.max(0, Math.min(select, Math.max(0, offers.size() - 1))));
+        amount.set(1);
         addDataSlot(selected);
+        addDataSlot(amount);
         // payment slots (x/y as the screen draws them) and the result slot
         for (int i = 0; i < INPUTS; i++) {
             final int slotIndex = i;
@@ -120,31 +126,51 @@ public class StoryTradeMenu extends AbstractContainerMenu {
         return offers.isEmpty() ? null : offers.get(Math.min(selected.get(), offers.size() - 1));
     }
 
-    /** Most items one order makes (the pickup window has 9 slots). */
+    /** Most items one order makes (the pickup window shows at most 9 stacks). */
     public static final int MAX_QUANTITY = 9;
 
-    /**
-     * How many times the payment in the slots covers the selected commission (cost i lies in payment slot i); 0 if
-     * something is missing or wrong. The rune can be ordered only once.
-     */
+    /** Whether the selected commission can be ordered several times at once (the potion). */
+    public boolean isMulti() {
+        StoryOffer offer = selectedOffer();
+        return offer != null && "potion".equals(offer.key());
+    }
+
+    /** How many the selected commission can be ordered at once: what the payment slots (64 each) can hold. */
+    public int maxAmount() {
+        StoryOffer offer = selectedOffer();
+        if (offer == null || !isMulti()) {
+            return 1;
+        }
+        int max = MAX_QUANTITY;
+        for (ItemStack cost : offer.costs()) {
+            max = Math.min(max, 64 / Math.max(1, cost.getCount()));
+        }
+        return Math.max(1, max);
+    }
+
+    /** How many are ordered (set with the plus and minus buttons). */
+    public int amount() {
+        return Math.max(1, Math.min(amount.get(), maxAmount()));
+    }
+
+    /** The amount the payment in the slots covers: {@link #amount()} if every slot holds enough, otherwise 0. */
     public int quantity() {
         StoryOffer offer = selectedOffer();
         if (offer == null) {
             return 0;
         }
-        int times = MAX_QUANTITY;
+        int times = amount();
         for (int c = 0; c < offer.costs().size(); c++) {
             ItemStack cost = offer.costs().get(c);
             ItemStack have = input.getItem(c);
-            if (!have.is(cost.getItem())) {
+            if (!have.is(cost.getItem()) || have.getCount() < cost.getCount() * times) {
                 return 0;
             }
-            times = Math.min(times, have.getCount() / Math.max(1, cost.getCount()));
         }
-        return "rune".equals(offer.key()) ? Math.min(1, times) : times;
+        return times;
     }
 
-    /** What the result slot shows: the item of the selected commission, as often as the payment covers. */
+    /** What the result slot shows: the item of the selected commission, as often as is ordered. */
     public ItemStack preview() {
         StoryOffer offer = selectedOffer();
         int times = quantity();
@@ -154,7 +180,8 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     /** The item that belongs into payment slot {@code index} for the selected commission (empty if none). */
     public ItemStack wanted(int index) {
         StoryOffer offer = selectedOffer();
-        return offer != null && index < offer.costs().size() ? offer.costs().get(index) : ItemStack.EMPTY;
+        return offer != null && index < offer.costs().size()
+                ? offer.costs().get(index).copyWithCount(offer.costs().get(index).getCount() * amount()) : ItemStack.EMPTY;
     }
 
     @Override
@@ -165,8 +192,13 @@ public class StoryTradeMenu extends AbstractContainerMenu {
             }
             return true;
         }
+        if (id == BUTTON_PLUS || id == BUTTON_MINUS) {
+            amount.set(Math.max(1, Math.min(maxAmount(), amount() + (id == BUTTON_PLUS ? 1 : -1))));
+            return true;
+        }
         if (id >= 0 && id < offers.size()) {
             selected.set(id);
+            amount.set(1);
             return true;
         }
         return false;
