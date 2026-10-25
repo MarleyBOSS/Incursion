@@ -890,14 +890,15 @@ public final class Config {
             .define("tradesEnabled", true);
 
     public static final ModConfigSpec.IntValue RUNE_TRADE_LEVEL = BUILDER
-            .comment("Librarian level (1 = Novice ... 5 = Master) from which a librarian may sell the Core Rune.",
+            .comment("Librarian level (1 = Novice ... 5 = Master) from which a librarian may sell the Core Rune (a villager only",
+                    "trusts a friend he knows well with it).",
                     "The Core Rune is sold only once per world: after one trade no villager offers it again until a Core",
                     "is destroyed.")
-            .defineInRange("runeTradeMinLevel", 1, 1, 5);
+            .defineInRange("runeVillagerLevel", 5, 1, 5);
 
     public static final ModConfigSpec.DoubleValue RUNE_TRADE_CHANCE = BUILDER
-            .comment("Chance that a librarian offers the Core Rune (decided once per villager, 0.2 = 20%).")
-            .defineInRange("runeTradeChance", 0.2, 0.0, 1.0);
+            .comment("Chance that a librarian offers the Core Rune (decided once per villager when he has the level, 0.5 = 50%).")
+            .defineInRange("runeOfferChance", 0.5, 0.0, 1.0);
 
     public static final ModConfigSpec.IntValue RUNE_TRADE_EMERALDS = BUILDER
             .comment("Emeralds the Core Rune costs (plus one book).")
@@ -905,11 +906,11 @@ public final class Config {
 
     public static final ModConfigSpec.IntValue POTION_TRADE_LEVEL = BUILDER
             .comment("Cleric level (1 = Novice ... 5 = Master) from which a cleric may sell the Mythic Potion.")
-            .defineInRange("potionTradeMinLevel", 1, 1, 5);
+            .defineInRange("potionVillagerLevel", 2, 1, 5);
 
     public static final ModConfigSpec.DoubleValue POTION_TRADE_CHANCE = BUILDER
-            .comment("Chance that a cleric offers the Mythic Potion (decided once per villager, 0.2 = 20%).")
-            .defineInRange("potionTradeChance", 0.2, 0.0, 1.0);
+            .comment("Chance that a cleric offers the Mythic Potion (decided once per villager when he has the level, 0.5 = 50%).")
+            .defineInRange("potionOfferChance", 0.5, 0.0, 1.0);
 
     public static final ModConfigSpec.IntValue POTION_TRADE_EMERALDS = BUILDER
             .comment("Emeralds the Mythic Potion costs (plus one blaze rod).")

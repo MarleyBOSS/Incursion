@@ -34,8 +34,8 @@ import java.util.Optional;
  *     <li>Tablets: the Elder Guardian, the Warden, the Ender Dragon and the Wither drop the tablet of their stage when
  *     they die (always, one per kill). The item cannot burn, despawn or be blown up and glows.</li>
  *     <li>Villager trades, added when a player opens the trading screen (villagers that existed before get them too):
- *     one librarian in five (decided once per villager) sells the Core Rune, but only once per world until a Core is
- *     destroyed; one cleric in five sells the Mythic Potion; every Toolsmith trades an Upgrade Tool and a material
+ *     half of the Master librarians (decided once per villager) sell the Core Rune, but only once per world until a Core is
+ *     destroyed; half of the clerics from Apprentice on sell the Mythic Potion; every Toolsmith trades an Upgrade Tool and a material
  *     for the next tier (Journeyman, Expert, Master).</li>
  * </ul>
  */
@@ -166,8 +166,8 @@ public final class StoryEvents {
         }
     }
 
-    private static final String ROLL_RUNE = "IncursionRuneOffer";
-    private static final String ROLL_POTION = "IncursionPotionOffer";
+    private static final String ROLL_RUNE = "IncursionRuneRoll";
+    private static final String ROLL_POTION = "IncursionPotionRoll";
 
     /**
      * Whether this villager offers the story item: decided once per villager with {@code chance} and kept in the
