@@ -1,7 +1,7 @@
 package com.marleyboss.incursion.story;
 
 import com.marleyboss.incursion.Incursion;
-import io.netty.buffer.ByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -14,16 +14,18 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import java.util.List;
 
 /**
- * Server to client: what a keeper villager says, shown in a panel beside his trading screen (the villager's model and
- * a text box). {@code lines} are translation keys, shown one after the other with a "Next" button.
+ * Server to client, right before a keeper's trading screen opens: what he says ({@code lines}, translation keys, shown
+ * in the panel beside the screen) and the commissions he takes ({@code offers}, shown as icons to the right of the
+ * screen; a click opens the mod's own trading window).
  */
-public record DialogPayload(int entityId, List<String> lines) implements CustomPacketPayload {
+public record DialogPayload(int entityId, List<String> lines, List<StoryOffer> offers) implements CustomPacketPayload {
     public static final Type<DialogPayload> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath(Incursion.MODID, "villager_dialog"));
 
-    public static final StreamCodec<ByteBuf, DialogPayload> STREAM_CODEC = StreamCodec.composite(
+    public static final StreamCodec<RegistryFriendlyByteBuf, DialogPayload> STREAM_CODEC = StreamCodec.composite(
             ByteBufCodecs.VAR_INT, DialogPayload::entityId,
             ByteBufCodecs.STRING_UTF8.apply(ByteBufCodecs.list()), DialogPayload::lines,
+            StoryOffer.STREAM_CODEC.apply(ByteBufCodecs.list()), DialogPayload::offers,
             DialogPayload::new);
 
     @Override
@@ -31,17 +33,21 @@ public record DialogPayload(int entityId, List<String> lines) implements CustomP
         return TYPE;
     }
 
-    /** Mod bus: registers the payload (the client side shows it, the server only sends it). */
+    /** Mod bus: registers the story payloads (dialog to the client, orders and "back" to the server). */
     public static void register(RegisterPayloadHandlersEvent event) {
-        event.registrar("1").optional().playToClient(TYPE, STREAM_CODEC, DialogPayload::handle);
+        var registrar = event.registrar("2").optional();
+        registrar.playToClient(TYPE, STREAM_CODEC, DialogPayload::handle);
+        registrar.playToServer(OrderPayload.TYPE, OrderPayload.STREAM_CODEC, OrderPayload::handle);
+        registrar.playToServer(ReopenPayload.TYPE, ReopenPayload.STREAM_CODEC, ReopenPayload::handle);
     }
 
     private static void handle(DialogPayload payload, IPayloadContext context) {
         // The lambda body is only linked when it runs, which is on the client: the client class is never loaded on a server.
-        context.enqueueWork(() -> com.marleyboss.incursion.client.VillagerDialog.receive(payload.entityId(), payload.lines()));
+        context.enqueueWork(() -> com.marleyboss.incursion.client.VillagerDialog.receive(payload.entityId(),
+                payload.lines(), payload.offers()));
     }
 
-    public static void send(ServerPlayer player, int entityId, List<String> lines) {
-        PacketDistributor.sendToPlayer(player, new DialogPayload(entityId, lines));
+    public static void send(ServerPlayer player, int entityId, List<String> lines, List<StoryOffer> offers) {
+        PacketDistributor.sendToPlayer(player, new DialogPayload(entityId, lines, offers));
     }
 }

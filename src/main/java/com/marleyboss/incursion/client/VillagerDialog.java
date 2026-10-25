@@ -12,6 +12,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.ItemStack;
+import com.marleyboss.incursion.story.ReopenPayload;
+import com.marleyboss.incursion.story.StoryOffer;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -42,6 +45,9 @@ public final class VillagerDialog {
     /** The trading screen the dialog belongs to (it stays while the screen is open, also when it is resized). */
     private static Screen screen;
     private static Button next;
+    private static List<StoryOffer> offers = List.of();
+    /** The icons beside the vanilla trading screen (added as listeners only, so they are drawn here). */
+    private static final List<IconButton> icons = new java.util.ArrayList<>();
 
     private VillagerDialog() {
     }
@@ -53,9 +59,10 @@ public final class VillagerDialog {
     }
 
     /** From the payload handler (main thread). */
-    public static void receive(int id, List<String> keys) {
+    public static void receive(int id, List<String> keys, List<StoryOffer> commissions) {
         entityId = id;
         lines = List.copyOf(keys);
+        offers = List.copyOf(commissions);
         page = 0;
         receivedAt = System.currentTimeMillis();
         pending = true;
@@ -65,18 +72,59 @@ public final class VillagerDialog {
         return current != null && current == screen && !lines.isEmpty();
     }
 
+    /** Where the screen the panel sits beside is: the vanilla trading screen or the mod's own trading screen. */
+    private record Host(int left, int top, int height) {
+    }
+
+    private static Host host(Screen s) {
+        if (s instanceof MerchantScreen merchant) {
+            return new Host(merchant.getGuiLeft(), merchant.getGuiTop(), merchant.getYSize());
+        }
+        if (s instanceof StoryTradeScreen story) {
+            return new Host(story.getGuiLeft(), story.getGuiTop(), StoryTradeScreen.HEIGHT);
+        }
+        return null;
+    }
+
+    /** From the mod's trading screen: back to the vanilla one (the server opens it again). */
+    static void back(int villagerId) {
+        ReopenPayload.send(villagerId);
+        Minecraft.getInstance().setScreen(null);
+    }
+
     private static void onInit(ScreenEvent.Init.Post event) {
-        if (!(event.getScreen() instanceof MerchantScreen merchant)) {
+        Screen current = event.getScreen();
+        if (!(current instanceof MerchantScreen) && !(current instanceof StoryTradeScreen)) {
             return;
         }
-        if (pending && System.currentTimeMillis() - receivedAt <= FRESH_MILLIS) {
-            screen = merchant; // a new trading screen right after the dialog arrived: it is his
+        if (current instanceof StoryTradeScreen) {
+            screen = current; // the dialog goes on beside the mod's trading screen
+        } else if (pending && System.currentTimeMillis() - receivedAt <= FRESH_MILLIS) {
+            screen = current; // a new trading screen right after the dialog arrived: it is his
             pending = false;
         }
-        if (!active(merchant)) {
+        if (!active(current)) {
             return;
         }
-        Panel panel = layout(merchant);
+        Panel panel = layout(host(current));
+        if (current instanceof MerchantScreen merchant) {
+            // one icon per commission, right of the trading screen: a click switches to the mod's trading screen
+            int x = merchant.getGuiLeft() + merchant.getXSize() + 4;
+            int y = merchant.getGuiTop() + 4;
+            icons.clear();
+            for (int i = 0; i < offers.size(); i++) {
+                final int index = i;
+                IconButton icon = new IconButton(x, y + i * 26, offers.get(i).result(), () -> {
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.player != null) {
+                        mc.player.closeContainer(); // the vanilla screen goes: only one screen is ever open
+                    }
+                    mc.setScreen(new StoryTradeScreen(entityId, offers, index));
+                });
+                icons.add(icon);
+                event.addListener(icon);
+            }
+        }
         next = Button.builder(Component.translatable("gui.incursion.dialog.next"), button -> {
                     if (page < lines.size() - 1) {
                         page++;
@@ -96,9 +144,29 @@ public final class VillagerDialog {
 
     private static void onClosing(ScreenEvent.Closing event) {
         if (event.getScreen() == screen) {
-            screen = null;
+            icons.clear();
+            screen = null; // the data stays: the mod's trading screen (and back) shows the same dialog
             next = null;
-            lines = List.of();
+        }
+    }
+
+    /** The icon of a commission beside the trading screen: gold frame, the item to be made inside. */
+    private static final class IconButton extends Button {
+        private final ItemStack stack;
+
+        IconButton(int x, int y, ItemStack stack, Runnable action) {
+            super(x, y, 22, 22, stack.getHoverName(), button -> action.run(), DEFAULT_NARRATION);
+            this.stack = stack;
+            setTooltip(net.minecraft.client.gui.components.Tooltip.create(
+                    Component.translatable("gui.incursion.story_trade.icon", stack.getHoverName())));
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+            int edge = isHoveredOrFocused() ? 0xFFFFE08A : 0xFFC9A040;
+            g.fill(getX() - 1, getY() - 1, getX() + width + 1, getY() + height + 1, edge);
+            g.fill(getX(), getY(), getX() + width, getY() + height, isHoveredOrFocused() ? 0xFF4A2A66 : 0xFF2A1638);
+            g.renderItem(stack, getX() + 3, getY() + 3);
         }
     }
 
@@ -107,9 +175,9 @@ public final class VillagerDialog {
     }
 
     /** Left of the trading screen if there is room, otherwise narrower (down to MIN_WIDTH) over the screen's edge. */
-    private static Panel layout(MerchantScreen merchant) {
+    private static Panel layout(Host merchant) {
         Font font = Minecraft.getInstance().font;
-        int left = merchant.getGuiLeft();
+        int left = merchant.left();
         int width = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, left - GAP - 4));
         int x = Math.max(4, left - GAP - width);
         String key = lines.isEmpty() ? "" : lines.get(Math.min(page, lines.size() - 1));
@@ -123,17 +191,18 @@ public final class VillagerDialog {
         }
         // as high as the trading screen (it grows only if the text needs more room)
         int needed = MODEL_HEIGHT + 8 + name.size() * 10 + 4 + text.size() * 10 + 24;
-        int height = Math.max(merchant.getYSize(), needed);
-        int y = merchant.getGuiTop();
+        int height = Math.max(merchant.height(), needed);
+        int y = merchant.top();
         return new Panel(x, y, width, height, name, text);
     }
 
     private static void onRender(ScreenEvent.Render.Post event) {
-        if (!(event.getScreen() instanceof MerchantScreen merchant) || !active(merchant)) {
+        Host host = host(event.getScreen());
+        if (host == null || !active(event.getScreen())) {
             return;
         }
         Minecraft mc = Minecraft.getInstance();
-        Panel panel = layout(merchant);
+        Panel panel = layout(host);
         if (next != null) {
             // the text length changes with the page: keep the button at the bottom of the panel
             next.setX(panel.x + panel.width - 52);
@@ -180,6 +249,11 @@ public final class VillagerDialog {
         g.pose().popPose();
         if (next != null && next.visible) {
             next.render(g, event.getMouseX(), event.getMouseY(), event.getPartialTick());
+        }
+        if (event.getScreen() instanceof MerchantScreen) {
+            for (IconButton icon : icons) {
+                icon.render(g, event.getMouseX(), event.getMouseY(), event.getPartialTick());
+            }
         }
     }
 }

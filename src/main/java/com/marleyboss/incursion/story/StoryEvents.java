@@ -52,7 +52,6 @@ public final class StoryEvents {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, StoryEvents::onBossDeath);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onLeaveLevel);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerInteract);
-        NeoForge.EVENT_BUS.addListener(StoryEvents::onTrade);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerTick);
     }
 
@@ -144,8 +143,6 @@ public final class StoryEvents {
             }
             return;
         }
-        VillagerProfession profession = villager.getVillagerData().getProfession();
-        int level = villager.getVillagerData().getLevel();
         if (StoryVillagers.isDown(villager)) {
             cancel(event);
             if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
@@ -154,62 +151,146 @@ public final class StoryEvents {
             }
             return;
         }
+        // The story items are no vanilla trades (older versions added rows): they are commissioned in the mod's window.
+        villager.getOffers().removeIf(offer -> isStoryItem(offer.getResult()));
+        if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
+                && event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            sendPanel(player, villager, true);
+        }
+    }
+
+    private static boolean isStoryItem(ItemStack stack) {
+        return stack.is(ModItems.CORE_RUNE.get()) || stack.is(ModItems.MYTHIC_POTION.get())
+                || stack.getItem() instanceof UpgradeToolItem;
+    }
+
+    /** Trading level a keeper needs for his commission. */
+    private static int neededLevel(StoryVillagers.Keeper keeper) {
+        return switch (keeper) {
+            case RUNE -> Config.RUNE_TRADE_LEVEL.get();
+            case GLOW -> Config.POTION_TRADE_LEVEL.get();
+            case SMITH -> Config.TOOL_FORGE_LEVEL.get();
+        };
+    }
+
+    /**
+     * Sends what a keeper says and which commissions he takes (panel and icons beside his trading screen). With
+     * {@code meet}, a first meeting counts (he gets his name, the first-meeting lines are shown).
+     */
+    private static void sendPanel(net.minecraft.server.level.ServerPlayer player, Villager villager, boolean meet) {
         StoryVillagers.Keeper keeper = StoryVillagers.keeperOf(villager);
-        if (keeper != null) {
-            int needed = switch (keeper) {
-                case RUNE -> Config.RUNE_TRADE_LEVEL.get();
-                case GLOW -> Config.POTION_TRADE_LEVEL.get();
-                case SMITH -> Config.TOOL_FORGE_LEVEL.get();
-            };
-            if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
-                    && event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-                // What he says, in the panel beside his trading screen.
-                boolean runeGone = keeper == StoryVillagers.Keeper.RUNE
-                        && CoreWorldData.get(villager.getServer()).isRuneTraded();
-                boolean first = StoryVillagers.meet((ServerLevel) villager.level(), villager, player, keeper,
-                        level >= needed);
-                DialogPayload.send(player, villager.getId(),
-                        dialogLines(keeper, level, level >= needed, first, runeGone, villager.getRandom()));
-            }
+        if (keeper == null) {
+            return;
         }
-        MerchantOffers offers = villager.getOffers(); // creates the vanilla offers first if there are none yet
-        String hint = null;
-        if (profession == VillagerProfession.LIBRARIAN) {
-            if (CoreWorldData.get(villager.getServer()).isRuneTraded()) {
-                // Sold once in this world already: no librarian offers it again until a Core is destroyed.
-                offers.removeIf(offer -> offer.getResult().is(ModItems.CORE_RUNE.get()));
-            } else if (isRuneKeeper(villager)) {
-                if (level >= Config.RUNE_TRADE_LEVEL.get()) {
-                    ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.RUNE_TRADE_EMERALDS.get()),
-                            Optional.of(new ItemCost(Items.BOOK, 1)), new ItemStack(ModItems.CORE_RUNE.get()),
-                            1, 30, 0.05F));
+        int level = villager.getVillagerData().getLevel();
+        boolean trusted = level >= neededLevel(keeper);
+        boolean runeGone = keeper == StoryVillagers.Keeper.RUNE && CoreWorldData.get(villager.getServer()).isRuneTraded();
+        boolean first = meet && StoryVillagers.meet((ServerLevel) villager.level(), villager, player, keeper, trusted);
+        DialogPayload.send(player, villager.getId(),
+                dialogLines(keeper, level, trusted, first, runeGone, villager.getRandom()), storyOffers(villager, player));
+    }
+
+    /** The commissions this villager takes from this player right now (only from a keeper on the needed level). */
+    static java.util.List<StoryOffer> storyOffers(Villager villager, Player player) {
+        java.util.List<StoryOffer> offers = new java.util.ArrayList<>();
+        StoryVillagers.Keeper keeper = StoryVillagers.keeperOf(villager);
+        if (keeper == null || villager.getVillagerData().getLevel() < neededLevel(keeper)) {
+            return offers;
+        }
+        switch (keeper) {
+            case RUNE -> {
+                if (!CoreWorldData.get(villager.getServer()).isRuneTraded()) {
+                    offers.add(new StoryOffer("rune", java.util.List.of(
+                            new ItemStack(Items.EMERALD, Config.RUNE_TRADE_EMERALDS.get()), new ItemStack(Items.BOOK)),
+                            new ItemStack(ModItems.CORE_RUNE.get())));
                 }
             }
-        } else if (profession == VillagerProfession.CLERIC) {
-            if (isPotionKeeper(villager)) {
-                if (level >= Config.POTION_TRADE_LEVEL.get()) {
-                    ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.POTION_TRADE_EMERALDS.get()),
-                            Optional.of(new ItemCost(Items.BLAZE_ROD, 1)), new ItemStack(ModItems.MYTHIC_POTION.get()),
-                            3, 30, 0.05F));
-                }
-            }
-        } else if (profession == VillagerProfession.TOOLSMITH) {
-            // One row only, for the player's own tool: his best Upgrade Tool + the insignia of that stage = the next
-            // tool (rebuilt every time the screen is opened; the material is taken from the inventory, see onTrade).
-            offers.removeIf(offer -> offer.getResult().getItem() instanceof UpgradeToolItem);
-            if (level >= Config.TOOL_FORGE_LEVEL.get()) {
-                int tier = bestTool(event.getEntity());
+            case GLOW -> offers.add(new StoryOffer("potion", java.util.List.of(
+                    new ItemStack(Items.EMERALD, Config.POTION_TRADE_EMERALDS.get()), new ItemStack(Items.BLAZE_ROD)),
+                    new ItemStack(ModItems.MYTHIC_POTION.get())));
+            case SMITH -> {
+                // one commission, for the player's own best tool: it + the insignia of that stage + material = the next
+                int tier = bestTool(player);
                 if (tier < Config.UPGRADE_TOOL_MAX_TIER) {
-                    offers.add(0, new MerchantOffer(new ItemCost(ModItems.upgradeTool(tier).get(), 1),
-                            Optional.of(new ItemCost(ModItems.insignia(tier).get(), 1)),
-                            new ItemStack(ModItems.upgradeTool(tier + 1).get()), 1, 0, 0.0F));
+                    java.util.List<ItemStack> costs = new java.util.ArrayList<>();
+                    costs.add(new ItemStack(ModItems.upgradeTool(tier).get()));
+                    costs.add(new ItemStack(ModItems.insignia(tier).get()));
+                    ItemStack material = Config.toolForgeMaterial(tier - 1);
+                    if (material != null) {
+                        costs.add(material);
+                    }
+                    offers.add(new StoryOffer("forge", costs, new ItemStack(ModItems.upgradeTool(tier + 1).get())));
                 }
             }
         }
-        if (hint != null && event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
-            event.getEntity().displayClientMessage(Component.translatable(hint)
-                    .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.ITALIC), true);
+        return offers;
+    }
+
+    /**
+     * The player commissions {@code key} in the mod's trading window: the costs are taken from the inventory and the
+     * villager makes it at his job site (VillagerWorks). Checked again here: he must still offer it.
+     */
+    static void order(net.minecraft.server.level.ServerPlayer player, int villagerId, String key) {
+        if (!(player.level().getEntity(villagerId) instanceof Villager villager) || !villager.isAlive()
+                || villager.distanceToSqr(player) > 10.0 * 10.0 || !(villager.level() instanceof ServerLevel level)) {
+            return;
         }
+        if (VillagerWorks.isBusy(villager) || StoryVillagers.isDown(villager)) {
+            player.displayClientMessage(Component.translatable("message.incursion.villager.busy")
+                    .withStyle(ChatFormatting.GRAY), true);
+            return;
+        }
+        StoryOffer offer = null;
+        for (StoryOffer candidate : storyOffers(villager, player)) {
+            if (candidate.key().equals(key)) {
+                offer = candidate;
+            }
+        }
+        if (offer == null) {
+            return;
+        }
+        boolean creative = player.getAbilities().instabuild;
+        if (!creative) {
+            for (ItemStack cost : offer.costs()) {
+                if (player.getInventory().countItem(cost.getItem()) < cost.getCount()) {
+                    player.displayClientMessage(Component.translatable("message.incursion.villager.forge_cost",
+                            cost.getCount(), cost.getHoverName()).withStyle(ChatFormatting.RED), true);
+                    return;
+                }
+            }
+            for (ItemStack cost : offer.costs()) {
+                removeItems(player, cost.getItem(), cost.getCount());
+            }
+        }
+        ItemStack result = offer.result().copy();
+        switch (key) {
+            case "rune" -> {
+                CoreWorldData.get(level.getServer()).setRuneTraded(true); // once per world (until a Core is destroyed)
+                VillagerWorks.start(level, villager, player, VillagerWorks.Kind.SCRIBE,
+                        java.util.List.of(new ItemStack(Items.BOOK)), result, false);
+            }
+            case "potion" -> VillagerWorks.start(level, villager, player, VillagerWorks.Kind.BREW,
+                    java.util.List.of(new ItemStack(Items.GLASS_BOTTLE)), result, false);
+            default -> VillagerWorks.start(level, villager, player, VillagerWorks.Kind.FORGE,
+                    java.util.List.of(offer.costs().get(0).copyWithCount(1), offer.costs().get(1).copyWithCount(1)),
+                    result, false);
+        }
+        villager.playSound(SoundEvents.VILLAGER_YES, 1.0F, 1.0F);
+        player.displayClientMessage(Component.translatable("message.incursion.villager.order_started")
+                .withStyle(ChatFormatting.GOLD), true);
+    }
+
+    /** "Back" from the mod's trading window: his normal trading screen opens again (with panel and icons). */
+    static void reopen(net.minecraft.server.level.ServerPlayer player, int villagerId) {
+        if (!(player.level().getEntity(villagerId) instanceof Villager villager) || !villager.isAlive()
+                || villager.distanceToSqr(player) > 10.0 * 10.0 || villager.isTrading()
+                || VillagerWorks.isBusy(villager) || StoryVillagers.isDown(villager)) {
+            return;
+        }
+        villager.getOffers().removeIf(offer -> isStoryItem(offer.getResult()));
+        sendPanel(player, villager, false);
+        villager.setTradingPlayer(player);
+        villager.openTradingScreen(player, villager.getDisplayName(), villager.getVillagerData().getLevel());
     }
 
     /** Alternative lines per trading level (1 to 5) and keeper; one of them is picked at random. */
@@ -321,64 +402,5 @@ public final class StoryEvents {
             data.putInt(key, villager.getRandom().nextDouble() < chance ? 1 : 2);
         }
         return data.getInt(key) == 1;
-    }
-
-    /** The Core Rune was bought: from now on no villager in this world sells it (until a Core is destroyed). */
-    private static void onTrade(net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent event) {
-        if (event.getEntity().level().isClientSide()
-                || !(event.getAbstractVillager() instanceof Villager villager)
-                || !(villager.level() instanceof ServerLevel level)) {
-            return;
-        }
-        ItemStack bought = event.getMerchantOffer().getResult();
-        if (bought.is(ModItems.CORE_RUNE.get())) {
-            event.getMerchantOffer().setToOutOfStock();
-            CoreWorldData.get(level.getServer()).setRuneTraded(true);
-            // He writes the rune at his lectern once the trading screen is closed.
-            VillagerWorks.start(level, villager, event.getEntity(), VillagerWorks.Kind.SCRIBE,
-                    java.util.List.of(new ItemStack(Items.BOOK)), bought.copyWithCount(1), true);
-        } else if (bought.getItem() instanceof UpgradeToolItem forged) {
-            // Tool + insignia were paid in the screen; the material comes from the inventory. Without it he gives
-            // both back (and the new tool is taken back).
-            int tier = forged.getTier() - 1;
-            Player player = event.getEntity();
-            ItemStack material = Config.toolForgeMaterial(tier - 1);
-            boolean creative = player.getAbilities().instabuild;
-            ItemStack tool = new ItemStack(ModItems.upgradeTool(tier).get());
-            ItemStack insignia = new ItemStack(ModItems.insignia(tier).get());
-            if (material != null && !creative && player.getInventory().countItem(material.getItem()) < material.getCount()) {
-                VillagerWorks.refund(level, player, bought.copyWithCount(1), java.util.List.of(tool, insignia));
-                player.displayClientMessage(Component.translatable("message.incursion.villager.forge_cost",
-                        material.getCount(), material.getHoverName()).withStyle(ChatFormatting.RED), true);
-                return;
-            }
-            if (material != null && !creative) {
-                removeItems(player, material.getItem(), material.getCount());
-            }
-            // He forges it at his smithing table.
-            VillagerWorks.start(level, villager, player, VillagerWorks.Kind.FORGE,
-                    java.util.List.of(tool, insignia), bought.copyWithCount(1), true);
-        } else if (bought.is(ModItems.MYTHIC_POTION.get())) {
-            // He brews the potion at his brewing stand.
-            VillagerWorks.start(level, villager, event.getEntity(), VillagerWorks.Kind.BREW,
-                    java.util.List.of(new ItemStack(Items.GLASS_BOTTLE)), bought.copyWithCount(1), true);
-        }
-    }
-
-    /**
-     * Puts {@code offer} at the top of the list (no scrolling for the story items); if the villager already sells its
-     * result, that offer is moved to the top instead (it keeps its uses).
-     */
-    private static void ensure(MerchantOffers offers, MerchantOffer offer) {
-        Item result = offer.getResult().getItem();
-        for (int i = 0; i < offers.size(); i++) {
-            if (offers.get(i).getResult().is(result)) {
-                if (i > 0) {
-                    offers.add(0, offers.remove(i));
-                }
-                return;
-            }
-        }
-        offers.add(0, offer);
     }
 }
