@@ -317,8 +317,8 @@ public final class StoryEvents {
     }
 
     /**
-     * How long the villager works on {@code quantity} of the commission {@code key}: the first takes the full time, every
-     * further one {@code batchTimeFactor} of it (a little less than ordering them one by one). Creative: quick.
+     * How long the villager works on {@code quantity} of the commission {@code key}. A brewing stand brews three potions
+     * at once, so three potions take as long as one; everything else is made one at a time. Creative: quick.
      */
     public static int craftSeconds(String key, int quantity, boolean creative) {
         int base = switch (key) {
@@ -326,7 +326,8 @@ public final class StoryEvents {
             case "potion" -> Config.POTION_CRAFT_SECONDS.get();
             default -> Config.FORGE_CRAFT_SECONDS.get();
         };
-        int seconds = (int) Math.round(base + Math.max(0, quantity - 1) * base * Config.BATCH_TIME_FACTOR.get());
+        int rounds = "potion".equals(key) ? (Math.max(1, quantity) + 2) / 3 : Math.max(1, quantity);
+        int seconds = base * rounds;
         return creative ? Math.min(seconds, 8) : seconds;
     }
 

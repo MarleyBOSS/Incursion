@@ -115,6 +115,8 @@ public final class VillagerWorks {
         final List<Display.ItemDisplay> shown = new ArrayList<>();
         /** Brewing: the bottle place the villager uses (-1 = none). */
         int bottleSlot = -1;
+        /** Brewing: all the bottle places in use (up to three potions brew at once). */
+        final List<Integer> bottleSlots = new ArrayList<>();
         /** Scribing: the rune that forms above the lectern (null until it appears). */
         Display.ItemDisplay runeShown;
         /** Scribing: the villager laid a book on the lectern (taken away again at the end). */
@@ -267,14 +269,20 @@ public final class VillagerWorks {
             case BREW -> {
                 // a bottle into the brewing stand: it is brewed into the potion there
                 if (station != null && level.getBlockEntity(station) instanceof BrewingStandBlockEntity stand) {
-                    for (int slot = 0; slot < 3; slot++) {
+                    int wanted = 0;
+                    for (ItemStack made : StoryReady.items(villager)) {
+                        wanted += made.getCount();
+                    }
+                    for (int slot = 0; slot < 3 && job.bottleSlots.size() < Math.max(1, wanted); slot++) {
                         if (stand.getItem(slot).isEmpty()) {
                             stand.setItem(slot, new ItemStack(Items.GLASS_BOTTLE));
-                            stand.setChanged();
-                            job.bottleSlot = slot;
-                            break;
+                            job.bottleSlots.add(slot);
+                            if (job.bottleSlot < 0) {
+                                job.bottleSlot = slot;
+                            }
                         }
                     }
+                    stand.setChanged();
                 }
                 if (job.bottleSlot < 0) {
                     showProps(job);
@@ -504,11 +512,13 @@ public final class VillagerWorks {
                 case SCRIBE -> level.sendParticles(ParticleTypes.END_ROD, p.x, p.y + 0.8, p.z, 14, 0.15, 0.2, 0.15, 0.05);
             }
         }
-        // the bottle in the brewing stand goes again (the finished potions are kept by the villager)
-        if (job.bottleSlot >= 0 && job.station != null
-                && level.getBlockEntity(job.station) instanceof BrewingStandBlockEntity stand
-                && stand.getItem(job.bottleSlot).is(Items.GLASS_BOTTLE)) {
-            stand.setItem(job.bottleSlot, ItemStack.EMPTY);
+        // the bottles in the brewing stand go again (the finished potions are kept by the villager)
+        if (job.station != null && level.getBlockEntity(job.station) instanceof BrewingStandBlockEntity stand) {
+            for (int slot : job.bottleSlots) {
+                if (stand.getItem(slot).is(Items.GLASS_BOTTLE)) {
+                    stand.setItem(slot, ItemStack.EMPTY);
+                }
+            }
             stand.setChanged();
         }
         if (show) {

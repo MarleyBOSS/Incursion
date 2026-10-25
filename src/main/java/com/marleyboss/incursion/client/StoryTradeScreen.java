@@ -193,8 +193,8 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
         g.drawString(font, Component.translatable("container.inventory"), left + 108, top + 74, COLOR_TITLE, false);
         int seconds = menu.seconds();
         if (seconds > 0) {
-            Component time = Component.translatable("gui.incursion.story_trade.time", (seconds / 60) + ":" + String.format("%02d", seconds % 60));
-            g.drawString(font, time, left + 270 - font.width(time), top + 74, COLOR_DIM, false);
+            Component label = Component.translatable("gui.incursion.story_trade.time", (seconds / 60) + ":" + String.format("%02d", seconds % 60));
+            g.drawString(font, label, left + 270 - font.width(label), top + 74, COLOR_DIM, false);
         }
     }
 
