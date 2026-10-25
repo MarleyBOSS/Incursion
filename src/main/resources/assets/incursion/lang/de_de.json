@@ -423,13 +423,9 @@
   "message.incursion.general.upgrade_complete": "Das %1$s vollendet das Upgrade. Der Kern erwacht auf Stufe %2$s.",
   "message.incursion.general.insignia_to_smith": "Die Insignie gehört nicht in den Kern. Bring sie mit deinem Upgrade-Werkzeug zu einem Meister-Werkzeugschmied.",
   "message.incursion.villager.busy": "Er ist gerade beschäftigt.",
-  "message.incursion.villager.hint.forge": "Halte dein Upgrade-Werkzeug in der einen und die passende Insignie in der anderen Hand.",
-  "message.incursion.villager.forge_max": "Dieses Werkzeug ist bereits vollendet.",
-  "message.incursion.villager.forge_mismatch": "Für dieses Werkzeug braucht er die %s.",
   "message.incursion.villager.forge_cost": "Er verlangt %s × %s dafür.",
-  "message.incursion.villager.forge_start": "Er legt beides auf seinen Schmiedetisch und greift zum Hammer …",
   "message.incursion.villager.work_done": "Fertig: %s liegt für dich bereit.",
-  "name.incursion.keeper.rune": "%s, Runenhüter",
+  "name.incursion.keeper.rune": "%s, Archivar",
   "name.incursion.keeper.glow": "%s, Hüter der Glut",
   "name.incursion.keeper.smith": "%s, Siegelschmied",
   "message.incursion.dialog.rune.1": "Ein neues Gesicht … Du siehst aus, als suchst du mehr als nur Bücher.",
@@ -491,7 +487,9 @@
   "message.incursion.talk.smith.4.1": "Ich bin fast so weit. Noch ein wenig Übung.",
   "message.incursion.talk.smith.4.2": "Manches verbindet sich nur unter dem richtigen Schlag.",
   "message.incursion.talk.smith.4.3": "Wenn du je etwas findest, das nicht von dieser Welt scheint … zeig es mir.",
-  "message.incursion.talk.smith.5.1": "Halte dein Werkzeug und das Fundstück in den Händen, dann schmiede ich beides zusammen.",
+  "message.incursion.talk.smith.5.1": "Bring mir dein Werkzeug und das Fundstück, dann schmiede ich beides zusammen.",
   "message.incursion.talk.smith.5.2": "Ich bin bereit. Bring mir, was du gefunden hast.",
-  "message.incursion.talk.smith.5.3": "Mein Hammer wartet auf eine Aufgabe, die seiner würdig ist."
+  "message.incursion.talk.smith.5.3": "Mein Hammer wartet auf eine Aufgabe, die seiner würdig ist.",
+  "item.incursion.mythic_potion.effect.empty": "Wirkung: unbekannt",
+  "message.incursion.villager.not_yours": "Das liegt für jemand anderen bereit."
 }

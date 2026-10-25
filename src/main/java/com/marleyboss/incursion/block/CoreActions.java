@@ -193,6 +193,9 @@ public final class CoreActions {
             stack.shrink(1);
         }
         if (Config.BOSS_NIGHT.get()) {
+            // the tablet flies from the player's hand into the Core (drawn by the client)
+            net.minecraft.world.phys.Vec3 look = player.getLookAngle();
+            core.setTabletFrom(player.getEyePosition().add(look.x * 0.5, -0.35, look.z * 0.5));
             Generals.startBossNight(level, pos, core, player, targetLevel);
             return;
         }

@@ -3,6 +3,7 @@ package com.marleyboss.incursion.client;
 import com.marleyboss.incursion.Incursion;
 import com.marleyboss.incursion.block.CoreBlock;
 import com.marleyboss.incursion.block.CoreBlockEntity;
+import com.marleyboss.incursion.registry.ModItems;
 import com.marleyboss.incursion.registry.ModSounds;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -280,6 +281,11 @@ final class SarcophagusRenderer {
                         pz + Math.sin(ang) * 0.5, 0.0, 0.02, 0.0);
             }
         }
+        // While an upgrade waits (a tablet is in, its general not yet beaten) the whole Core shudders in bursts.
+        if (active && core.hasPendingUpgrade()) {
+            float burst = Mth.clamp(Mth.sin(time * 0.07F) * 2.0F - 1.0F, 0.0F, 1.0F);
+            shake += (Mth.sin(time * 3.1F) + 0.5F * Mth.sin(time * 5.3F)) * 0.02F * burst;
+        }
         // The ritual items are consumed while the Core ignites and come back (the rune) when it is defused.
         float contents = t > 0.0F ? 1.0F - ease(t / 0.45F) : 1.0F;
         // The powders are destroyed by a defuse: while the countdown runs (and the block closes) only the rune comes back.
@@ -323,9 +329,12 @@ final class SarcophagusRenderer {
         float vs = state.vs;
         // The plaques: a tablet that was just set in (the upgrade waits for its general) slides into its socket at once.
         float pv = vs;
+        float tabletAge = -1.0F;
         if (active && core.hasPendingUpgrade()) {
             int pendingStage = CoreEvolution.stageFor(core.getPendingLevel());
-            float slide = ease(Mth.clamp((level.getGameTime() - core.getPendingStart()) / 40.0F, 0.0F, 1.0F));
+            tabletAge = level.getGameTime() - core.getPendingStart() + partialTick;
+            // it first flies around the Core (see drawFlyingTablet), then slides into its socket
+            float slide = ease(Mth.clamp((tabletAge - TABLET_FLIGHT) / 30.0F, 0.0F, 1.0F));
             pv = Math.max(vs, pendingStage - 1 + slide);
         }
         if (state.vp < 0.0F || !active || state.vp > vs) {
@@ -391,7 +400,7 @@ final class SarcophagusRenderer {
 
         // 1. Solid parts.
         pose.pushPose();
-        pose.translate(0.5F, 0.0F, 0.5F);
+        pose.translate(0.5F + shake, 0.0F, 0.5F);
         pose.scale(sc, sc, sc);
         pose.translate(-0.5F, 0.0F, -0.5F);
         VertexConsumer solid = buffer.getBuffer(Sheets.solidBlockSheet());
@@ -499,6 +508,82 @@ final class SarcophagusRenderer {
             LATE.clear(); // the late pass did not run (another render stage): do not collect without end
         }
         LATE.add(late);
+        if (tabletAge >= 0.0F && tabletAge < TABLET_FLIGHT) {
+            drawFlyingTablet(core, pose, buffer, level, tabletAge, sc);
+        }
+    }
+
+    /** Ticks the tablet flies from the player's hand around the Core to its socket. */
+    private static final float TABLET_FLIGHT = 60.0F;
+
+    /**
+     * The tablet that was just set in: it leaves the player's hand, circles the Core once while it sinks and then
+     * floats to its socket in the wall of the Sarcophagus, turned to face out (the slide into the socket follows).
+     */
+    private static void drawFlyingTablet(CoreBlockEntity core, PoseStack pose, MultiBufferSource buffer, Level level,
+                                         float age, float sc) {
+        int stage = Math.max(1, Math.min(4, CoreEvolution.stageFor(core.getPendingLevel())));
+        int side = stage - 1;
+        BlockPos bp = core.getBlockPos();
+        Vec3 from = core.getTabletFrom();
+        double fx = from == null ? 0.5 : from.x - bp.getX();
+        double fy = from == null ? 2.5 : from.y - bp.getY();
+        double fz = from == null ? 0.5 : from.z - bp.getZ();
+        float[] socket = plaquePoint(side, 0.0F, 0.17F, 0.12F);
+        double tx = 0.5 + (socket[0] - 0.5) * sc;
+        double ty = socket[1] * sc;
+        double tz = 0.5 + (socket[2] - 0.5) * sc;
+        double radius = 1.6 * sc;
+        double cy = 1.5 * sc;
+        double a0 = Math.atan2(fz - 0.5, fx - 0.5);
+        double a1 = Math.atan2(tz - 0.5, tx - 0.5);
+        while (a1 < a0) {
+            a1 += Math.PI * 2.0;
+        }
+        a1 += Math.PI * 2.0; // one full turn around the Core
+        float u = age / TABLET_FLIGHT;
+        double x;
+        double y;
+        double z;
+        if (u < 0.25F) {
+            float k = ease(u / 0.25F);
+            x = Mth.lerp(k, fx, 0.5 + Math.cos(a0) * radius);
+            y = Mth.lerp(k, fy, cy);
+            z = Mth.lerp(k, fz, 0.5 + Math.sin(a0) * radius);
+        } else if (u < 0.8F) {
+            float k = (u - 0.25F) / 0.55F;
+            double a = Mth.lerp(ease(k), a0, a1);
+            x = 0.5 + Math.cos(a) * radius;
+            y = Mth.lerp(k, cy, ty + 0.35) + 0.12 * Math.sin(k * Math.PI * 3.0);
+            z = 0.5 + Math.sin(a) * radius;
+        } else {
+            float k = ease((u - 0.8F) / 0.2F);
+            x = Mth.lerp(k, 0.5 + Math.cos(a1) * radius, tx);
+            y = Mth.lerp(k, ty + 0.35, ty);
+            z = Mth.lerp(k, 0.5 + Math.sin(a1) * radius, tz);
+        }
+        // spinning in flight, at the end turned to face out of its wall
+        float facing = switch (side) {
+            case 0 -> 180.0F;
+            case 1 -> 90.0F;
+            case 2 -> 0.0F;
+            default -> 270.0F;
+        };
+        float spin = age * 14.0F;
+        float settle = ease(Mth.clamp((u - 0.75F) / 0.25F, 0.0F, 1.0F));
+        float yaw = Mth.lerp(settle, spin, facing + 360.0F * Mth.ceil(spin / 360.0F));
+        pose.pushPose();
+        pose.translate(x, y, z);
+        pose.mulPose(Axis.YP.rotationDegrees(yaw));
+        float size = 0.45F + 0.15F * (1.0F - settle);
+        pose.scale(size, size, size);
+        Minecraft.getInstance().getItemRenderer().renderStatic(new ItemStack(ModItems.tablet(stage).get()),
+                ItemDisplayContext.FIXED, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY, pose, buffer, level, 0);
+        pose.popPose();
+        if (level.random.nextFloat() < 0.35F) {
+            level.addParticle(ParticleTypes.ENCHANT, bp.getX() + x, bp.getY() + y, bp.getZ() + z,
+                    (level.random.nextDouble() - 0.5) * 0.3, 0.05, (level.random.nextDouble() - 0.5) * 0.3);
+        }
     }
 
     /** What the block needs for the see-through part of its drawing, collected while the block entities are drawn. */
@@ -1359,12 +1444,12 @@ final class SarcophagusRenderer {
     }
 
     /**
-     * Four sockets (solid, lower pose) are cut into the walls with the first stage. A socket is empty until the tablet of its
+     * Four sockets (solid, lower pose) are cut into the walls from the start. A socket is empty until the tablet of its
      * guardian has been placed: then the tablet slides in from above. Level 5 holds one tablet, the other three sockets stay
      * visibly empty.
      */
     private static void drawPlaques(PoseStack.Pose p, VertexConsumer vc, int light, float vs) {
-        float g = ease(Mth.clamp(vs * 1.4F, 0.0F, 1.0F));
+        float g = 1.0F; // the sockets are cut into the Sarcophagus from the start
         if (g < 0.05F) {
             return;
         }
@@ -1503,7 +1588,7 @@ final class SarcophagusRenderer {
      * sends its beam, twisted like the beam the guardian fires, from its eye into the Core.
      */
     private static void drawPlaqueGlyphs(PoseStack pose, MultiBufferSource buffer, Late d) {
-        float ext = ease(Mth.clamp(d.pv * 1.4F, 0.0F, 1.0F));
+        float ext = 1.0F;
         if (ext < 0.1F) {
             return;
         }

@@ -423,13 +423,9 @@
   "message.incursion.general.upgrade_complete": "The %1$s completes the upgrade. The Core awakens to level %2$s.",
   "message.incursion.general.insignia_to_smith": "The insignia does not go into the Core. Bring it to a Master Toolsmith together with your Upgrade Tool.",
   "message.incursion.villager.busy": "He is busy right now.",
-  "message.incursion.villager.hint.forge": "Hold your Upgrade Tool in one hand and the matching insignia in the other.",
-  "message.incursion.villager.forge_max": "This tool is already perfected.",
-  "message.incursion.villager.forge_mismatch": "For this tool he needs the %s.",
   "message.incursion.villager.forge_cost": "He asks %s × %s for it.",
-  "message.incursion.villager.forge_start": "He lays both on his smithing table and reaches for his hammer …",
   "message.incursion.villager.work_done": "Done: %s is ready for you.",
-  "name.incursion.keeper.rune": "%s, Rune Keeper",
+  "name.incursion.keeper.rune": "%s, Archivist",
   "name.incursion.keeper.glow": "%s, Keeper of the Embers",
   "name.incursion.keeper.smith": "%s, Seal Smith",
   "message.incursion.dialog.rune.1": "A new face … You look like you are searching for more than books.",
@@ -491,7 +487,9 @@
   "message.incursion.talk.smith.4.1": "I am almost ready. A little more practice.",
   "message.incursion.talk.smith.4.2": "Some things only join under the right blow.",
   "message.incursion.talk.smith.4.3": "If you ever find something that does not seem to be of this world … show it to me.",
-  "message.incursion.talk.smith.5.1": "Hold your tool and your find in your hands, then I will forge them together.",
+  "message.incursion.talk.smith.5.1": "Bring me your tool and your find, then I will forge them together.",
   "message.incursion.talk.smith.5.2": "I am ready. Bring me what you have found.",
-  "message.incursion.talk.smith.5.3": "My hammer waits for a task worthy of it."
+  "message.incursion.talk.smith.5.3": "My hammer waits for a task worthy of it.",
+  "item.incursion.mythic_potion.effect.empty": "Effect: unknown",
+  "message.incursion.villager.not_yours": "That is waiting for someone else."
 }

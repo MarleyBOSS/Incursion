@@ -80,6 +80,9 @@ public class CoreBlockEntity extends BlockEntity {
     private long bossDay = -1;
     /** Game time the tablet was set in (the client slides it into its socket). */
     private long pendingStart = 0L;
+    /** Where the tablet came from (the hand of the player who set it in): the client lets it fly from there. */
+    @Nullable
+    private net.minecraft.world.phys.Vec3 tabletFrom;
     /** The general of the waiting upgrade was killed; his insignia completes the upgrade. */
     private boolean generalDefeated = false;
     /** Not saved: a general of this Core is alive in the siege area (updated once per second). */
@@ -797,6 +800,15 @@ public class CoreBlockEntity extends BlockEntity {
         return pendingStart;
     }
 
+    @Nullable
+    public net.minecraft.world.phys.Vec3 getTabletFrom() {
+        return tabletFrom;
+    }
+
+    public void setTabletFrom(@Nullable net.minecraft.world.phys.Vec3 from) {
+        tabletFrom = from;
+    }
+
     public void clearPendingUpgrade() {
         if (pendingLevel != 0 || bossDay != -1 || generalDefeated) {
             pendingLevel = 0;
@@ -1028,6 +1040,11 @@ public class CoreBlockEntity extends BlockEntity {
         tag.putLong("BossDay", bossDay);
         tag.putBoolean("GeneralDefeated", generalDefeated);
         tag.putLong("PendingStart", pendingStart);
+        if (tabletFrom != null) {
+            tag.putDouble("TabletFromX", tabletFrom.x);
+            tag.putDouble("TabletFromY", tabletFrom.y);
+            tag.putDouble("TabletFromZ", tabletFrom.z);
+        }
         tag.putInt(TAG_GUNPOWDER, gunpowder);
         tag.putInt(TAG_BLAZE_POWDER, blazePowder);
     }
@@ -1067,6 +1084,8 @@ public class CoreBlockEntity extends BlockEntity {
         bossDay = tag.contains("BossDay") ? tag.getLong("BossDay") : -1;
         generalDefeated = tag.getBoolean("GeneralDefeated");
         pendingStart = tag.getLong("PendingStart");
+        tabletFrom = tag.contains("TabletFromX") ? new net.minecraft.world.phys.Vec3(tag.getDouble("TabletFromX"),
+                tag.getDouble("TabletFromY"), tag.getDouble("TabletFromZ")) : null;
         gunpowder = tag.getInt(TAG_GUNPOWDER);
         blazePowder = tag.getInt(TAG_BLAZE_POWDER);
         syncedWards = tag.contains(TAG_WARDS) ? tag.getLongArray(TAG_WARDS) : new long[0];

@@ -102,7 +102,8 @@ public final class VillagerDialog {
         }
     }
 
-    private record Panel(int x, int y, int width, int height, List<FormattedCharSequence> text) {
+    private record Panel(int x, int y, int width, int height, List<FormattedCharSequence> name,
+                         List<FormattedCharSequence> text) {
     }
 
     /** Left of the trading screen if there is room, otherwise narrower (down to MIN_WIDTH) over the screen's edge. */
@@ -113,9 +114,18 @@ public final class VillagerDialog {
         int x = Math.max(4, left - GAP - width);
         String key = lines.isEmpty() ? "" : lines.get(Math.min(page, lines.size() - 1));
         List<FormattedCharSequence> text = font.split(Component.translatable(key), width - 12);
-        int height = MODEL_HEIGHT + 14 + text.size() * 10 + 24;
+        Minecraft mc = Minecraft.getInstance();
+        Entity entity = mc.level != null ? mc.level.getEntity(entityId) : null;
+        Component title = entity != null ? entity.getDisplayName() : Component.empty();
+        List<FormattedCharSequence> name = font.split(title.copy().withStyle(ChatFormatting.BOLD), width - 12);
+        if (name.size() > 2) {
+            name = name.subList(0, 2);
+        }
+        // as high as the trading screen (it grows only if the text needs more room)
+        int needed = MODEL_HEIGHT + 8 + name.size() * 10 + 4 + text.size() * 10 + 24;
+        int height = Math.max(merchant.getYSize(), needed);
         int y = merchant.getGuiTop();
-        return new Panel(x, y, width, height, text);
+        return new Panel(x, y, width, height, name, text);
     }
 
     private static void onRender(ScreenEvent.Render.Post event) {
@@ -137,18 +147,22 @@ public final class VillagerDialog {
 
         Entity entity = mc.level != null ? mc.level.getEntity(entityId) : null;
         if (entity instanceof LivingEntity living) {
-            InventoryScreen.renderEntityInInventoryFollowsMouse(g, panel.x + 4, panel.y + 4, panel.x + panel.width - 4,
+            // his name tag would be drawn over his head (and cut off): hidden for the picture, the panel shows the name
+            boolean nameShown = living.isCustomNameVisible();
+            living.setCustomNameVisible(false);
+            InventoryScreen.renderEntityInInventoryFollowsMouse(g, panel.x + 4, panel.y + 6, panel.x + panel.width - 4,
                     panel.y + MODEL_HEIGHT, 30, 0.0625F, event.getMouseX(), event.getMouseY(), living);
+            living.setCustomNameVisible(nameShown);
         }
 
         g.pose().pushPose();
         g.pose().translate(0.0F, 0.0F, 300.0F);
-        Component name = entity != null ? entity.getDisplayName() : Component.empty();
-        List<FormattedCharSequence> nameLines = mc.font.split(name.copy().withStyle(ChatFormatting.BOLD), panel.width - 12);
-        if (!nameLines.isEmpty()) {
-            g.drawString(mc.font, nameLines.get(0), panel.x + 6, panel.y + MODEL_HEIGHT + 6, COLOR_NAME, false);
+        int y = panel.y + MODEL_HEIGHT + 6;
+        for (FormattedCharSequence line : panel.name) {
+            g.drawString(mc.font, line, panel.x + 6, y, COLOR_NAME, false);
+            y += 10;
         }
-        int y = panel.y + MODEL_HEIGHT + 18;
+        y += 4;
         for (FormattedCharSequence line : panel.text) {
             g.drawString(mc.font, line, panel.x + 6, y, COLOR_TEXT, false);
             y += 10;

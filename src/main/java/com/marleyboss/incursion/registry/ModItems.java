@@ -46,7 +46,8 @@ public final class ModItems {
             () -> new MythicPotionItem(new Item.Properties().stacksTo(1).rarity(Rarity.EPIC)
                     .component(DataComponents.POTION_CONTENTS,
                             new PotionContents(Optional.empty(), Optional.of(0xFF8A1E), List.of()))
-                    .component(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true)));
+                    .component(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true)
+                    .component(DataComponents.HIDE_ADDITIONAL_TOOLTIP, net.minecraft.util.Unit.INSTANCE)));
 
     public static final DeferredItem<BlockItem> SIEGE_STONE = ITEMS.registerSimpleBlockItem(
             "siege_stone", ModBlocks.SIEGE_STONE, new Item.Properties());

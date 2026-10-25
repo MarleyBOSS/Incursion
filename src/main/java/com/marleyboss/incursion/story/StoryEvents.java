@@ -161,10 +161,6 @@ public final class StoryEvents {
                 case GLOW -> Config.POTION_TRADE_LEVEL.get();
                 case SMITH -> Config.TOOL_FORGE_LEVEL.get();
             };
-            if (profession == VillagerProfession.TOOLSMITH && level >= Config.TOOL_FORGE_LEVEL.get()
-                    && tryForge(event, villager)) {
-                return;
-            }
             if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
                     && event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
                 // What he says, in the panel beside his trading screen.
@@ -198,10 +194,16 @@ public final class StoryEvents {
                 }
             }
         } else if (profession == VillagerProfession.TOOLSMITH) {
-            // The tools are not traded any more (v0.17.0-v0.17.4 added rows): he forges them, see tryForge.
+            // One row only, for the player's own tool: his best Upgrade Tool + the insignia of that stage = the next
+            // tool (rebuilt every time the screen is opened; the material is taken from the inventory, see onTrade).
             offers.removeIf(offer -> offer.getResult().getItem() instanceof UpgradeToolItem);
-            if (level >= Config.TOOL_FORGE_LEVEL.get() && holdsStoryItem(event.getEntity())) {
-                hint = "message.incursion.villager.hint.forge"; // only one of the two pieces in the hands
+            if (level >= Config.TOOL_FORGE_LEVEL.get()) {
+                int tier = bestTool(event.getEntity());
+                if (tier < Config.UPGRADE_TOOL_MAX_TIER) {
+                    offers.add(new MerchantOffer(new ItemCost(ModItems.upgradeTool(tier).get(), 1),
+                            Optional.of(new ItemCost(ModItems.insignia(tier).get(), 1)),
+                            new ItemStack(ModItems.upgradeTool(tier + 1).get()), 1, 0, 0.0F));
+                }
             }
         }
         if (hint != null && event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
@@ -237,68 +239,16 @@ public final class StoryEvents {
         event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
     }
 
-    private static boolean holdsStoryItem(Player player) {
-        for (ItemStack stack : new ItemStack[]{player.getMainHandItem(), player.getOffhandItem()}) {
-            if (stack.getItem() instanceof UpgradeToolItem || stack.getItem() instanceof InsigniaItem) {
-                return true;
+    /** The highest Upgrade Tool tier in the player's inventory (1 if he has none, so the first step is shown). */
+    private static int bestTool(Player player) {
+        int best = 1;
+        net.minecraft.world.entity.player.Inventory inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            if (inventory.getItem(i).getItem() instanceof UpgradeToolItem tool) {
+                best = Math.max(best, tool.getTier());
             }
         }
-        return false;
-    }
-
-    /**
-     * Upgrade Tool in one hand and the insignia of the same stage in the other (tool I + insignia I and so on):
-     * the Master Toolsmith forges them into the next tool on his smithing table. The material for the tier is taken
-     * from the inventory. Returns true if the interaction was used for this (no trading screen).
-     */
-    private static boolean tryForge(PlayerInteractEvent.EntityInteract event, Villager villager) {
-        Player player = event.getEntity();
-        ItemStack main = player.getMainHandItem();
-        ItemStack off = player.getOffhandItem();
-        ItemStack toolStack = main.getItem() instanceof UpgradeToolItem ? main
-                : off.getItem() instanceof UpgradeToolItem ? off : ItemStack.EMPTY;
-        ItemStack insigniaStack = main.getItem() instanceof InsigniaItem ? main
-                : off.getItem() instanceof InsigniaItem ? off : ItemStack.EMPTY;
-        if (toolStack.isEmpty() || insigniaStack.isEmpty()) {
-            return false; // normal trading (a hint follows if he holds one of the two)
-        }
-        cancel(event);
-        if (event.getHand() != net.minecraft.world.InteractionHand.MAIN_HAND) {
-            return true;
-        }
-        int tier = ((UpgradeToolItem) toolStack.getItem()).getTier();
-        int stage = ((InsigniaItem) insigniaStack.getItem()).getStage();
-        if (tier >= Config.UPGRADE_TOOL_MAX_TIER) {
-            player.displayClientMessage(Component.translatable("message.incursion.villager.forge_max")
-                    .withStyle(ChatFormatting.GRAY), true);
-            return true;
-        }
-        if (stage != tier) {
-            player.displayClientMessage(Component.translatable("message.incursion.villager.forge_mismatch",
-                    ModItems.insignia(tier).get().getDescription()).withStyle(ChatFormatting.RED), true);
-            return true;
-        }
-        ItemStack material = Config.toolForgeMaterial(tier - 1);
-        boolean creative = player.getAbilities().instabuild;
-        if (material != null && !creative && player.getInventory().countItem(material.getItem()) < material.getCount()) {
-            player.displayClientMessage(Component.translatable("message.incursion.villager.forge_cost",
-                    material.getCount(), material.getHoverName()).withStyle(ChatFormatting.RED), true);
-            return true;
-        }
-        ItemStack toolCopy = toolStack.copyWithCount(1);
-        ItemStack insigniaCopy = insigniaStack.copyWithCount(1);
-        if (!creative) {
-            if (material != null) {
-                removeItems(player, material.getItem(), material.getCount());
-            }
-            toolStack.shrink(1);
-            insigniaStack.shrink(1);
-        }
-        VillagerWorks.start((ServerLevel) villager.level(), villager, player, VillagerWorks.Kind.FORGE,
-                java.util.List.of(toolCopy, insigniaCopy), new ItemStack(ModItems.upgradeTool(tier + 1).get()), false);
-        player.displayClientMessage(Component.translatable("message.incursion.villager.forge_start")
-                .withStyle(ChatFormatting.GOLD), true);
-        return true;
+        return best;
     }
 
     private static void removeItems(Player player, Item item, int amount) {
@@ -387,6 +337,27 @@ public final class StoryEvents {
             // He writes the rune at his lectern once the trading screen is closed.
             VillagerWorks.start(level, villager, event.getEntity(), VillagerWorks.Kind.SCRIBE,
                     java.util.List.of(new ItemStack(Items.BOOK)), bought.copyWithCount(1), true);
+        } else if (bought.getItem() instanceof UpgradeToolItem forged) {
+            // Tool + insignia were paid in the screen; the material comes from the inventory. Without it he gives
+            // both back (and the new tool is taken back).
+            int tier = forged.getTier() - 1;
+            Player player = event.getEntity();
+            ItemStack material = Config.toolForgeMaterial(tier - 1);
+            boolean creative = player.getAbilities().instabuild;
+            ItemStack tool = new ItemStack(ModItems.upgradeTool(tier).get());
+            ItemStack insignia = new ItemStack(ModItems.insignia(tier).get());
+            if (material != null && !creative && player.getInventory().countItem(material.getItem()) < material.getCount()) {
+                VillagerWorks.refund(level, player, bought.copyWithCount(1), java.util.List.of(tool, insignia));
+                player.displayClientMessage(Component.translatable("message.incursion.villager.forge_cost",
+                        material.getCount(), material.getHoverName()).withStyle(ChatFormatting.RED), true);
+                return;
+            }
+            if (material != null && !creative) {
+                removeItems(player, material.getItem(), material.getCount());
+            }
+            // He forges it at his smithing table.
+            VillagerWorks.start(level, villager, player, VillagerWorks.Kind.FORGE,
+                    java.util.List.of(tool, insignia), bought.copyWithCount(1), true);
         } else if (bought.is(ModItems.MYTHIC_POTION.get())) {
             // He brews the potion at his brewing stand.
             VillagerWorks.start(level, villager, event.getEntity(), VillagerWorks.Kind.BREW,

@@ -160,9 +160,7 @@ public final class Generals {
     static void tick(ServerLevel level, BlockPos pos, CoreBlockEntity core, CoreTargetEntity target, long now) {
         List<Mob> found = find(level, pos, core.getCoreLevel());
         pruneBars(found);
-        if (core.hasPendingUpgrade()) {
-            seethe(level, pos, now);
-        }
+
         if (!core.hasPendingUpgrade() || core.isGeneralDefeated()) {
             for (Mob stray : found) {
                 vanish(level, stray); // no general is needed (any more)
@@ -202,24 +200,6 @@ public final class Generals {
         }
         if (day == core.getBossDay() && timeOfDay >= nightStart() && level.getDifficulty() != Difficulty.PEACEFUL) {
             spawn(level, pos, core, target, stage, now);
-        }
-    }
-
-    /**
-     * While an upgrade waits (tablet in, until the upgrade is completed) the Core seethes: it bubbles and smokes,
-     * now and then a glowing drop jumps out.
-     */
-    private static void seethe(ServerLevel level, BlockPos pos, long now) {
-        double x = pos.getX() + 0.5;
-        double y = pos.getY() + 1.2;
-        double z = pos.getZ() + 0.5;
-        level.sendParticles(ParticleTypes.SMOKE, x, y, z, 4, 0.3, 0.15, 0.3, 0.01);
-        level.sendParticles(ParticleTypes.BUBBLE_POP, x, y, z, 3, 0.25, 0.1, 0.25, 0.01);
-        if (now % 60 < 20) {
-            level.sendParticles(ParticleTypes.LAVA, x, y, z, 2, 0.2, 0.05, 0.2, 0.0);
-            level.playSound(null, pos, SoundEvents.LAVA_POP, SoundSource.BLOCKS, 0.7F, 0.7F);
-        } else if (now % 60 < 40) {
-            level.playSound(null, pos, SoundEvents.LAVA_AMBIENT, SoundSource.BLOCKS, 0.4F, 0.6F);
         }
     }
 

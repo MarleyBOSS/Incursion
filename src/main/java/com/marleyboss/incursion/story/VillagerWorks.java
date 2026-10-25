@@ -74,6 +74,11 @@ public final class VillagerWorks {
         boolean waiting;
         int waited;
         int age = -1;
+        /** His job site block (null = none near: he works where he stands). */
+        @Nullable
+        BlockPos station;
+        boolean located;
+        int walked;
         Vec3 top;
         final List<ItemEntity> shown = new ArrayList<>();
         ItemStack heldBefore = ItemStack.EMPTY;
@@ -94,6 +99,16 @@ public final class VillagerWorks {
     private static final List<Job> JOBS = new ArrayList<>();
     /** Finished items still lying on a job site: they sparkle until they are picked up. */
     private static final List<ItemEntity> READY = new ArrayList<>();
+    /** Finished potions in a brewing stand: the stand sparkles until the potion is taken out. */
+    private record ReadyStand(ServerLevel level, BlockPos pos, Item item) {
+    }
+
+    private static final List<ReadyStand> READY_STANDS = new ArrayList<>();
+    /** Ticks a villager may need to walk to his job site before he works where he is. */
+    private static final int MAX_WALK_TICKS = 20 * 12;
+    private static final String TAG_STATION_ITEM = "incursion_station_item";
+    private static final String DATA_OWNER = "IncursionOwner";
+    private static final String DATA_STATION = "IncursionStation";
 
     private VillagerWorks() {
     }
@@ -101,6 +116,8 @@ public final class VillagerWorks {
     public static void register() {
         NeoForge.EVENT_BUS.addListener(VillagerWorks::onServerTick);
         NeoForge.EVENT_BUS.addListener(VillagerWorks::onServerStopping);
+        NeoForge.EVENT_BUS.addListener(VillagerWorks::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(VillagerWorks::onBreak);
     }
 
     public static boolean isBusy(Villager villager) {
@@ -122,12 +139,44 @@ public final class VillagerWorks {
         JOBS.add(new Job(level, villager, player.getUUID(), kind, props, result, bought));
     }
 
+    /**
+     * The trade cannot be done after all (e.g. the material is missing): next tick the bought item is taken back and
+     * what was paid in the screen is given back.
+     */
+    public static void refund(ServerLevel level, Player player, ItemStack bought, List<ItemStack> paid) {
+        REFUNDS.add(new Refund(level, player.getUUID(), bought, paid));
+    }
+
+    private record Refund(ServerLevel level, UUID player, ItemStack bought, List<ItemStack> paid) {
+    }
+
+    private static final List<Refund> REFUNDS = new ArrayList<>();
+
+    private static void runRefunds() {
+        for (Refund refund : REFUNDS) {
+            ServerPlayer player = refund.level().getServer().getPlayerList().getPlayer(refund.player());
+            if (player == null || !takeBack(player, refund.bought().getItem())) {
+                continue; // nothing to take back: nothing to give back
+            }
+            for (ItemStack stack : refund.paid()) {
+                ItemStack copy = stack.copy();
+                if (!player.getInventory().add(copy)) {
+                    player.drop(copy, false);
+                }
+            }
+        }
+        REFUNDS.clear();
+    }
+
     // ------------------------------------------------------------------
     // Ticking
     // ------------------------------------------------------------------
 
     private static void onServerTick(ServerTickEvent.Post event) {
-        if (!READY.isEmpty()) {
+        if (!REFUNDS.isEmpty()) {
+            runRefunds();
+        }
+        if (!READY.isEmpty() || !READY_STANDS.isEmpty()) {
             sparkleReady();
         }
         if (JOBS.isEmpty()) {
@@ -163,10 +212,25 @@ public final class VillagerWorks {
         }
         if (job.age < 0) {
             for (Job other : JOBS) {
-                if (other != job && other.villager == villager && other.age >= 0) {
+                if (other != job && other.villager == villager && (other.age >= 0 || other.located)) {
                     return false; // one thing after the other (e.g. two potions bought at once)
                 }
             }
+            if (!job.located) {
+                job.located = true;
+                job.station = findStation(job.level, villager, job.kind.station);
+            }
+            // First he walks to his job site.
+            if (job.station != null && job.walked < MAX_WALK_TICKS
+                    && villager.distanceToSqr(Vec3.atBottomCenterOf(job.station)) > 2.3 * 2.3) {
+                job.walked++;
+                villager.getBrain().setMemory(MemoryModuleType.WALK_TARGET,
+                        new net.minecraft.world.entity.ai.memory.WalkTarget(job.station, 0.6F, 1));
+                villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
+                        new net.minecraft.world.entity.ai.behavior.BlockPosTracker(job.station));
+                return false;
+            }
+            villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             begin(job);
         }
         job.age++;
@@ -182,7 +246,11 @@ public final class VillagerWorks {
 
     private static void begin(Job job) {
         Villager villager = job.villager;
-        BlockPos station = findStation(job.level, villager, job.kind.station);
+        BlockPos station = job.station;
+        if (station != null && villager.distanceToSqr(Vec3.atBottomCenterOf(station)) > 4.0 * 4.0) {
+            station = null; // he could not get there
+            job.station = null;
+        }
         if (station != null) {
             double height = job.kind == Kind.BREW ? 0.9 : 1.02;
             job.top = new Vec3(station.getX() + 0.5, station.getY() + height, station.getZ() + 0.5);
@@ -304,15 +372,18 @@ public final class VillagerWorks {
                 }
             }
         }
-        ItemEntity item = new ItemEntity(level, p.x, p.y + 0.05, p.z, job.result.copy());
-        item.setDeltaMovement(0.0, 0.18, 0.0);
-        item.setUnlimitedLifetime();
-        item.setInvulnerable(true);
-        item.setTarget(job.player); // only the player it was made for can pick it up
-        item.setPickUpDelay(10);
-        item.setGlowingTag(true); // outline, visible through walls: it is not overlooked
-        level.addFreshEntity(item);
-        READY.add(item);
+        if (!storeInStation(job, level, p)) {
+            // no job site: it lies in front of him, only for its player
+            ItemEntity item = new ItemEntity(level, p.x, p.y + 0.05, p.z, job.result.copy());
+            item.setDeltaMovement(0.0, 0.18, 0.0);
+            item.setUnlimitedLifetime();
+            item.setInvulnerable(true);
+            item.setTarget(job.player);
+            item.setPickUpDelay(10);
+            item.setGlowingTag(true);
+            level.addFreshEntity(item);
+            READY.add(item);
+        }
         ServerPlayer player = level.getServer().getPlayerList().getPlayer(job.player);
         if (player != null) {
             player.displayClientMessage(Component.translatable("message.incursion.villager.work_done",
@@ -322,6 +393,27 @@ public final class VillagerWorks {
 
     /** Every half second: a finished item that is still waiting on its job site sends up sparks. */
     private static void sparkleReady() {
+        Iterator<ReadyStand> stands = READY_STANDS.iterator();
+        while (stands.hasNext()) {
+            ReadyStand ready = stands.next();
+            if (ready.level().getGameTime() % 10 != 0) {
+                continue;
+            }
+            boolean still = false;
+            if (ready.level().isLoaded(ready.pos())
+                    && ready.level().getBlockEntity(ready.pos()) instanceof net.minecraft.world.level.block.entity.BrewingStandBlockEntity stand) {
+                for (int slot = 0; slot < 3; slot++) {
+                    still |= stand.getItem(slot).is(ready.item());
+                }
+            }
+            if (!still) {
+                stands.remove();
+                continue;
+            }
+            BlockPos at = ready.pos();
+            ready.level().sendParticles(ParticleTypes.GLOW, at.getX() + 0.5, at.getY() + 0.8, at.getZ() + 0.5, 3, 0.25, 0.15, 0.25, 0.01);
+            ready.level().sendParticles(ParticleTypes.END_ROD, at.getX() + 0.5, at.getY() + 1.0, at.getZ() + 0.5, 1, 0.05, 0.05, 0.05, 0.03);
+        }
         Iterator<ItemEntity> it = READY.iterator();
         while (it.hasNext()) {
             ItemEntity item = it.next();
@@ -340,6 +432,92 @@ public final class VillagerWorks {
         }
     }
 
+    /**
+     * The finished item goes into his job site: the potion into a free bottle place of the brewing stand (taken out
+     * through its screen), the rune and the tool lie on the lectern or smithing table (right-click the block to take
+     * them). Returns false if there is no job site to put it in.
+     */
+    private static boolean storeInStation(Job job, ServerLevel level, Vec3 p) {
+        BlockPos station = job.station;
+        if (station == null || !level.getBlockState(station).is(job.kind.station)) {
+            return false;
+        }
+        if (job.kind == Kind.BREW) {
+            if (level.getBlockEntity(station) instanceof net.minecraft.world.level.block.entity.BrewingStandBlockEntity stand) {
+                for (int slot = 0; slot < 3; slot++) {
+                    if (stand.getItem(slot).isEmpty()) {
+                        stand.setItem(slot, job.result.copy());
+                        stand.setChanged();
+                        READY_STANDS.add(new ReadyStand(level, station, job.result.getItem()));
+                        return true;
+                    }
+                }
+            }
+            // all three bottle places are taken: it stands on top of the stand
+        }
+        ItemEntity shown = new ItemEntity(level, p.x, p.y, p.z, job.result.copy());
+        shown.setDeltaMovement(Vec3.ZERO);
+        shown.setNoGravity(true);
+        shown.setNeverPickUp();
+        shown.setUnlimitedLifetime();
+        shown.setInvulnerable(true);
+        shown.setGlowingTag(true);
+        shown.addTag(TAG_STATION_ITEM);
+        shown.getPersistentData().putUUID(DATA_OWNER, job.player);
+        shown.getPersistentData().putLong(DATA_STATION, station.asLong());
+        level.addFreshEntity(shown);
+        READY.add(shown);
+        return true;
+    }
+
+    /** The items lying on the job site at {@code pos}. */
+    private static List<ItemEntity> stationItems(net.minecraft.world.level.Level level, BlockPos pos) {
+        long key = pos.asLong();
+        return level.getEntitiesOfClass(ItemEntity.class, new net.minecraft.world.phys.AABB(pos).inflate(0.5, 1.0, 0.5),
+                e -> e.getTags().contains(TAG_STATION_ITEM) && e.getPersistentData().getLong(DATA_STATION) == key);
+    }
+
+    /** Right-click on a lectern or smithing table with a finished item on it: the player takes it (no screen opens). */
+    private static void onRightClickBlock(net.neoforged.neoforge.event.entity.player.PlayerInteractEvent.RightClickBlock event) {
+        if (event.getLevel().isClientSide() || event.getHand() != net.minecraft.world.InteractionHand.MAIN_HAND) {
+            return;
+        }
+        List<ItemEntity> items = stationItems(event.getLevel(), event.getPos());
+        if (items.isEmpty()) {
+            return;
+        }
+        Player player = event.getEntity();
+        event.setCanceled(true);
+        event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
+        for (ItemEntity shown : items) {
+            UUID owner = shown.getPersistentData().hasUUID(DATA_OWNER) ? shown.getPersistentData().getUUID(DATA_OWNER) : null;
+            if (owner != null && !owner.equals(player.getUUID())) {
+                player.displayClientMessage(Component.translatable("message.incursion.villager.not_yours")
+                        .withStyle(ChatFormatting.GRAY), true);
+                continue;
+            }
+            ItemStack stack = shown.getItem().copy();
+            shown.discard();
+            if (!player.getInventory().add(stack)) {
+                player.drop(stack, false);
+            }
+            event.getLevel().playSound(null, event.getPos(), SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.6F, 1.0F);
+        }
+    }
+
+    /** The job site is broken: what lay on it falls down as a normal item. */
+    private static void onBreak(net.neoforged.neoforge.event.level.BlockEvent.BreakEvent event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) {
+            return;
+        }
+        for (ItemEntity shown : stationItems(level, event.getPos())) {
+            ItemEntity dropped = new ItemEntity(level, shown.getX(), shown.getY(), shown.getZ(), shown.getItem().copy());
+            dropped.setUnlimitedLifetime();
+            level.addFreshEntity(dropped);
+            shown.discard();
+        }
+    }
+
     private static void onServerStopping(ServerStoppingEvent event) {
         for (Job job : JOBS) {
             if (!job.takeBack) {
@@ -348,6 +526,7 @@ public final class VillagerWorks {
         }
         JOBS.clear();
         READY.clear();
+        READY_STANDS.clear();
     }
 
     // ------------------------------------------------------------------
