@@ -92,6 +92,8 @@ public final class VillagerWorks {
     }
 
     private static final List<Job> JOBS = new ArrayList<>();
+    /** Finished items still lying on a job site: they sparkle until they are picked up. */
+    private static final List<ItemEntity> READY = new ArrayList<>();
 
     private VillagerWorks() {
     }
@@ -125,6 +127,9 @@ public final class VillagerWorks {
     // ------------------------------------------------------------------
 
     private static void onServerTick(ServerTickEvent.Post event) {
+        if (!READY.isEmpty()) {
+            sparkleReady();
+        }
         if (JOBS.isEmpty()) {
             return;
         }
@@ -305,11 +310,33 @@ public final class VillagerWorks {
         item.setInvulnerable(true);
         item.setTarget(job.player); // only the player it was made for can pick it up
         item.setPickUpDelay(10);
+        item.setGlowingTag(true); // outline, visible through walls: it is not overlooked
         level.addFreshEntity(item);
+        READY.add(item);
         ServerPlayer player = level.getServer().getPlayerList().getPlayer(job.player);
         if (player != null) {
             player.displayClientMessage(Component.translatable("message.incursion.villager.work_done",
                     job.result.getHoverName()).withStyle(ChatFormatting.GOLD), true);
+        }
+    }
+
+    /** Every half second: a finished item that is still waiting on its job site sends up sparks. */
+    private static void sparkleReady() {
+        Iterator<ItemEntity> it = READY.iterator();
+        while (it.hasNext()) {
+            ItemEntity item = it.next();
+            if (!item.isAlive() || item.isRemoved() || !(item.level() instanceof ServerLevel level)) {
+                it.remove();
+                continue;
+            }
+            if (level.getGameTime() % 10 != 0) {
+                continue;
+            }
+            level.sendParticles(ParticleTypes.GLOW, item.getX(), item.getY() + 0.3, item.getZ(), 3, 0.25, 0.1, 0.25, 0.01);
+            level.sendParticles(ParticleTypes.END_ROD, item.getX(), item.getY() + 0.4, item.getZ(), 1, 0.05, 0.05, 0.05, 0.03);
+            if (level.getGameTime() % 100 == 0) {
+                level.playSound(null, item.blockPosition(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.NEUTRAL, 0.6F, 1.4F);
+            }
         }
     }
 
@@ -320,6 +347,7 @@ public final class VillagerWorks {
             }
         }
         JOBS.clear();
+        READY.clear();
     }
 
     // ------------------------------------------------------------------
