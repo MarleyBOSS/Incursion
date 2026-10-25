@@ -53,6 +53,7 @@ public final class StoryEvents {
         NeoForge.EVENT_BUS.addListener(StoryEvents::onLeaveLevel);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerInteract);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerTick);
+        NeoForge.EVENT_BUS.addListener(StoryEvents::onServerTick);
     }
 
     // ------------------------------------------------------------------
@@ -151,6 +152,15 @@ public final class StoryEvents {
             }
             return;
         }
+        if (StoryReady.has(villager) && StoryReady.isOwner(villager, event.getEntity().getUUID())) {
+            // he made something for this player: the pickup window instead of trading
+            cancel(event);
+            if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
+                    && event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+                openPickup(player, villager);
+            }
+            return;
+        }
         // The story items are no vanilla trades (older versions added rows): they are commissioned in the mod's window.
         villager.getOffers().removeIf(offer -> isStoryItem(offer.getResult()));
         if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
@@ -194,7 +204,7 @@ public final class StoryEvents {
     static java.util.List<StoryOffer> storyOffers(Villager villager, Player player) {
         java.util.List<StoryOffer> offers = new java.util.ArrayList<>();
         StoryVillagers.Keeper keeper = StoryVillagers.keeperOf(villager);
-        if (keeper == null || villager.getVillagerData().getLevel() < neededLevel(keeper)) {
+        if (keeper == null || villager.getVillagerData().getLevel() < neededLevel(keeper) || StoryReady.has(villager)) {
             return offers;
         }
         switch (keeper) {
@@ -226,44 +236,56 @@ public final class StoryEvents {
         return offers;
     }
 
+    /** Whether {@code player} is still close to his keeper and the keeper is in a state to talk (menus ask this). */
+    public static boolean stillAround(net.minecraft.world.entity.player.Player player, int villagerId) {
+        return player.level().getEntity(villagerId) instanceof Villager villager && villager.isAlive()
+                && villager.distanceToSqr(player) <= 10.0 * 10.0;
+    }
+
+    private static final java.util.List<Runnable> LATER = new java.util.ArrayList<>();
+
+    /** Closes {@code menu} for the player after the click that ordered has been handled completely. */
+    public static void closeNextTick(net.minecraft.server.level.ServerPlayer player,
+                                     net.minecraft.world.inventory.AbstractContainerMenu menu) {
+        LATER.add(() -> {
+            if (player.containerMenu == menu) {
+                player.closeContainer();
+            }
+        });
+    }
+
+    private static void onServerTick(net.neoforged.neoforge.event.tick.ServerTickEvent.Post event) {
+        if (!LATER.isEmpty()) {
+            java.util.List<Runnable> now = new java.util.ArrayList<>(LATER);
+            LATER.clear();
+            now.forEach(Runnable::run);
+        }
+    }
+
     /**
-     * The player commissions {@code key} in the mod's trading window: the costs are taken from the inventory and the
-     * villager makes it at his job site (VillagerWorks). Checked again here: he must still offer it.
+     * The player orders {@code quantity} times {@code offer} in the mod's trading menu (the payment is taken by the menu
+     * afterwards when this returns true). Checked again here: the keeper must be near, not busy or down, hold nothing
+     * finished, and still offer it.
      */
-    static void order(net.minecraft.server.level.ServerPlayer player, int villagerId, String key) {
+    static boolean beginOrder(net.minecraft.server.level.ServerPlayer player, int villagerId, StoryOffer offer, int quantity) {
         if (!(player.level().getEntity(villagerId) instanceof Villager villager) || !villager.isAlive()
                 || villager.distanceToSqr(player) > 10.0 * 10.0 || !(villager.level() instanceof ServerLevel level)) {
-            return;
+            return false;
         }
-        if (VillagerWorks.isBusy(villager) || StoryVillagers.isDown(villager)) {
+        if (VillagerWorks.isBusy(villager) || StoryVillagers.isDown(villager) || StoryReady.has(villager)) {
             player.displayClientMessage(Component.translatable("message.incursion.villager.busy")
                     .withStyle(ChatFormatting.GRAY), true);
-            return;
+            return false;
         }
-        StoryOffer offer = null;
+        boolean offered = false;
         for (StoryOffer candidate : storyOffers(villager, player)) {
-            if (candidate.key().equals(key)) {
-                offer = candidate;
-            }
+            offered |= candidate.key().equals(offer.key());
         }
-        if (offer == null) {
-            return;
+        if (!offered) {
+            return false;
         }
-        boolean creative = player.getAbilities().instabuild;
-        if (!creative) {
-            for (ItemStack cost : offer.costs()) {
-                if (player.getInventory().countItem(cost.getItem()) < cost.getCount()) {
-                    player.displayClientMessage(Component.translatable("message.incursion.villager.forge_cost",
-                            cost.getCount(), cost.getHoverName()).withStyle(ChatFormatting.RED), true);
-                    return;
-                }
-            }
-            for (ItemStack cost : offer.costs()) {
-                removeItems(player, cost.getItem(), cost.getCount());
-            }
-        }
-        ItemStack result = offer.result().copy();
-        switch (key) {
+        ItemStack result = offer.result().copyWithCount(quantity);
+        switch (offer.key()) {
             case "rune" -> {
                 CoreWorldData.get(level.getServer()).setRuneTraded(true); // once per world (until a Core is destroyed)
                 VillagerWorks.start(level, villager, player, VillagerWorks.Kind.SCRIBE,
@@ -278,6 +300,54 @@ public final class StoryEvents {
         villager.playSound(SoundEvents.VILLAGER_YES, 1.0F, 1.0F);
         player.displayClientMessage(Component.translatable("message.incursion.villager.order_started")
                 .withStyle(ChatFormatting.GOLD), true);
+        return true;
+    }
+
+    /** The icon beside the vanilla trading screen was clicked: the mod's trading menu replaces that screen. */
+    static void openTrade(net.minecraft.server.level.ServerPlayer player, int villagerId, int select) {
+        if (!(player.level().getEntity(villagerId) instanceof Villager villager) || !villager.isAlive()
+                || villager.distanceToSqr(player) > 10.0 * 10.0 || VillagerWorks.isBusy(villager)
+                || StoryVillagers.isDown(villager) || StoryReady.has(villager)) {
+            return;
+        }
+        java.util.List<StoryOffer> offers = storyOffers(villager, player);
+        if (offers.isEmpty()) {
+            return;
+        }
+        player.openMenu(new net.minecraft.world.SimpleMenuProvider(
+                (id, inventory, p) -> new com.marleyboss.incursion.menu.StoryTradeMenu(id, inventory, villagerId, offers,
+                        select),
+                Component.translatable("gui.incursion.story_trade.title")),
+                buf -> com.marleyboss.incursion.menu.StoryTradeMenu.write(buf, villagerId, select, offers));
+    }
+
+    /** The player talks to a keeper who made something for him: the pickup window opens instead of trading. */
+    private static void openPickup(net.minecraft.server.level.ServerPlayer player, Villager villager) {
+        java.util.List<ItemStack> items = StoryReady.items(villager);
+        StoryVillagers.Keeper keeper = StoryVillagers.keeperOf(villager);
+        if (items.isEmpty() || keeper == null) {
+            StoryReady.setAll(villager, player.getUUID(), java.util.List.of()); // nothing readable: forget it
+            return;
+        }
+        String line = "message.incursion.ready." + keeper.key + "." + (1 + villager.getRandom().nextInt(TALK_VARIANTS));
+        int id = villager.getId();
+        player.openMenu(new net.minecraft.world.SimpleMenuProvider(
+                (containerId, inventory, p) -> new com.marleyboss.incursion.menu.StoryPickupMenu(containerId, inventory, id,
+                        items, line),
+                villager.getDisplayName()),
+                buf -> com.marleyboss.incursion.menu.StoryPickupMenu.write(buf, id, line, items));
+    }
+
+    /** What is left in the pickup window is what the villager still keeps. */
+    public static void syncReady(net.minecraft.server.level.ServerPlayer player, int villagerId,
+                                 java.util.List<ItemStack> rest) {
+        if (player.level().getEntity(villagerId) instanceof Villager villager) {
+            boolean had = StoryReady.has(villager);
+            StoryReady.setAll(villager, player.getUUID(), rest);
+            if (had && !StoryReady.has(villager)) {
+                villager.playSound(SoundEvents.VILLAGER_CELEBRATE, 1.0F, 1.0F);
+            }
+        }
     }
 
     /** "Back" from the mod's trading window: his normal trading screen opens again (with panel and icons). */
@@ -370,6 +440,14 @@ public final class StoryEvents {
             return;
         }
         if (!Config.TRADES_ENABLED.get()) {
+            return;
+        }
+        if (StoryReady.has(villager)) {
+            // something is finished for the player: this keeper shines until it is taken
+            level.sendParticles(ParticleTypes.GLOW, villager.getX(), villager.getY() + villager.getBbHeight() + 0.4,
+                    villager.getZ(), 6, 0.3, 0.2, 0.3, 0.02);
+            level.sendParticles(ParticleTypes.END_ROD, villager.getX(), villager.getY() + villager.getBbHeight() + 0.6,
+                    villager.getZ(), 2, 0.1, 0.1, 0.1, 0.03);
             return;
         }
         VillagerProfession profession = villager.getVillagerData().getProfession();

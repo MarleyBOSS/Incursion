@@ -128,15 +128,6 @@ public final class VillagerWorks {
     }
 
     private static final List<Job> JOBS = new ArrayList<>();
-    /** Finished items still lying on a job site: they sparkle until they are taken. */
-    private static final List<Display.ItemDisplay> READY = new ArrayList<>();
-
-    private record ReadyStand(ServerLevel level, BlockPos pos, Item item) {
-    }
-
-    /** Finished potions in a brewing stand: the stand sparkles until the potion is taken out. */
-    private static final List<ReadyStand> READY_STANDS = new ArrayList<>();
-
     private record Refund(ServerLevel level, UUID player, ItemStack bought, List<ItemStack> paid) {
     }
 
@@ -186,9 +177,6 @@ public final class VillagerWorks {
     private static void onServerTick(ServerTickEvent.Post event) {
         if (!REFUNDS.isEmpty()) {
             runRefunds();
-        }
-        if (!READY.isEmpty() || !READY_STANDS.isEmpty()) {
-            sparkleReady();
         }
         if (JOBS.isEmpty()) {
             return;
@@ -465,7 +453,7 @@ public final class VillagerWorks {
         }
     }
 
-    /** The work is done (or cut short): the props go, the item goes into the job site for its player. */
+    /** The work is done (or cut short): the props go, the villager keeps the item for its player (or it lies there). */
     private static void finish(Job job, boolean show) {
         for (Display.ItemDisplay shown : job.shown) {
             shown.discard();
@@ -499,61 +487,37 @@ public final class VillagerWorks {
                 case SCRIBE -> level.sendParticles(ParticleTypes.END_ROD, p.x, p.y + 0.3, p.z, 6, 0.1, 0.1, 0.1, 0.05);
             }
         }
-        if (!storeInStation(job, level, p)) {
-            // no job site: it lies in front of him, only for its player
-            ItemEntity item = new ItemEntity(level, p.x, p.y + 0.05, p.z, job.result.copy());
-            item.setDeltaMovement(0.0, 0.18, 0.0);
-            item.setUnlimitedLifetime();
-            item.setInvulnerable(true);
-            item.setTarget(job.player);
-            item.setPickUpDelay(10);
-            item.setGlowingTag(true);
-            level.addFreshEntity(item);
+        // the bottle in the brewing stand goes again (the potion is not put there: the villager keeps it)
+        if (job.bottleSlot >= 0 && job.station != null
+                && level.getBlockEntity(job.station) instanceof BrewingStandBlockEntity stand
+                && stand.getItem(job.bottleSlot).is(Items.GLASS_BOTTLE)) {
+            stand.setItem(job.bottleSlot, ItemStack.EMPTY);
+            stand.setChanged();
+        }
+        if (villager.isAlive() && !villager.isRemoved() && level.getEntity(villager.getId()) == villager) {
+            // finished: he keeps it until the player talks to him again (pickup window)
+            StoryReady.set(villager, job.player, job.result);
+        } else {
+            // he cannot keep it any more: it lies where he worked, only for its player
+            int left = job.result.getCount();
+            while (left > 0) {
+                int n = Math.min(left, job.result.getMaxStackSize());
+                ItemEntity item = new ItemEntity(level, p.x, p.y + 0.05, p.z, job.result.copyWithCount(n));
+                item.setDeltaMovement(0.0, 0.18, 0.0);
+                item.setUnlimitedLifetime();
+                item.setInvulnerable(true);
+                item.setTarget(job.player);
+                item.setPickUpDelay(10);
+                item.setGlowingTag(true);
+                level.addFreshEntity(item);
+                left -= n;
+            }
         }
         ServerPlayer player = level.getServer().getPlayerList().getPlayer(job.player);
         if (player != null) {
             player.displayClientMessage(Component.translatable("message.incursion.villager.work_done",
                     job.result.getHoverName()).withStyle(ChatFormatting.GOLD), true);
         }
-    }
-
-    /**
-     * The finished item goes into the job site: the potion into the brewing stand (taken out through its screen), the
-     * rune and the tool lie on the lectern or smithing table (right-click the block to take them). Returns false if
-     * there is no job site to put it in.
-     */
-    private static boolean storeInStation(Job job, ServerLevel level, Vec3 p) {
-        BlockPos station = job.station;
-        if (station == null || !level.getBlockState(station).is(job.kind.station)) {
-            return false;
-        }
-        if (job.kind == Kind.BREW && level.getBlockEntity(station) instanceof BrewingStandBlockEntity stand) {
-            int slot = job.bottleSlot >= 0 && stand.getItem(job.bottleSlot).is(Items.GLASS_BOTTLE) ? job.bottleSlot : -1;
-            for (int i = 0; i < 3 && slot < 0; i++) {
-                if (stand.getItem(i).isEmpty()) {
-                    slot = i;
-                }
-            }
-            if (slot >= 0) {
-                stand.setItem(slot, job.result.copy());
-                stand.setChanged();
-                READY_STANDS.add(new ReadyStand(level, station, job.result.getItem()));
-                return true;
-            }
-            // all three bottle places are taken: it stands on top of the stand
-        }
-        Vec3 at = job.kind == Kind.BREW ? new Vec3(p.x, station.getY() + 1.0, p.z) : p;
-        Display.ItemDisplay shown = display(level, at, job.result, job.yaw, job.pitch, job.kind == Kind.SCRIBE ? 0.6F : 0.55F);
-        if (shown == null) {
-            return false;
-        }
-        shown.setGlowingTag(true);
-        shown.addTag(TAG_STATION_ITEM);
-        shown.getPersistentData().putUUID(DATA_OWNER, job.player);
-        shown.getPersistentData().putLong(DATA_STATION, station.asLong());
-        shown.getPersistentData().put(DATA_ITEM, job.result.save(level.registryAccess()));
-        READY.add(shown);
-        return true;
     }
 
     /**
@@ -640,47 +604,6 @@ public final class VillagerWorks {
         }
     }
 
-    /** Every half second: a finished item that is still waiting on its job site sends up sparks. */
-    private static void sparkleReady() {
-        Iterator<ReadyStand> stands = READY_STANDS.iterator();
-        while (stands.hasNext()) {
-            ReadyStand ready = stands.next();
-            if (ready.level().getGameTime() % 10 != 0) {
-                continue;
-            }
-            boolean still = false;
-            if (ready.level().isLoaded(ready.pos())
-                    && ready.level().getBlockEntity(ready.pos()) instanceof BrewingStandBlockEntity stand) {
-                for (int slot = 0; slot < 3; slot++) {
-                    still |= stand.getItem(slot).is(ready.item());
-                }
-            }
-            if (!still) {
-                stands.remove();
-                continue;
-            }
-            BlockPos at = ready.pos();
-            ready.level().sendParticles(ParticleTypes.GLOW, at.getX() + 0.5, at.getY() + 0.8, at.getZ() + 0.5, 3, 0.25, 0.15, 0.25, 0.01);
-            ready.level().sendParticles(ParticleTypes.END_ROD, at.getX() + 0.5, at.getY() + 1.0, at.getZ() + 0.5, 1, 0.05, 0.05, 0.05, 0.03);
-        }
-        Iterator<Display.ItemDisplay> it = READY.iterator();
-        while (it.hasNext()) {
-            Display.ItemDisplay shown = it.next();
-            if (!shown.isAlive() || shown.isRemoved() || !(shown.level() instanceof ServerLevel level)) {
-                it.remove();
-                continue;
-            }
-            if (level.getGameTime() % 10 != 0) {
-                continue;
-            }
-            level.sendParticles(ParticleTypes.GLOW, shown.getX(), shown.getY() + 0.2, shown.getZ(), 3, 0.2, 0.1, 0.2, 0.01);
-            level.sendParticles(ParticleTypes.END_ROD, shown.getX(), shown.getY() + 0.3, shown.getZ(), 1, 0.05, 0.05, 0.05, 0.03);
-            if (level.getGameTime() % 100 == 0) {
-                level.playSound(null, shown.blockPosition(), SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.NEUTRAL, 0.6F, 1.4F);
-            }
-        }
-    }
-
     private static void onServerStopping(ServerStoppingEvent event) {
         for (Job job : JOBS) {
             if (!job.takeBack) {
@@ -688,8 +611,6 @@ public final class VillagerWorks {
             }
         }
         JOBS.clear();
-        READY.clear();
-        READY_STANDS.clear();
         REFUNDS.clear();
     }
 

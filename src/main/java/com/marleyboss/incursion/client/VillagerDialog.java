@@ -13,6 +13,7 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
+import com.marleyboss.incursion.story.OpenTradePayload;
 import com.marleyboss.incursion.story.ReopenPayload;
 import com.marleyboss.incursion.story.StoryOffer;
 import net.neoforged.neoforge.client.event.ScreenEvent;
@@ -88,8 +89,7 @@ public final class VillagerDialog {
 
     /** From the mod's trading screen: back to the vanilla one (the server opens it again). */
     static void back(int villagerId) {
-        ReopenPayload.send(villagerId);
-        Minecraft.getInstance().setScreen(null);
+        ReopenPayload.send(villagerId); // the server opens his vanilla trading screen, replacing this one
     }
 
     private static void onInit(ScreenEvent.Init.Post event) {
@@ -115,11 +115,8 @@ public final class VillagerDialog {
             for (int i = 0; i < offers.size(); i++) {
                 final int index = i;
                 IconButton icon = new IconButton(x, y + i * 26, offers.get(i).result(), () -> {
-                    Minecraft mc = Minecraft.getInstance();
-                    if (mc.player != null) {
-                        mc.player.closeContainer(); // the vanilla screen goes: only one screen is ever open
-                    }
-                    mc.setScreen(new StoryTradeScreen(entityId, offers, index));
+                    // the server opens the mod's trading menu, which replaces the vanilla screen: one screen at a time
+                    OpenTradePayload.send(entityId, index);
                 });
                 icons.add(icon);
                 event.addListener(icon);

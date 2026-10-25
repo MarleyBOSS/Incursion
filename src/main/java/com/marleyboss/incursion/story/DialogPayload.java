@@ -33,11 +33,11 @@ public record DialogPayload(int entityId, List<String> lines, List<StoryOffer> o
         return TYPE;
     }
 
-    /** Mod bus: registers the story payloads (dialog to the client, orders and "back" to the server). */
+    /** Mod bus: registers the story payloads (dialog to the client, commission icons and "back" to the server). */
     public static void register(RegisterPayloadHandlersEvent event) {
         var registrar = event.registrar("2").optional();
         registrar.playToClient(TYPE, STREAM_CODEC, DialogPayload::handle);
-        registrar.playToServer(OrderPayload.TYPE, OrderPayload.STREAM_CODEC, OrderPayload::handle);
+        registrar.playToServer(OpenTradePayload.TYPE, OpenTradePayload.STREAM_CODEC, OpenTradePayload::handle);
         registrar.playToServer(ReopenPayload.TYPE, ReopenPayload.STREAM_CODEC, ReopenPayload::handle);
     }
 
