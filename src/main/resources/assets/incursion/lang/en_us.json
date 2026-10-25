@@ -431,5 +431,22 @@
   "message.incursion.villager.forge_mismatch": "For this tool he needs the %s.",
   "message.incursion.villager.forge_cost": "He asks %s × %s for it.",
   "message.incursion.villager.forge_start": "He lays both on his smithing table and reaches for his hammer …",
-  "message.incursion.villager.work_done": "Done: %s is ready for you."
+  "message.incursion.villager.work_done": "Done: %s is ready for you.",
+  "name.incursion.keeper.rune": "%s, Rune Keeper",
+  "name.incursion.keeper.glow": "%s, Keeper of the Embers",
+  "name.incursion.keeper.smith": "%s, Seal Smith",
+  "name.incursion.keeper.stone": "%s (turned to stone)",
+  "message.incursion.villager.stone": "He has turned to stone … He will wake up in the morning.",
+  "message.incursion.dialog.rune.1": "You carry the smell of the intruders … They come closer every night, don't they?",
+  "message.incursion.dialog.rune.2": "I keep the knowledge of the Seal Wardens. With it an anchor can be bound that keeps them away. But one does not give such a thing to a stranger.",
+  "message.incursion.dialog.rune.wait": "Come back when I know you better.",
+  "message.incursion.dialog.rune.trusted": "I have known you long enough. Ask me about the rune.",
+  "message.incursion.dialog.glow.1": "The embers in my cauldron remember an older fire …",
+  "message.incursion.dialog.glow.2": "A potion from them wakes what sleeps in the stone. Dangerous in the wrong hands.",
+  "message.incursion.dialog.glow.wait": "Only when I trust you will I brew it for you.",
+  "message.incursion.dialog.glow.trusted": "You have my trust. I will brew it for you when you need it.",
+  "message.incursion.dialog.smith.1": "My hammer once struck for the Order of the Seal Wardens.",
+  "message.incursion.dialog.smith.2": "Bring me what the mighty among the intruders leave behind, and your tool will grow stronger.",
+  "message.incursion.dialog.smith.wait": "But only as a master of my craft am I up to it.",
+  "message.incursion.dialog.smith.trusted": "Hold your tool and their sign in your hands, then I will forge."
 }

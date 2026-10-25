@@ -146,6 +146,29 @@ public final class StoryEvents {
         }
         VillagerProfession profession = villager.getVillagerData().getProfession();
         int level = villager.getVillagerData().getLevel();
+        if (StoryVillagers.isStone(villager)) {
+            cancel(event);
+            if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
+                event.getEntity().displayClientMessage(Component.translatable("message.incursion.villager.stone")
+                        .withStyle(ChatFormatting.GRAY), true);
+            }
+            return;
+        }
+        StoryVillagers.Keeper keeper = StoryVillagers.keeperOf(villager);
+        if (keeper != null) {
+            int needed = switch (keeper) {
+                case RUNE -> Config.RUNE_TRADE_LEVEL.get();
+                case GLOW -> Config.POTION_TRADE_LEVEL.get();
+                case SMITH -> Config.TOOL_FORGE_LEVEL.get();
+            };
+            boolean runeGone = keeper == StoryVillagers.Keeper.RUNE
+                    && CoreWorldData.get(villager.getServer()).isRuneTraded();
+            if (!runeGone && StoryVillagers.meet((ServerLevel) villager.level(), villager, event.getEntity(), keeper,
+                    level >= needed)) {
+                cancel(event); // the first meeting: he speaks instead of trading
+                return;
+            }
+        }
         if (profession == VillagerProfession.TOOLSMITH && level >= Config.TOOL_FORGE_LEVEL.get()
                 && tryForge(event, villager)) {
             return;
@@ -275,12 +298,12 @@ public final class StoryEvents {
     }
 
     /** Librarian that sells the Core Rune once he is a Master (decided once per villager, as soon as he is a librarian). */
-    private static boolean isRuneKeeper(Villager villager) {
+    static boolean isRuneKeeper(Villager villager) {
         return rolled(villager, ROLL_RUNE, Config.RUNE_TRADE_CHANCE.get());
     }
 
     /** Cleric that sells the Mythic Potion once he has the level (decided once per villager). */
-    private static boolean isPotionKeeper(Villager villager) {
+    static boolean isPotionKeeper(Villager villager) {
         return rolled(villager, ROLL_POTION, Config.POTION_TRADE_CHANCE.get());
     }
 
@@ -291,8 +314,14 @@ public final class StoryEvents {
      */
     private static void onVillagerTick(net.neoforged.neoforge.event.tick.EntityTickEvent.Post event) {
         if (!(event.getEntity() instanceof Villager villager) || !(villager.level() instanceof ServerLevel level)
-                || (villager.tickCount + villager.getId()) % 50 != 0 || villager.isBaby()
-                || !Config.TRADES_ENABLED.get()) {
+                || (villager.tickCount + villager.getId()) % 50 != 0 || villager.isBaby()) {
+            return;
+        }
+        if (StoryVillagers.isStone(villager)) {
+            StoryVillagers.tickStone(level, villager);
+            return;
+        }
+        if (!Config.TRADES_ENABLED.get()) {
             return;
         }
         VillagerProfession profession = villager.getVillagerData().getProfession();

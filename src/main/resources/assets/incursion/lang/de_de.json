@@ -431,5 +431,22 @@
   "message.incursion.villager.forge_mismatch": "Für dieses Werkzeug braucht er die %s.",
   "message.incursion.villager.forge_cost": "Er verlangt %s × %s dafür.",
   "message.incursion.villager.forge_start": "Er legt beides auf seinen Schmiedetisch und greift zum Hammer …",
-  "message.incursion.villager.work_done": "Fertig: %s liegt für dich bereit."
+  "message.incursion.villager.work_done": "Fertig: %s liegt für dich bereit.",
+  "name.incursion.keeper.rune": "%s, Runenhüter",
+  "name.incursion.keeper.glow": "%s, Hüter der Glut",
+  "name.incursion.keeper.smith": "%s, Siegelschmied",
+  "name.incursion.keeper.stone": "%s (versteinert)",
+  "message.incursion.villager.stone": "Er ist zu Stein erstarrt … Am Morgen erwacht er wieder.",
+  "message.incursion.dialog.rune.1": "Du trägst den Geruch der Eindringlinge an dir … Sie kommen jede Nacht näher, nicht wahr?",
+  "message.incursion.dialog.rune.2": "Ich hüte das Wissen der Siegelwächter. Mit ihm lässt sich ein Anker binden, der sie fernhält. Doch so etwas gibt man keinem Fremden.",
+  "message.incursion.dialog.rune.wait": "Komm wieder, wenn ich dich besser kenne.",
+  "message.incursion.dialog.rune.trusted": "Ich kenne dich lange genug. Frag mich nach der Rune.",
+  "message.incursion.dialog.glow.1": "Die Glut in meinem Kessel erinnert sich an ein älteres Feuer …",
+  "message.incursion.dialog.glow.2": "Ein Trank daraus weckt, was im Stein schläft. Gefährlich in den falschen Händen.",
+  "message.incursion.dialog.glow.wait": "Erst wenn ich dir vertraue, braue ich ihn für dich.",
+  "message.incursion.dialog.glow.trusted": "Du hast mein Vertrauen. Ich braue ihn dir, wenn du ihn brauchst.",
+  "message.incursion.dialog.smith.1": "Mein Hammer hat einst für den Orden der Siegelwächter geschlagen.",
+  "message.incursion.dialog.smith.2": "Bring mir, was die Mächtigen der Eindringlinge zurücklassen, und dein Werkzeug wird stärker.",
+  "message.incursion.dialog.smith.wait": "Doch erst als Meister meines Fachs bin ich dem gewachsen.",
+  "message.incursion.dialog.smith.trusted": "Halte dein Werkzeug und ihr Zeichen in den Händen, dann schmiede ich."
 }

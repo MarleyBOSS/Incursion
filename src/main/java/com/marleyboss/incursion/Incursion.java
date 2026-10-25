@@ -42,6 +42,7 @@ public class Incursion {
         com.marleyboss.incursion.siege.Generals.register();
         com.marleyboss.incursion.story.StoryEvents.register();
         com.marleyboss.incursion.story.VillagerWorks.register();
+        com.marleyboss.incursion.story.StoryVillagers.register();
         Fallout.register();
         com.marleyboss.incursion.block.EternalFire.register();
         Ritual.register();
