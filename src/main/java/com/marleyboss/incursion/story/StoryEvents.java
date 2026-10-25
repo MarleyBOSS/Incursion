@@ -200,7 +200,7 @@ public final class StoryEvents {
             if (level >= Config.TOOL_FORGE_LEVEL.get()) {
                 int tier = bestTool(event.getEntity());
                 if (tier < Config.UPGRADE_TOOL_MAX_TIER) {
-                    offers.add(new MerchantOffer(new ItemCost(ModItems.upgradeTool(tier).get(), 1),
+                    offers.add(0, new MerchantOffer(new ItemCost(ModItems.upgradeTool(tier).get(), 1),
                             Optional.of(new ItemCost(ModItems.insignia(tier).get(), 1)),
                             new ItemStack(ModItems.upgradeTool(tier + 1).get()), 1, 0, 0.0F));
                 }
@@ -365,14 +365,20 @@ public final class StoryEvents {
         }
     }
 
-    /** Adds {@code offer} unless the villager already sells its result. */
+    /**
+     * Puts {@code offer} at the top of the list (no scrolling for the story items); if the villager already sells its
+     * result, that offer is moved to the top instead (it keeps its uses).
+     */
     private static void ensure(MerchantOffers offers, MerchantOffer offer) {
         Item result = offer.getResult().getItem();
-        for (MerchantOffer existing : offers) {
-            if (existing.getResult().is(result)) {
+        for (int i = 0; i < offers.size(); i++) {
+            if (offers.get(i).getResult().is(result)) {
+                if (i > 0) {
+                    offers.add(0, offers.remove(i));
+                }
                 return;
             }
         }
-        offers.add(offer);
+        offers.add(0, offer);
     }
 }

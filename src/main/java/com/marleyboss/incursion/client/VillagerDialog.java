@@ -147,12 +147,19 @@ public final class VillagerDialog {
 
         Entity entity = mc.level != null ? mc.level.getEntity(entityId) : null;
         if (entity instanceof LivingEntity living) {
-            // his name tag would be drawn over his head (and cut off): hidden for the picture, the panel shows the name
+            // His name tag would be drawn over his head and cut off (it shows because he is under the crosshair, even
+            // when it is not always visible): without a name for the picture, the panel shows the name below.
+            Component customName = living.getCustomName();
             boolean nameShown = living.isCustomNameVisible();
+            living.setCustomName(null);
             living.setCustomNameVisible(false);
-            InventoryScreen.renderEntityInInventoryFollowsMouse(g, panel.x + 4, panel.y + 6, panel.x + panel.width - 4,
-                    panel.y + MODEL_HEIGHT, 30, 0.0625F, event.getMouseX(), event.getMouseY(), living);
-            living.setCustomNameVisible(nameShown);
+            try {
+                InventoryScreen.renderEntityInInventoryFollowsMouse(g, panel.x + 4, panel.y + 6, panel.x + panel.width - 4,
+                        panel.y + MODEL_HEIGHT, 30, 0.0625F, event.getMouseX(), event.getMouseY(), living);
+            } finally {
+                living.setCustomName(customName);
+                living.setCustomNameVisible(nameShown);
+            }
         }
 
         g.pose().pushPose();

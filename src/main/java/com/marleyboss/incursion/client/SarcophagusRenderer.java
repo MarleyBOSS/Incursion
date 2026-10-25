@@ -281,11 +281,6 @@ final class SarcophagusRenderer {
                         pz + Math.sin(ang) * 0.5, 0.0, 0.02, 0.0);
             }
         }
-        // While an upgrade waits (a tablet is in, its general not yet beaten) the whole Core shudders in bursts.
-        if (active && core.hasPendingUpgrade()) {
-            float burst = Mth.clamp(Mth.sin(time * 0.07F) * 2.0F - 1.0F, 0.0F, 1.0F);
-            shake += (Mth.sin(time * 3.1F) + 0.5F * Mth.sin(time * 5.3F)) * 0.02F * burst;
-        }
         // The ritual items are consumed while the Core ignites and come back (the rune) when it is defused.
         float contents = t > 0.0F ? 1.0F - ease(t / 0.45F) : 1.0F;
         // The powders are destroyed by a defuse: while the countdown runs (and the block closes) only the rune comes back.
@@ -470,6 +465,7 @@ final class SarcophagusRenderer {
         late.lift = lift;
         late.twist = twist;
         late.shake = shake;
+        late.unrest = active && core.hasPendingUpgrade() ? 1.0F : 0.0F;
         float evoAge = -1.0F;
         float evoBoost = 1.0F;
         if (active && core.isEvoShow()) {
@@ -612,6 +608,8 @@ final class SarcophagusRenderer {
         float vh;
         float window;
         float yaw;
+        /** 1 while an upgrade waits: the inner Core is restless (something is coming). */
+        float unrest;
         /** Ticks since a new stage began to rise (the upgrade animation), -1 = none. */
         float evoAge = -1.0F;
     }
@@ -674,6 +672,14 @@ final class SarcophagusRenderer {
             float cf = coreFactor(d.vs);
             pose.pushPose();
             pose.translate(0.5F, ORB_Y, 0.5F);
+            if (d.unrest > 0.0F) {
+                // restless, all the time: it trembles on an uneven beat and breathes faster, like something about to happen
+                float tr = 0.012F * d.unrest;
+                pose.translate((Mth.sin(time * 1.9F) * 0.6F + Mth.sin(time * 4.7F + 1.3F) * 0.4F) * tr,
+                        (Mth.sin(time * 2.3F + 0.7F) * 0.5F + Mth.sin(time * 5.9F) * 0.5F) * tr,
+                        (Mth.sin(time * 2.1F + 2.1F) * 0.6F + Mth.sin(time * 4.3F + 0.4F) * 0.4F) * tr);
+                cf *= 1.0F + 0.05F * d.unrest * (Mth.sin(time * 0.55F) * 0.6F + Mth.sin(time * 1.37F) * 0.4F);
+            }
             pose.scale(cf, cf, cf);
             pose.translate(-0.5F, -ORB_Y, -0.5F);
             drawOrb(pose, buffer, time, d.orb, d.flash, d.vs);
