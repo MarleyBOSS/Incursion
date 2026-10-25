@@ -924,6 +924,11 @@ public final class Config {
             .comment("How long the cleric needs to brew Mythic Potions (seconds); he brews three at once, like a brewing stand.")
             .defineInRange("potionCraftSeconds", 45, 1, 3600);
 
+    public static final ModConfigSpec.IntValue REST_SECONDS = BUILDER
+            .comment("After a keeper has made 16 items in a row (over any number of orders) he has to rest this long",
+                    "(seconds) before he takes the next commission. It starts when the work on the last order is done.")
+            .defineInRange("restSeconds", 300, 1, 7200);
+
     public static final ModConfigSpec.IntValue FORGE_CRAFT_SECONDS = BUILDER
             .comment("How long the toolsmith needs to forge an Upgrade Tool (seconds).")
             .defineInRange("forgeCraftSeconds", 90, 1, 3600);

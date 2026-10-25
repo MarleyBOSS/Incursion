@@ -92,7 +92,15 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
         // with the amount selector the order button is narrower and sits right of it
         order.setX(leftPos + (multi ? 184 : 112));
         order.setWidth(multi ? 78 : 150);
-        order.active = menu.quantity() > 0; // the payment is complete
+        order.active = menu.quantity() > 0; // the payment is complete (and he is not resting)
+        int rest = menu.restSeconds();
+        order.setMessage(rest > 0
+                ? Component.translatable("gui.incursion.story_trade.resting", (rest / 60) + ":" + String.format("%02d", rest % 60))
+                : Component.translatable("gui.incursion.story_trade.order"));
+        if (rest > 0) {
+            minus.active = false;
+            plus.active = false;
+        }
     }
 
     @Override
@@ -138,6 +146,12 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
         g.fill(left + 4 + ROW_W + 4, top + 8, left + 4 + ROW_W + 5, top + HEIGHT - 6, COLOR_FRAME_DARK);
 
         g.drawString(font, Component.translatable("gui.incursion.story_trade.list"), left + 8, top + 6, COLOR_TITLE, false);
+        if (menu.isMulti()) {
+            // how many more he can make before he has to rest
+            Component capacity = Component.translatable("gui.incursion.story_trade.capacity", menu.capacityLeft(),
+                    StoryTradeMenu.MAX_QUANTITY);
+            g.drawString(font, capacity, left + 8, top + HEIGHT - 17, menu.capacityLeft() > 0 ? COLOR_DIM : 0xFFD06060, false);
+        }
         g.drawString(font, title, left + 112, top + 6, COLOR_TITLE, false);
 
         List<StoryOffer> offers = menu.offers();

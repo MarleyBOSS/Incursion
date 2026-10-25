@@ -45,6 +45,9 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     };
     /** Seconds the selected commission takes in this amount (set by the server every tick, shown by the screen). */
     private final DataSlot time = DataSlot.standalone();
+    /** How many more items he can make before he has to rest, and the seconds of rest left (0 = none). */
+    private final DataSlot capacity = DataSlot.standalone();
+    private final DataSlot rest = DataSlot.standalone();
     private final DataSlot selected = DataSlot.standalone();
     private final DataSlot amount = DataSlot.standalone();
     private final Inventory playerInventory;
@@ -60,6 +63,9 @@ public class StoryTradeMenu extends AbstractContainerMenu {
         addDataSlot(selected);
         addDataSlot(amount);
         addDataSlot(time);
+        capacity.set(StoryTradeMenu.MAX_QUANTITY);
+        addDataSlot(capacity);
+        addDataSlot(rest);
         // payment slots (x/y as the screen draws them) and the result slot
         for (int i = 0; i < INPUTS; i++) {
             final int slotIndex = i;
@@ -157,7 +163,7 @@ public class StoryTradeMenu extends AbstractContainerMenu {
 
     /** How many the selected commission can be ordered at once. */
     public int maxAmount() {
-        return isMulti() ? MAX_QUANTITY : 1;
+        return isMulti() ? Math.max(1, Math.min(MAX_QUANTITY, capacity.get())) : 1;
     }
 
     /** How many are ordered (set with the plus and minus buttons). */
@@ -168,7 +174,7 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     /** The amount the payment in the slots covers: {@link #amount()} if every slot holds enough, otherwise 0. */
     public int quantity() {
         StoryOffer offer = selectedOffer();
-        if (offer == null) {
+        if (offer == null || rest.get() > 0) {
             return 0;
         }
         int times = amount();
@@ -183,6 +189,14 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     }
 
     /** What the result slot shows: the item of the selected commission, as often as is ordered. */
+    public int capacityLeft() {
+        return capacity.get();
+    }
+
+    public int restSeconds() {
+        return rest.get();
+    }
+
     public int seconds() {
         return time.get();
     }
@@ -191,6 +205,9 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     public void broadcastChanges() {
         if (playerInventory.player instanceof ServerPlayer serverPlayer && selectedOffer() != null) {
             time.set(StoryEvents.craftSeconds(selectedOffer().key(), amount(), serverPlayer.getAbilities().instabuild));
+            int[] info = StoryEvents.restInfo(serverPlayer, villagerId);
+            capacity.set(info[0]);
+            rest.set(info[1]);
         }
         super.broadcastChanges();
     }

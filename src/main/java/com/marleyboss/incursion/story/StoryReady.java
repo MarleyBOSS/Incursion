@@ -23,6 +23,10 @@ public final class StoryReady {
     private static final String KEY_END = "IncursionWorkEnd";
     private static final String KEY_KIND = "IncursionWorkKind";
     private static final String KEY_PROPS = "IncursionWorkProps";
+    private static final String KEY_MADE = "IncursionMadeInARow";
+    private static final String KEY_REST = "IncursionRestUntil";
+    /** Items a keeper makes in a row before he has to rest. */
+    public static final int CAPACITY = 16;
 
     private StoryReady() {
     }
@@ -118,6 +122,37 @@ public final class StoryReady {
             clear(villager);
         } else {
             data.put(KEY_ITEMS, tag);
+        }
+    }
+
+    /** How many more items he can make before he has to rest (after a rest he can make {@link #CAPACITY} again). */
+    public static int capacityLeft(Villager villager) {
+        CompoundTag data = villager.getPersistentData();
+        if (data.getLong(KEY_REST) > 0 && villager.level().getGameTime() >= data.getLong(KEY_REST)) {
+            data.remove(KEY_REST); // rested
+            data.remove(KEY_MADE);
+        }
+        return Math.max(0, CAPACITY - data.getInt(KEY_MADE));
+    }
+
+    /** Seconds he still has to rest (0 = he can work). */
+    public static int restSeconds(Villager villager) {
+        capacityLeft(villager); // ends a finished rest
+        long until = villager.getPersistentData().getLong(KEY_REST);
+        long now = villager.level().getGameTime();
+        return until > now ? (int) ((until - now + 19) / 20) : 0;
+    }
+
+    /**
+     * {@code quantity} more items were ordered; the work ends at game time {@code end}. When that fills his capacity he
+     * rests for {@code restTicks} after the work.
+     */
+    public static void addMade(Villager villager, int quantity, long end, long restTicks) {
+        CompoundTag data = villager.getPersistentData();
+        int made = data.getInt(KEY_MADE) + quantity;
+        data.putInt(KEY_MADE, made);
+        if (made >= CAPACITY) {
+            data.putLong(KEY_REST, end + restTicks);
         }
     }
 

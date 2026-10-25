@@ -282,6 +282,15 @@ public final class StoryEvents {
                     .withStyle(ChatFormatting.GRAY), true);
             return false;
         }
+        int rest = StoryReady.restSeconds(villager);
+        if (rest > 0) {
+            player.displayClientMessage(Component.translatable("message.incursion.villager.resting",
+                    (rest / 60) + ":" + String.format("%02d", rest % 60)).withStyle(ChatFormatting.GRAY), true);
+            return false;
+        }
+        if (quantity > StoryReady.capacityLeft(villager)) {
+            return false;
+        }
         boolean offered = false;
         for (StoryOffer candidate : storyOffers(villager, player)) {
             offered |= candidate.key().equals(offer.key());
@@ -308,7 +317,9 @@ public final class StoryEvents {
             }
         }
         long seconds = craftSeconds(offer.key(), quantity, player.getAbilities().instabuild);
-        StoryReady.begin(villager, player.getUUID(), result, props, kind.key(), level.getGameTime() + seconds * 20L);
+        long end = level.getGameTime() + seconds * 20L;
+        StoryReady.begin(villager, player.getUUID(), result, props, kind.key(), end);
+        StoryReady.addMade(villager, quantity, end, Config.REST_SECONDS.get() * 20L);
         VillagerWorks.start(level, villager, kind, props);
         villager.playSound(SoundEvents.VILLAGER_YES, 1.0F, 1.0F);
         player.displayClientMessage(Component.translatable("message.incursion.villager.order_started")
@@ -329,6 +340,14 @@ public final class StoryEvents {
         int rounds = "potion".equals(key) ? (Math.max(1, quantity) + 2) / 3 : Math.max(1, quantity);
         int seconds = base * rounds;
         return creative ? Math.min(seconds, 8) : seconds;
+    }
+
+    /** {capacity left, seconds of rest left} of this keeper (for the mod's trading window). */
+    public static int[] restInfo(net.minecraft.world.entity.player.Player player, int villagerId) {
+        if (player.level().getEntity(villagerId) instanceof Villager villager) {
+            return new int[] {StoryReady.capacityLeft(villager), StoryReady.restSeconds(villager)};
+        }
+        return new int[] {StoryReady.CAPACITY, 0};
     }
 
     /** The icon beside the vanilla trading screen was clicked: the mod's trading menu replaces that screen. */
