@@ -16,6 +16,8 @@ Diese Datei ist der Einstieg für jeden neuen Chat zu diesem Projekt. Lies sie z
 
 ## Letzter Stand
 
+- **ÜBERGABE (25.10.2026, Ende v0.16.11):** Aktuell `mod_version=0.16.11`, CI grün, Pre-Release `dev`. Der Spieler hat bestätigt: Boss-Strahlen, Drachen-Käfig und Wither-Seitenstrahlen **passen jetzt** (Wither-Start: 1,4·s seitlich, 2,6·s hoch, 0,4·s vor Kopfmitte in `witherSides`; Drachen-Käfig über `cageCenter`). Versionsregel: nur letzte Stelle (0.16.x) für Fixes/Optik; **vor 0.17 immer den Spieler fragen**. Nächster Schritt: Der Spieler wählt das nächste Roadmap-Thema (siehe Roadmap). Noch nie im Spiel geprüft (nur geschätzt/vermutet): Warden-Rippen/Brüllen-Animation, Ursache der „waiting for a builder“-Mobs (Abhilfe in v0.16.4), Last durch sehr große Krater (bis ~1,4 Mio. Blöcke bei Stufe 20), Pulver-Verbrennen, per Reflection gesetzte Wither-Kopfdrehung und Warden-Herz.
+
 - v0.1 und v0.2 getestet ✔. v0.3–v0.7: KI-Iterationen.
 - **Priorität des Nutzers:** Der Kern muss auf **jeder Stufe und in jeder Höhe** zuverlässig zerstört werden können. Erst danach geht es weiter (Schild usw.).
 - v0.6 getestet: Kern wird fast immer zerstört, aber v. a. durch Phantome (zu oft, machen Mauern sinnlos). Baumeister bauten Treppen (keine Leitern); Mobs blockierten sich auf der Treppe, Baumeister kam nach Sturz nicht wieder hoch; viele Mobs in Höhlen weit weg, die nie starben (Performance). Wunsch: Mobs als Einheit, mehrere Treppen, Phantome nur vereinzelt / hohe Stufe / ohne Alternative. Höhlenbasen sollen möglich bleiben.
