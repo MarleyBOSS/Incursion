@@ -26,6 +26,8 @@ import java.util.List;
 public class StoryTradeMenu extends AbstractContainerMenu {
     public static final int INPUTS = 3;
     public static final int RESULT = INPUTS;
+    /** Menu button: order (the "Commission" button of the screen). */
+    public static final int BUTTON_ORDER = 100;
     private static final int PLAYER_START = INPUTS + 1;
 
     private final int villagerId;
@@ -72,6 +74,11 @@ public class StoryTradeMenu extends AbstractContainerMenu {
             @Override
             public boolean mayPickup(Player player) {
                 return false;
+            }
+
+            @Override
+            public boolean isHighlightable() {
+                return false; // only shows what is made: it is not a place to click
             }
         });
         for (int row = 0; row < 3; row++) {
@@ -152,6 +159,12 @@ public class StoryTradeMenu extends AbstractContainerMenu {
 
     @Override
     public boolean clickMenuButton(Player player, int id) {
+        if (id == BUTTON_ORDER) {
+            if (player instanceof ServerPlayer serverPlayer) {
+                order(serverPlayer);
+            }
+            return true;
+        }
         if (id >= 0 && id < offers.size()) {
             selected.set(id);
             return true;
@@ -162,11 +175,7 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     @Override
     public void clicked(int slotId, int button, ClickType clickType, Player player) {
         if (slotId == RESULT) {
-            // the result slot is never moved: a click orders (server), the item comes later from the villager
-            if (player instanceof ServerPlayer serverPlayer && (clickType == ClickType.PICKUP || clickType == ClickType.QUICK_MOVE)) {
-                order(serverPlayer);
-            }
-            return;
+            return; // the result slot only shows what is made
         }
         super.clicked(slotId, button, clickType, player);
     }

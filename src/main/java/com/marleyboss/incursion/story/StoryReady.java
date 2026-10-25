@@ -11,18 +11,30 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * A finished commission waits in the villager (saved in his persistent data) until the player it was made for talks to
- * him again and takes it in the pickup window. One finished order (up to 9 stacks) per villager.
+ * A commission the villager is working on or has finished, kept in the villager himself (persistent data, so it
+ * survives unloading and restarts): the order (up to 9 stacks) for its owner, when it was begun and when it is done
+ * (game time), what kind of work it is and what lies on his station while he works. Once it is done the owner takes it
+ * in the pickup window. One order per villager.
  */
 public final class StoryReady {
     private static final String KEY_ITEMS = "IncursionReadyItems";
     private static final String KEY_OWNER = "IncursionReadyOwner";
+    private static final String KEY_START = "IncursionWorkStart";
+    private static final String KEY_END = "IncursionWorkEnd";
+    private static final String KEY_KIND = "IncursionWorkKind";
+    private static final String KEY_PROPS = "IncursionWorkProps";
 
     private StoryReady() {
     }
 
+    /** He holds an order (still in work or done). */
     public static boolean has(Villager villager) {
         return villager.getPersistentData().contains(KEY_ITEMS);
+    }
+
+    /** The work on it is over (game time of his level). */
+    public static boolean done(Villager villager) {
+        return has(villager) && villager.level().getGameTime() >= villager.getPersistentData().getLong(KEY_END);
     }
 
     public static boolean isOwner(Villager villager, UUID player) {
@@ -30,9 +42,34 @@ public final class StoryReady {
         return data.hasUUID(KEY_OWNER) && data.getUUID(KEY_OWNER).equals(player);
     }
 
+    public static long start(Villager villager) {
+        return villager.getPersistentData().getLong(KEY_START);
+    }
+
+    public static long end(Villager villager) {
+        return villager.getPersistentData().getLong(KEY_END);
+    }
+
+    public static String kind(Villager villager) {
+        return villager.getPersistentData().getString(KEY_KIND);
+    }
+
+    public static UUID owner(Villager villager) {
+        CompoundTag data = villager.getPersistentData();
+        return data.hasUUID(KEY_OWNER) ? data.getUUID(KEY_OWNER) : null;
+    }
+
     public static List<ItemStack> items(Villager villager) {
+        return read(villager, KEY_ITEMS);
+    }
+
+    public static List<ItemStack> props(Villager villager) {
+        return read(villager, KEY_PROPS);
+    }
+
+    private static List<ItemStack> read(Villager villager, String key) {
         List<ItemStack> list = new ArrayList<>();
-        ListTag tag = villager.getPersistentData().getList(KEY_ITEMS, Tag.TAG_COMPOUND);
+        ListTag tag = villager.getPersistentData().getList(key, Tag.TAG_COMPOUND);
         for (int i = 0; i < tag.size(); i++) {
             ItemStack stack = ItemStack.parseOptional(villager.registryAccess(), tag.getCompound(i));
             if (!stack.isEmpty()) {
@@ -42,8 +79,21 @@ public final class StoryReady {
         return list;
     }
 
-    /** Stores {@code total} (split into stacks of the item's maximum size, at most 9 stacks) for {@code owner}. */
-    public static void set(Villager villager, UUID owner, ItemStack total) {
+    private static ListTag write(Villager villager, List<ItemStack> stacks) {
+        ListTag tag = new ListTag();
+        for (ItemStack stack : stacks) {
+            if (!stack.isEmpty()) {
+                tag.add(stack.save(villager.registryAccess()));
+            }
+        }
+        return tag;
+    }
+
+    /**
+     * A new order: {@code total} (split into stacks of the item's maximum size, at most 9 stacks) for {@code owner}, done
+     * at game time {@code end}.
+     */
+    public static void begin(Villager villager, UUID owner, ItemStack total, List<ItemStack> props, String kind, long end) {
         List<ItemStack> stacks = new ArrayList<>();
         int left = total.getCount();
         while (left > 0 && stacks.size() < 9) {
@@ -51,28 +101,33 @@ public final class StoryReady {
             stacks.add(total.copyWithCount(n));
             left -= n;
         }
-        setAll(villager, owner, stacks);
+        CompoundTag data = villager.getPersistentData();
+        data.put(KEY_ITEMS, write(villager, stacks));
+        data.put(KEY_PROPS, write(villager, props));
+        data.putUUID(KEY_OWNER, owner);
+        data.putString(KEY_KIND, kind);
+        data.putLong(KEY_START, villager.level().getGameTime());
+        data.putLong(KEY_END, end);
     }
 
-    /** Replaces what is waiting (an empty list clears it). */
-    public static void setAll(Villager villager, UUID owner, List<ItemStack> stacks) {
-        List<ItemStack> kept = new ArrayList<>();
-        for (ItemStack stack : stacks) {
-            if (!stack.isEmpty()) {
-                kept.add(stack);
-            }
-        }
+    /** What is left after the owner took some (nothing left clears the order). */
+    public static void setRest(Villager villager, List<ItemStack> rest) {
+        ListTag tag = write(villager, rest);
         CompoundTag data = villager.getPersistentData();
-        if (kept.isEmpty()) {
-            data.remove(KEY_ITEMS);
-            data.remove(KEY_OWNER);
-            return;
+        if (tag.isEmpty()) {
+            clear(villager);
+        } else {
+            data.put(KEY_ITEMS, tag);
         }
-        ListTag tag = new ListTag();
-        for (ItemStack stack : kept) {
-            tag.add(stack.save(villager.registryAccess()));
-        }
-        data.put(KEY_ITEMS, tag);
-        data.putUUID(KEY_OWNER, owner);
+    }
+
+    public static void clear(Villager villager) {
+        CompoundTag data = villager.getPersistentData();
+        data.remove(KEY_ITEMS);
+        data.remove(KEY_OWNER);
+        data.remove(KEY_START);
+        data.remove(KEY_END);
+        data.remove(KEY_KIND);
+        data.remove(KEY_PROPS);
     }
 }

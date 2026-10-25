@@ -20,8 +20,6 @@ import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.MerchantResultSlot;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -69,16 +67,28 @@ public final class VillagerWorks {
         SCRIBE(Blocks.LECTERN, 160);
 
         final Block station;
+        /** Length of the finishing show (ticks): the last seconds of every job. */
         final int duration;
 
         Kind(Block station, int duration) {
             this.station = station;
             this.duration = duration;
         }
+
+        public String key() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+
+        public static Kind fromKey(String key) {
+            for (Kind kind : values()) {
+                if (kind.key().equals(key)) {
+                    return kind;
+                }
+            }
+            return null;
+        }
     }
 
-    /** How long the work waits for the player to close the trading screen (bought items). */
-    private static final int MAX_WAIT_TICKS = 20 * 60;
     /** Ticks a villager may need to walk to his job site before he works where he is. */
     private static final int MAX_WALK_TICKS = 20 * 12;
     private static final String TAG_STATION_ITEM = "incursion_station_item";
@@ -90,14 +100,8 @@ public final class VillagerWorks {
     private static final class Job {
         final ServerLevel level;
         final Villager villager;
-        final UUID player;
         final Kind kind;
         final List<ItemStack> props;
-        final ItemStack result;
-        /** The bought item still has to be taken back from the player (it went into his inventory with the trade). */
-        boolean takeBack;
-        boolean waiting;
-        int waited;
         int age = -1;
         @Nullable
         BlockPos station;
@@ -114,25 +118,15 @@ public final class VillagerWorks {
         boolean bookLaid;
         ItemStack heldBefore = ItemStack.EMPTY;
 
-        Job(ServerLevel level, Villager villager, UUID player, Kind kind, List<ItemStack> props, ItemStack result,
-            boolean bought) {
+        Job(ServerLevel level, Villager villager, Kind kind, List<ItemStack> props) {
             this.level = level;
             this.villager = villager;
-            this.player = player;
             this.kind = kind;
             this.props = props;
-            this.result = result;
-            this.takeBack = bought;
-            this.waiting = bought;
         }
     }
 
     private static final List<Job> JOBS = new ArrayList<>();
-    private record Refund(ServerLevel level, UUID player, ItemStack bought, List<ItemStack> paid) {
-    }
-
-    private static final List<Refund> REFUNDS = new ArrayList<>();
-
     private VillagerWorks() {
     }
 
@@ -153,21 +147,14 @@ public final class VillagerWorks {
     }
 
     /**
-     * Starts a work. {@code props} are laid on the job site while the villager works (shown only), {@code result} is
-     * there at the end. With {@code bought}, the result was just bought: it is taken back from the player first and the
-     * work starts when the trading screen is closed.
+     * The villager works on the order he holds (see StoryReady): he walks to his job site and works there until the
+     * time of the order is over. {@code props} lie on the site while he works (shown only). Also used to go on after
+     * the villager was unloaded.
      */
-    public static void start(ServerLevel level, Villager villager, Player player, Kind kind, List<ItemStack> props,
-                             ItemStack result, boolean bought) {
-        JOBS.add(new Job(level, villager, player.getUUID(), kind, props, result, bought));
-    }
-
-    /**
-     * The trade cannot be done after all (e.g. the material is missing): next tick the bought item is taken back and
-     * what was paid in the screen is given back.
-     */
-    public static void refund(ServerLevel level, Player player, ItemStack bought, List<ItemStack> paid) {
-        REFUNDS.add(new Refund(level, player.getUUID(), bought, paid));
+    public static void start(ServerLevel level, Villager villager, Kind kind, List<ItemStack> props) {
+        if (!isBusy(villager)) {
+            JOBS.add(new Job(level, villager, kind, props));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -175,9 +162,6 @@ public final class VillagerWorks {
     // ------------------------------------------------------------------
 
     private static void onServerTick(ServerTickEvent.Post event) {
-        if (!REFUNDS.isEmpty()) {
-            runRefunds();
-        }
         if (JOBS.isEmpty()) {
             return;
         }
@@ -189,48 +173,14 @@ public final class VillagerWorks {
         }
     }
 
-    private static void runRefunds() {
-        for (Refund refund : REFUNDS) {
-            ServerPlayer player = refund.level().getServer().getPlayerList().getPlayer(refund.player());
-            if (player == null || !takeBack(player, refund.bought().getItem())) {
-                continue; // nothing to take back: nothing to give back
-            }
-            for (ItemStack stack : refund.paid()) {
-                ItemStack copy = stack.copy();
-                if (!player.getInventory().add(copy)) {
-                    player.drop(copy, false);
-                }
-            }
-        }
-        REFUNDS.clear();
-    }
-
     /** Returns true when the job is over. */
     private static boolean tick(Job job) {
         Villager villager = job.villager;
-        ServerPlayer player = job.level.getServer().getPlayerList().getPlayer(job.player);
-        if (job.takeBack) {
-            job.takeBack = false;
-            if (player == null || !takeBack(player, job.result.getItem())) {
-                return true; // the bought item is not there to take back: the player keeps it, no show
-            }
-        }
-        if (!villager.isAlive() || villager.isRemoved() || villager.level() != job.level) {
-            finish(job, false);
+        if (!villager.isAlive() || villager.isRemoved() || villager.level() != job.level || !StoryReady.has(villager)) {
+            finish(job, false); // gone, unloaded, or the order was taken away: the order itself stays as it is
             return true;
         }
-        if (job.waiting) {
-            if (villager.isTrading() && ++job.waited < MAX_WAIT_TICKS) {
-                return false;
-            }
-            job.waiting = false;
-        }
         if (job.age < 0) {
-            for (Job other : JOBS) {
-                if (other != job && other.villager == villager && (other.age >= 0 || other.located)) {
-                    return false; // one thing after the other (e.g. two potions bought at once)
-                }
-            }
             if (!job.located) {
                 job.located = true;
                 job.station = findStation(job.level, villager, job.kind.station);
@@ -243,7 +193,7 @@ public final class VillagerWorks {
                         new net.minecraft.world.entity.ai.memory.WalkTarget(job.station, 0.6F, 1));
                 villager.getBrain().setMemory(MemoryModuleType.LOOK_TARGET,
                         new net.minecraft.world.entity.ai.behavior.BlockPosTracker(job.station));
-                return false;
+                return StoryReady.done(villager) && fin(job);
             }
             villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
             begin(job);
@@ -254,12 +204,22 @@ public final class VillagerWorks {
         villager.getLookControl().setLookAt(job.top.x, job.top.y, job.top.z);
         // his tool in the hand (other behaviours of the villager would take it away)
         villager.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(handTool(job.kind)));
-        step(job);
-        if (job.age >= job.kind.duration) {
+        long remaining = StoryReady.end(villager) - job.level.getGameTime();
+        if (remaining <= job.kind.duration) {
+            step(job, (int) (job.kind.duration - Math.max(0, remaining))); // the finishing show
+        } else {
+            idle(job, job.age);
+        }
+        if (remaining <= 0) {
             finish(job, true);
             return true;
         }
         return false;
+    }
+
+    private static boolean fin(Job job) {
+        finish(job, false);
+        return true;
     }
 
     private static Item handTool(Kind kind) {
@@ -351,11 +311,10 @@ public final class VillagerWorks {
     }
 
     /** The show while the villager works. */
-    private static void step(Job job) {
+    private static void step(Job job, int a) {
         ServerLevel level = job.level;
         Vec3 p = job.top;
         BlockPos at = BlockPos.containing(p);
-        int a = job.age;
         switch (job.kind) {
             case FORGE -> {
                 if (a == 20 || a == 38 || a == 56 || a == 74) {
@@ -400,6 +359,47 @@ public final class VillagerWorks {
                 }
             }
             case SCRIBE -> scribe(job, level, p, at, a);
+        }
+    }
+
+    /** The long part of the work: the same small movements again and again until the finishing show begins. */
+    private static void idle(Job job, int a) {
+        ServerLevel level = job.level;
+        Vec3 p = job.top;
+        BlockPos at = BlockPos.containing(p);
+        switch (job.kind) {
+            case FORGE -> {
+                int t = a % 30;
+                if (t == 0) {
+                    level.playSound(null, at, SoundEvents.ANVIL_USE, SoundSource.NEUTRAL, 0.5F, 0.85F);
+                    level.sendParticles(ParticleTypes.ELECTRIC_SPARK, p.x, p.y + 0.08, p.z, 10, 0.15, 0.04, 0.15, 0.2);
+                    lift(job, 0.06);
+                } else if (t == 3) {
+                    lift(job, 0.0);
+                }
+            }
+            case BREW -> {
+                if (a % 10 == 0) {
+                    level.sendParticles(ParticleTypes.BUBBLE_POP, p.x, at.getY() + 0.85, p.z, 2, 0.15, 0.05, 0.15, 0.02);
+                }
+                if (a % 16 == 0) {
+                    level.sendParticles(ParticleTypes.SMALL_FLAME, p.x, at.getY() + 0.15, p.z, 2, 0.08, 0.02, 0.08, 0.01);
+                }
+                if (a % 70 == 10) {
+                    level.playSound(null, at, SoundEvents.BREWING_STAND_BREW, SoundSource.NEUTRAL, 0.7F, 0.9F);
+                }
+            }
+            case SCRIBE -> {
+                Vec3 head = job.villager.getEyePosition();
+                if (a % 4 == 0) {
+                    Vec3 d = p.subtract(head);
+                    level.sendParticles(ParticleTypes.ENCHANT, head.x + d.x * 0.3, head.y + d.y * 0.3, head.z + d.z * 0.3, 3,
+                            0.15, 0.15, 0.15, 0.6);
+                }
+                if (a % 50 == 5) {
+                    level.playSound(null, at, SoundEvents.BOOK_PAGE_TURN, SoundSource.NEUTRAL, 0.8F, 0.9F);
+                }
+            }
         }
     }
 
@@ -487,36 +487,21 @@ public final class VillagerWorks {
                 case SCRIBE -> level.sendParticles(ParticleTypes.END_ROD, p.x, p.y + 0.3, p.z, 6, 0.1, 0.1, 0.1, 0.05);
             }
         }
-        // the bottle in the brewing stand goes again (the potion is not put there: the villager keeps it)
+        // the bottle in the brewing stand goes again (the finished potions are kept by the villager)
         if (job.bottleSlot >= 0 && job.station != null
                 && level.getBlockEntity(job.station) instanceof BrewingStandBlockEntity stand
                 && stand.getItem(job.bottleSlot).is(Items.GLASS_BOTTLE)) {
             stand.setItem(job.bottleSlot, ItemStack.EMPTY);
             stand.setChanged();
         }
-        if (villager.isAlive() && !villager.isRemoved() && level.getEntity(villager.getId()) == villager) {
-            // finished: he keeps it until the player talks to him again (pickup window)
-            StoryReady.set(villager, job.player, job.result);
-        } else {
-            // he cannot keep it any more: it lies where he worked, only for its player
-            int left = job.result.getCount();
-            while (left > 0) {
-                int n = Math.min(left, job.result.getMaxStackSize());
-                ItemEntity item = new ItemEntity(level, p.x, p.y + 0.05, p.z, job.result.copyWithCount(n));
-                item.setDeltaMovement(0.0, 0.18, 0.0);
-                item.setUnlimitedLifetime();
-                item.setInvulnerable(true);
-                item.setTarget(job.player);
-                item.setPickUpDelay(10);
-                item.setGlowingTag(true);
-                level.addFreshEntity(item);
-                left -= n;
+        if (show) {
+            UUID owner = StoryReady.owner(villager);
+            ServerPlayer player = owner == null ? null : level.getServer().getPlayerList().getPlayer(owner);
+            List<ItemStack> items = StoryReady.items(villager);
+            if (player != null && !items.isEmpty()) {
+                player.displayClientMessage(Component.translatable("message.incursion.villager.work_done",
+                        items.get(0).getHoverName()).withStyle(ChatFormatting.GOLD), true);
             }
-        }
-        ServerPlayer player = level.getServer().getPlayerList().getPlayer(job.player);
-        if (player != null) {
-            player.displayClientMessage(Component.translatable("message.incursion.villager.work_done",
-                    job.result.getHoverName()).withStyle(ChatFormatting.GOLD), true);
         }
     }
 
@@ -606,12 +591,9 @@ public final class VillagerWorks {
 
     private static void onServerStopping(ServerStoppingEvent event) {
         for (Job job : JOBS) {
-            if (!job.takeBack) {
-                finish(job, false);
-            }
+            finish(job, false);
         }
         JOBS.clear();
-        REFUNDS.clear();
     }
 
     // ------------------------------------------------------------------
@@ -641,34 +623,5 @@ public final class VillagerWorks {
             }
         }
         return best;
-    }
-
-    /**
-     * Takes one {@code item} back from the player right after the trade: from a payment slot of the open menu, the
-     * stack on the mouse cursor or the inventory. Returns false if it was not found.
-     */
-    private static boolean takeBack(ServerPlayer player, Item item) {
-        ItemStack carried = player.containerMenu.getCarried();
-        if (carried.is(item)) {
-            carried.shrink(1);
-            player.containerMenu.broadcastChanges();
-            return true;
-        }
-        for (Slot slot : player.containerMenu.slots) {
-            if (slot instanceof MerchantResultSlot || !slot.hasItem() || !slot.getItem().is(item)) {
-                continue;
-            }
-            slot.getItem().shrink(1);
-            slot.setChanged();
-            player.containerMenu.broadcastChanges();
-            return true;
-        }
-        int index = player.getInventory().findSlotMatchingItem(new ItemStack(item));
-        if (index >= 0) {
-            player.getInventory().getItem(index).shrink(1);
-            player.getInventory().setChanged();
-            return true;
-        }
-        return false;
     }
 }

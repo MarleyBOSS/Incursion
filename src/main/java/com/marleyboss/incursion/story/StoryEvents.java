@@ -54,6 +54,7 @@ public final class StoryEvents {
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerInteract);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerTick);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onServerTick);
+        NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerDrops);
     }
 
     // ------------------------------------------------------------------
@@ -135,8 +136,17 @@ public final class StoryEvents {
                 || !(event.getTarget() instanceof Villager villager) || villager.isBaby()) {
             return;
         }
+        if (StoryReady.has(villager) && StoryReady.isOwner(villager, event.getEntity().getUUID())) {
+            // he made something for this player: the pickup window instead of trading
+            cancel(event);
+            if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
+                    && event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+                openPickup(player, villager);
+            }
+            return;
+        }
         if (VillagerWorks.isBusy(villager)) {
-            // He is making something right now: no trading until he is done.
+            // He is making something right now (for somebody else): no trading until he is done.
             cancel(event);
             if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
                 event.getEntity().displayClientMessage(Component.translatable("message.incursion.villager.busy")
@@ -144,20 +154,15 @@ public final class StoryEvents {
             }
             return;
         }
+        StoryVillagers.Keeper named = StoryVillagers.keeperOf(villager);
+        if (named != null) {
+            StoryVillagers.refreshName(villager, named);
+        }
         if (StoryVillagers.isDown(villager)) {
             cancel(event);
             if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
                 event.getEntity().displayClientMessage(Component.translatable("message.incursion.villager.down")
                         .withStyle(ChatFormatting.GRAY), true);
-            }
-            return;
-        }
-        if (StoryReady.has(villager) && StoryReady.isOwner(villager, event.getEntity().getUUID())) {
-            // he made something for this player: the pickup window instead of trading
-            cancel(event);
-            if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
-                    && event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
-                openPickup(player, villager);
             }
             return;
         }
@@ -175,7 +180,7 @@ public final class StoryEvents {
     }
 
     /** Trading level a keeper needs for his commission. */
-    private static int neededLevel(StoryVillagers.Keeper keeper) {
+    static int neededLevel(StoryVillagers.Keeper keeper) {
         return switch (keeper) {
             case RUNE -> Config.RUNE_TRADE_LEVEL.get();
             case GLOW -> Config.POTION_TRADE_LEVEL.get();
@@ -285,18 +290,33 @@ public final class StoryEvents {
             return false;
         }
         ItemStack result = offer.result().copyWithCount(quantity);
+        VillagerWorks.Kind kind;
+        java.util.List<ItemStack> props;
+        long seconds;
         switch (offer.key()) {
             case "rune" -> {
                 CoreWorldData.get(level.getServer()).setRuneTraded(true); // once per world (until a Core is destroyed)
-                VillagerWorks.start(level, villager, player, VillagerWorks.Kind.SCRIBE,
-                        java.util.List.of(new ItemStack(Items.BOOK)), result, false);
+                kind = VillagerWorks.Kind.SCRIBE;
+                props = java.util.List.of(new ItemStack(Items.BOOK));
+                seconds = Config.RUNE_CRAFT_SECONDS.get();
             }
-            case "potion" -> VillagerWorks.start(level, villager, player, VillagerWorks.Kind.BREW,
-                    java.util.List.of(new ItemStack(Items.GLASS_BOTTLE)), result, false);
-            default -> VillagerWorks.start(level, villager, player, VillagerWorks.Kind.FORGE,
-                    java.util.List.of(offer.costs().get(0).copyWithCount(1), offer.costs().get(1).copyWithCount(1)),
-                    result, false);
+            case "potion" -> {
+                kind = VillagerWorks.Kind.BREW;
+                props = java.util.List.of(new ItemStack(Items.GLASS_BOTTLE));
+                int base = Config.POTION_CRAFT_SECONDS.get();
+                seconds = base + (long) (quantity - 1) * Math.max(1, base / 3);
+            }
+            default -> {
+                kind = VillagerWorks.Kind.FORGE;
+                props = java.util.List.of(offer.costs().get(0).copyWithCount(1), offer.costs().get(1).copyWithCount(1));
+                seconds = Config.FORGE_CRAFT_SECONDS.get();
+            }
         }
+        if (player.getAbilities().instabuild) {
+            seconds = Math.min(seconds, 8); // creative: quick, for testing
+        }
+        StoryReady.begin(villager, player.getUUID(), result, props, kind.key(), level.getGameTime() + seconds * 20L);
+        VillagerWorks.start(level, villager, kind, props);
         villager.playSound(SoundEvents.VILLAGER_YES, 1.0F, 1.0F);
         player.displayClientMessage(Component.translatable("message.incursion.villager.order_started")
                 .withStyle(ChatFormatting.GOLD), true);
@@ -321,33 +341,93 @@ public final class StoryEvents {
                 buf -> com.marleyboss.incursion.menu.StoryTradeMenu.write(buf, villagerId, select, offers));
     }
 
-    /** The player talks to a keeper who made something for him: the pickup window opens instead of trading. */
+    /** The player talks to a keeper who works on / has finished something for him: the pickup window opens. */
     private static void openPickup(net.minecraft.server.level.ServerPlayer player, Villager villager) {
-        java.util.List<ItemStack> items = StoryReady.items(villager);
         StoryVillagers.Keeper keeper = StoryVillagers.keeperOf(villager);
-        if (items.isEmpty() || keeper == null) {
-            StoryReady.setAll(villager, player.getUUID(), java.util.List.of()); // nothing readable: forget it
+        if (keeper == null || StoryReady.items(villager).isEmpty()) {
+            StoryReady.clear(villager); // nothing readable: forget it
             return;
         }
-        String line = "message.incursion.ready." + keeper.key + "." + (1 + villager.getRandom().nextInt(TALK_VARIANTS));
         int id = villager.getId();
+        String working = "message.incursion.working." + keeper.key + "." + (1 + villager.getRandom().nextInt(WORKING_VARIANTS));
+        String ready = "message.incursion.ready." + keeper.key + "." + (1 + villager.getRandom().nextInt(READY_VARIANTS));
         player.openMenu(new net.minecraft.world.SimpleMenuProvider(
                 (containerId, inventory, p) -> new com.marleyboss.incursion.menu.StoryPickupMenu(containerId, inventory, id,
-                        items, line),
+                        working, ready),
                 villager.getDisplayName()),
-                buf -> com.marleyboss.incursion.menu.StoryPickupMenu.write(buf, id, line, items));
+                buf -> com.marleyboss.incursion.menu.StoryPickupMenu.write(buf, id, working, ready));
     }
 
-    /** What is left in the pickup window is what the villager still keeps. */
-    public static void syncReady(net.minecraft.server.level.ServerPlayer player, int villagerId,
-                                 java.util.List<ItemStack> rest) {
-        if (player.level().getEntity(villagerId) instanceof Villager villager) {
-            boolean had = StoryReady.has(villager);
-            StoryReady.setAll(villager, player.getUUID(), rest);
-            if (had && !StoryReady.has(villager)) {
-                villager.playSound(SoundEvents.VILLAGER_CELEBRATE, 1.0F, 1.0F);
+    private static final int WORKING_VARIANTS = 4;
+    private static final int READY_VARIANTS = 5;
+
+    /** Seconds and permille of the work on the order (for the progress bar), {0, 0} if there is none. */
+    public static int[] workProgress(net.minecraft.world.entity.player.Player player, int villagerId) {
+        if (!(player.level().getEntity(villagerId) instanceof Villager villager) || !StoryReady.has(villager)) {
+            return new int[] {0, 0};
+        }
+        long now = villager.level().getGameTime();
+        long start = StoryReady.start(villager);
+        long end = StoryReady.end(villager);
+        if (now >= end) {
+            return new int[] {0, 1000};
+        }
+        int permille = (int) Math.max(0, Math.min(999, (now - start) * 1000 / Math.max(1, end - start)));
+        return new int[] {(int) ((end - now + 19) / 20), permille};
+    }
+
+    /** The finished items of the order, for the pickup window (empty while the work is not over). */
+    public static java.util.List<ItemStack> finishedItems(net.minecraft.server.level.ServerPlayer player, int villagerId) {
+        if (player.level().getEntity(villagerId) instanceof Villager villager && StoryReady.done(villager)
+                && StoryReady.isOwner(villager, player.getUUID())) {
+            return StoryReady.items(villager);
+        }
+        return java.util.List.of();
+    }
+
+    /** The owner took the items: what does not fit into the inventory stays with the villager. */
+    public static boolean takeFinished(net.minecraft.server.level.ServerPlayer player, int villagerId) {
+        if (!(player.level().getEntity(villagerId) instanceof Villager villager) || !StoryReady.done(villager)
+                || !StoryReady.isOwner(villager, player.getUUID())) {
+            return false;
+        }
+        java.util.List<ItemStack> rest = new java.util.ArrayList<>();
+        for (ItemStack stack : StoryReady.items(villager)) {
+            ItemStack copy = stack.copy();
+            player.getInventory().add(copy);
+            if (!copy.isEmpty()) {
+                rest.add(copy);
             }
         }
+        StoryReady.setRest(villager, rest);
+        if (rest.isEmpty()) {
+            villager.playSound(SoundEvents.VILLAGER_CELEBRATE, 1.0F, 1.0F);
+            player.level().playSound(null, player.blockPosition(), SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.7F, 1.0F);
+            return true;
+        }
+        player.displayClientMessage(Component.translatable("message.incursion.villager.inventory_full")
+                .withStyle(ChatFormatting.RED), true);
+        return false;
+    }
+
+    /** A keeper who dies drops what he was making for his player. */
+    private static void onVillagerDrops(net.neoforged.neoforge.event.entity.living.LivingDropsEvent event) {
+        if (!(event.getEntity() instanceof Villager villager) || !(villager.level() instanceof ServerLevel level)
+                || !StoryReady.has(villager)) {
+            return;
+        }
+        java.util.UUID owner = StoryReady.owner(villager);
+        for (ItemStack stack : StoryReady.items(villager)) {
+            ItemEntity item = new ItemEntity(level, villager.getX(), villager.getY() + 0.5, villager.getZ(), stack.copy());
+            item.setUnlimitedLifetime();
+            item.setInvulnerable(true);
+            item.setGlowingTag(true);
+            if (owner != null) {
+                item.setTarget(owner);
+            }
+            event.getDrops().add(item);
+        }
+        StoryReady.clear(villager);
     }
 
     /** "Back" from the mod's trading window: his normal trading screen opens again (with panel and icons). */
@@ -442,12 +522,24 @@ public final class StoryEvents {
         if (!Config.TRADES_ENABLED.get()) {
             return;
         }
+        StoryVillagers.Keeper keeper = StoryVillagers.keeperOf(villager);
+        if (keeper != null) {
+            StoryVillagers.refreshName(villager, keeper);
+        }
         if (StoryReady.has(villager)) {
-            // something is finished for the player: this keeper shines until it is taken
-            level.sendParticles(ParticleTypes.GLOW, villager.getX(), villager.getY() + villager.getBbHeight() + 0.4,
-                    villager.getZ(), 6, 0.3, 0.2, 0.3, 0.02);
-            level.sendParticles(ParticleTypes.END_ROD, villager.getX(), villager.getY() + villager.getBbHeight() + 0.6,
-                    villager.getZ(), 2, 0.1, 0.1, 0.1, 0.03);
+            if (StoryReady.done(villager)) {
+                // something is finished for the player: this keeper shines until it is taken
+                level.sendParticles(ParticleTypes.GLOW, villager.getX(), villager.getY() + villager.getBbHeight() + 0.4,
+                        villager.getZ(), 6, 0.3, 0.2, 0.3, 0.02);
+                level.sendParticles(ParticleTypes.END_ROD, villager.getX(), villager.getY() + villager.getBbHeight() + 0.6,
+                        villager.getZ(), 2, 0.1, 0.1, 0.1, 0.03);
+            } else if (!VillagerWorks.isBusy(villager)) {
+                // he was unloaded while working: he takes up the work again
+                VillagerWorks.Kind kind = VillagerWorks.Kind.fromKey(StoryReady.kind(villager));
+                if (kind != null) {
+                    VillagerWorks.start(level, villager, kind, StoryReady.props(villager));
+                }
+            }
             return;
         }
         VillagerProfession profession = villager.getVillagerData().getProfession();

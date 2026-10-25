@@ -98,7 +98,7 @@ public final class StoryVillagers {
         if (!data.getBoolean(TAG_NAMED)) {
             data.putBoolean(TAG_NAMED, true);
             data.putString(TAG_KEEPER, keeper.key);
-            villager.setCustomName(nameOf(villager, keeper));
+            villager.setCustomName(nameOf(villager, keeper, villager.getVillagerData().getLevel()));
             villager.setCustomNameVisible(true);
             villager.setPersistenceRequired();
         }
@@ -111,12 +111,27 @@ public final class StoryVillagers {
         return villager.getPersistentData().getBoolean(TAG_NAMED);
     }
 
-    /** "Orwin, Rune Keeper": a name from the lore (always the same for this villager) and the keeper's title. */
-    private static MutableComponent nameOf(Villager villager, Keeper keeper) {
+    /**
+     * "Orwin, Archivist": a name from the lore (always the same for this villager) and a title. Until the villager has
+     * the level where he trades his story item the title gives nothing away (no spoiler); from that level on it says
+     * what he is ("Rune Keeper").
+     */
+    private static MutableComponent nameOf(Villager villager, Keeper keeper, int level) {
         UUID id = villager.getUUID();
         int index = Math.floorMod((int) (id.getMostSignificantBits() ^ id.getLeastSignificantBits()), keeper.names.length);
-        return Component.translatable("name.incursion.keeper." + keeper.key, keeper.names[index])
-                .withStyle(ChatFormatting.GOLD);
+        String key = "name.incursion.keeper." + keeper.key + (level >= StoryEvents.neededLevel(keeper) ? ".max" : "");
+        return Component.translatable(key, keeper.names[index]).withStyle(ChatFormatting.GOLD);
+    }
+
+    /** A named keeper's title follows his level (called now and then and when he is spoken to). */
+    static void refreshName(Villager villager, Keeper keeper) {
+        if (!isNamed(villager) || isDown(villager)) {
+            return;
+        }
+        MutableComponent wanted = nameOf(villager, keeper, villager.getVillagerData().getLevel());
+        if (!wanted.equals(villager.getCustomName())) {
+            villager.setCustomName(wanted);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -198,7 +213,7 @@ public final class StoryVillagers {
             villager.stopSleeping();
             villager.setPose(net.minecraft.world.entity.Pose.STANDING);
             villager.setNoAi(false);
-            villager.setCustomName(nameOf(villager, keeper));
+            villager.setCustomName(nameOf(villager, keeper, villager.getVillagerData().getLevel()));
             villager.setHealth(villager.getMaxHealth());
             level.sendParticles(ParticleTypes.HAPPY_VILLAGER, villager.getX(), villager.getY() + 1.6, villager.getZ(),
                     8, 0.3, 0.3, 0.3, 0.0);

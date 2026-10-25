@@ -2,7 +2,6 @@ package com.marleyboss.incursion.client;
 
 import com.marleyboss.incursion.menu.StoryTradeMenu;
 import com.marleyboss.incursion.story.StoryOffer;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -42,6 +41,8 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
     private static final int ROW_W = 88;
     private static final int ROW_H = 20;
 
+    private Button order;
+
     public StoryTradeScreen(StoryTradeMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         imageWidth = WIDTH;
@@ -53,9 +54,20 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
     @Override
     protected void init() {
         super.init();
-        addRenderableWidget(Button.builder(Component.translatable("gui.incursion.story_trade.back"),
-                        button -> VillagerDialog.back(menu.villagerId()))
-                .bounds(leftPos + WIDTH - 50, topPos + 3, 46, 13).build());
+        order = addRenderableWidget(Button.builder(Component.translatable("gui.incursion.story_trade.order"), button -> {
+                    if (minecraft != null && minecraft.gameMode != null && menu.quantity() > 0) {
+                        minecraft.gameMode.handleInventoryButtonClick(menu.containerId, StoryTradeMenu.BUTTON_ORDER);
+                    }
+                })
+                .bounds(leftPos + 112, topPos + 54, 150, 18).build());
+    }
+
+    @Override
+    protected void containerTick() {
+        super.containerTick();
+        if (order != null) {
+            order.active = menu.quantity() > 0; // the payment is complete
+        }
     }
 
     @Override
@@ -116,8 +128,11 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
                 g.fill(x, y, x + ROW_W, y + ROW_H, 0x40FFFFFF);
             }
             g.renderItem(offer.result(), x + 2, y + 2);
-            String name = font.plainSubstrByWidth(offer.result().getHoverName().getString(), ROW_W - 24);
-            g.drawString(font, name, x + 21, y + 6, i == menu.selectedIndex() ? COLOR_TITLE : COLOR_TEXT, false);
+            List<FormattedCharSequence> name = font.split(offer.result().getHoverName(), ROW_W - 26);
+            int ny = y + (name.size() > 1 ? 2 : 6);
+            for (int n = 0; n < name.size() && n < 2; n++) {
+                g.drawString(font, name.get(n), x + 21, ny + n * 9, i == menu.selectedIndex() ? COLOR_TITLE : COLOR_TEXT, false);
+            }
         }
 
         // slot backgrounds; the item that belongs into an empty payment slot is shown dimmed in it
@@ -125,16 +140,13 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
             int x = left + slot.x;
             int y = top + slot.y;
             boolean result = slot.index == StoryTradeMenu.RESULT;
-            if (result) {
-                g.fill(x - 4, y - 4, x + 20, y + 20, COLOR_FRAME);
-            }
-            g.fill(x - 1, y - 1, x + 17, y + 17, COLOR_SLOT_EDGE);
+            g.fill(x - 1, y - 1, x + 17, y + 17, result && menu.quantity() > 0 ? COLOR_FRAME : COLOR_SLOT_EDGE);
             g.fill(x, y, x + 16, y + 16, COLOR_SLOT);
             if (slot.index < StoryTradeMenu.INPUTS && !slot.hasItem()) {
                 ItemStack want = menu.wanted(slot.index);
                 if (!want.isEmpty()) {
                     g.renderItem(want, x, y);
-                    g.fill(x, y, x + 16, y + 16, 0xB00C0612); // veil: the item looks faint
+                    g.fill(x, y, x + 16, y + 16, 0xD80C0612); // veil: the item is only a faint hint
                     if (want.getCount() > 1) {
                         String count = String.valueOf(want.getCount());
                         g.pose().pushPose();
@@ -145,16 +157,7 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
                 }
             }
         }
-        g.blitSprite(ARROW, left + 214, top + 34, 10, 9);
-        // a hint line and the inventory label
-        List<FormattedCharSequence> hint = font.split(Component.translatable(
-                menu.preview().isEmpty() ? "gui.incursion.story_trade.put" : "gui.incursion.story_trade.click")
-                .withStyle(ChatFormatting.ITALIC), 160);
-        int hy = top + 52;
-        for (FormattedCharSequence line : hint) {
-            g.drawString(font, line, left + 112, hy, COLOR_DIM, false);
-            hy += 10;
-        }
+        g.blitSprite(ARROW, left + 212, top + 34, 10, 9);
         g.drawString(font, Component.translatable("container.inventory"), left + 108, top + 74, COLOR_TITLE, false);
     }
 

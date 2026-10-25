@@ -3,103 +3,161 @@ package com.marleyboss.incursion.menu;
 import com.marleyboss.incursion.registry.ModMenus;
 import com.marleyboss.incursion.story.StoryEvents;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.DataSlot;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
 
 /**
- * The pickup window: the villager says he is done and the finished item lies in one slot. Taking it (click or shift
- * click) clears it from the villager. If the window is closed without taking it, it stays with him.
+ * The window of an order: while the villager is still working it shows a progress bar (permille and seconds left are
+ * synced from the server every tick), and once he is done the finished item lies in the one slot. A click on it (or a
+ * shift click) takes everything the order made into the inventory (what does not fit stays with him).
  */
 public class StoryPickupMenu extends AbstractContainerMenu {
-    private final int villagerId;
-    private final String lineKey;
-    private final SimpleContainer container = new SimpleContainer(SLOTS);
-    public static final int SLOTS = 9;
+    private static final int MAX = 9;
 
-    public StoryPickupMenu(int containerId, Inventory inventory, int villagerId, List<ItemStack> items, String lineKey) {
+    private final int villagerId;
+    private final String workingKey;
+    private final String readyKey;
+    private final Player player;
+    /** What the order made (server: read from the villager once he is done; client: the one slot's synced stack). */
+    private final SimpleContainer container = new SimpleContainer(MAX);
+    private boolean filled;
+    private final DataSlot permille = DataSlot.standalone();
+    private final DataSlot seconds = DataSlot.standalone();
+
+    public StoryPickupMenu(int containerId, Inventory inventory, int villagerId, String workingKey, String readyKey) {
         super(ModMenus.STORY_PICKUP.get(), containerId);
         this.villagerId = villagerId;
-        this.lineKey = lineKey;
-        for (int i = 0; i < items.size() && i < SLOTS; i++) {
-            container.setItem(i, items.get(i).copy());
-        }
-        for (int i = 0; i < SLOTS; i++) {
-            addSlot(new Slot(container, i, 8 + i * 18, 54) {
-                @Override
-                public boolean mayPlace(ItemStack stack) {
-                    return false;
+        this.workingKey = workingKey;
+        this.readyKey = readyKey;
+        this.player = inventory.player;
+        addDataSlot(permille);
+        addDataSlot(seconds);
+        refresh();
+        addSlot(new Slot(container, 0, 214, 88) {
+            @Override
+            public ItemStack getItem() {
+                // the one slot shows the whole order: the first item, as many times as the order made
+                ItemStack first = ItemStack.EMPTY;
+                int total = 0;
+                for (int i = 0; i < MAX; i++) {
+                    ItemStack stack = container.getItem(i);
+                    if (!stack.isEmpty()) {
+                        if (first.isEmpty()) {
+                            first = stack;
+                        }
+                        total += stack.getCount();
+                    }
                 }
-            });
-        }
-        // what is taken is gone from the villager at once (not only when the window closes)
-        container.addListener(changed -> {
-            if (inventory.player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-                List<ItemStack> rest = new java.util.ArrayList<>();
-                for (int i = 0; i < SLOTS; i++) {
-                    rest.add(container.getItem(i).copy());
-                }
-                StoryEvents.syncReady(serverPlayer, villagerId, rest);
+                return first.isEmpty() ? ItemStack.EMPTY : first.copyWithCount(total);
+            }
+
+            @Override
+            public boolean hasItem() {
+                return !getItem().isEmpty();
+            }
+
+            @Override
+            public boolean mayPlace(ItemStack stack) {
+                return false;
+            }
+
+            @Override
+            public boolean mayPickup(Player player) {
+                return false;
+            }
+
+            @Override
+            public boolean isActive() {
+                return isDone();
             }
         });
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 9; col++) {
-                addSlot(new Slot(inventory, col + row * 9 + 9, 8 + col * 18, 84 + row * 18));
-            }
-        }
-        for (int col = 0; col < 9; col++) {
-            addSlot(new Slot(inventory, col, 8 + col * 18, 142));
-        }
     }
 
     public static StoryPickupMenu fromBuffer(int containerId, Inventory inventory, RegistryFriendlyByteBuf buf) {
-        int villager = buf.readVarInt();
-        String line = buf.readUtf();
-        List<ItemStack> items = ItemStack.OPTIONAL_STREAM_CODEC.apply(ByteBufCodecs.list()).decode(buf);
-        return new StoryPickupMenu(containerId, inventory, villager, items, line);
+        return new StoryPickupMenu(containerId, inventory, buf.readVarInt(), buf.readUtf(), buf.readUtf());
     }
 
-    public static void write(RegistryFriendlyByteBuf buf, int villagerId, String lineKey, List<ItemStack> items) {
+    public static void write(RegistryFriendlyByteBuf buf, int villagerId, String workingKey, String readyKey) {
         buf.writeVarInt(villagerId);
-        buf.writeUtf(lineKey);
-        ItemStack.OPTIONAL_STREAM_CODEC.apply(ByteBufCodecs.list()).encode(buf, items);
+        buf.writeUtf(workingKey);
+        buf.writeUtf(readyKey);
     }
 
     public int villagerId() {
         return villagerId;
     }
 
-    public String lineKey() {
-        return lineKey;
+    public String workingKey() {
+        return workingKey;
+    }
+
+    public String readyKey() {
+        return readyKey;
+    }
+
+    public boolean isDone() {
+        return permille.get() >= 1000;
+    }
+
+    public int permille() {
+        return permille.get();
+    }
+
+    public int secondsLeft() {
+        return seconds.get();
+    }
+
+    /** Server: the numbers for the bar; once he is done the finished items are put into the slot. */
+    private void refresh() {
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return;
+        }
+        int[] progress = StoryEvents.workProgress(player, villagerId);
+        seconds.set(progress[0]);
+        permille.set(progress[1]);
+        if (progress[1] >= 1000 && !filled) {
+            filled = true;
+            List<ItemStack> items = StoryEvents.finishedItems(serverPlayer, villagerId);
+            for (int i = 0; i < items.size() && i < MAX; i++) {
+                container.setItem(i, items.get(i).copy());
+            }
+        }
+    }
+
+    @Override
+    public void broadcastChanges() {
+        refresh();
+        super.broadcastChanges();
+    }
+
+    @Override
+    public void clicked(int slotId, int button, ClickType clickType, Player clicker) {
+        if (slotId == 0) {
+            if (isDone() && clicker instanceof ServerPlayer serverPlayer
+                    && (clickType == ClickType.PICKUP || clickType == ClickType.QUICK_MOVE)
+                    && StoryEvents.takeFinished(serverPlayer, villagerId)) {
+                for (int i = 0; i < MAX; i++) {
+                    container.setItem(i, ItemStack.EMPTY);
+                }
+                StoryEvents.closeNextTick(serverPlayer, this);
+            }
+            return;
+        }
+        super.clicked(slotId, button, clickType, clicker);
     }
 
     @Override
     public ItemStack quickMoveStack(Player player, int index) {
-        Slot slot = slots.get(index);
-        if (!slot.hasItem()) {
-            return ItemStack.EMPTY;
-        }
-        ItemStack stack = slot.getItem();
-        ItemStack copy = stack.copy();
-        if (index < SLOTS) {
-            if (!moveItemStackTo(stack, SLOTS, slots.size(), true)) {
-                return ItemStack.EMPTY;
-            }
-        } else {
-            return ItemStack.EMPTY; // nothing can be laid into the window
-        }
-        if (stack.isEmpty()) {
-            slot.setByPlayer(ItemStack.EMPTY);
-        } else {
-            slot.setChanged();
-        }
-        return copy;
+        return ItemStack.EMPTY;
     }
 
     @Override

@@ -107,16 +107,36 @@ public final class VillagerDialog {
             return;
         }
         Panel panel = layout(host(current));
-        if (current instanceof MerchantScreen merchant) {
-            // one icon per commission, right of the trading screen: a click switches to the mod's trading screen
-            int x = merchant.getGuiLeft() + merchant.getXSize() + 4;
-            int y = merchant.getGuiTop() + 4;
-            icons.clear();
+        icons.clear();
+        Host host = host(current);
+        int x = host.left() + StoryTradeScreen.WIDTH;
+        int y = host.top() + 4;
+        if (current instanceof MerchantScreen) {
+            // one icon per commission, right of the trading screen (the book is closed): a click opens the mod's screen
             for (int i = 0; i < offers.size(); i++) {
                 final int index = i;
-                IconButton icon = new IconButton(x, y + i * 26, offers.get(i).result(), () -> {
+                IconButton icon = new IconButton(x + 4, y + i * 26, offers.get(i).result(), false, () -> {
                     // the server opens the mod's trading menu, which replaces the vanilla screen: one screen at a time
                     OpenTradePayload.send(entityId, index);
+                });
+                icons.add(icon);
+                event.addListener(icon);
+            }
+        } else if (current instanceof StoryTradeScreen story) {
+            // the same icons: the one of the open commission is lit and joined to the window (the book is open)
+            List<StoryOffer> shown = story.getMenu().offers();
+            for (int i = 0; i < shown.size(); i++) {
+                final int index = i;
+                boolean open = index == story.getMenu().selectedIndex();
+                IconButton icon = new IconButton(open ? x - 1 : x + 4, y + i * 26, shown.get(i).result(), open, () -> {
+                    if (open) {
+                        back(entityId); // click the open one: back to the normal trading screen
+                    } else {
+                        Minecraft mc = Minecraft.getInstance();
+                        if (mc.gameMode != null) {
+                            mc.gameMode.handleInventoryButtonClick(story.getMenu().containerId, index);
+                        }
+                    }
                 });
                 icons.add(icon);
                 event.addListener(icon);
@@ -147,23 +167,41 @@ public final class VillagerDialog {
         }
     }
 
-    /** The icon of a commission beside the trading screen: gold frame, the item to be made inside. */
+    /**
+     * The icon of a commission beside the trading screen. Closed: dark, a little away from the window. Open (the mod's
+     * screen is showing it): lit, glowing, joined to the window.
+     */
     private static final class IconButton extends Button {
         private final ItemStack stack;
+        private final boolean open;
 
-        IconButton(int x, int y, ItemStack stack, Runnable action) {
-            super(x, y, 22, 22, stack.getHoverName(), button -> action.run(), DEFAULT_NARRATION);
+        IconButton(int x, int y, ItemStack stack, boolean open, Runnable action) {
+            super(x, y, open ? 27 : 22, 22, stack.getHoverName(), button -> action.run(), DEFAULT_NARRATION);
             this.stack = stack;
-            setTooltip(net.minecraft.client.gui.components.Tooltip.create(
-                    Component.translatable("gui.incursion.story_trade.icon", stack.getHoverName())));
+            this.open = open;
+            setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable(
+                    open ? "gui.incursion.story_trade.icon_back" : "gui.incursion.story_trade.icon", stack.getHoverName())));
         }
 
         @Override
         protected void renderWidget(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-            int edge = isHoveredOrFocused() ? 0xFFFFE08A : 0xFFC9A040;
-            g.fill(getX() - 1, getY() - 1, getX() + width + 1, getY() + height + 1, edge);
-            g.fill(getX(), getY(), getX() + width, getY() + height, isHoveredOrFocused() ? 0xFF4A2A66 : 0xFF2A1638);
-            g.renderItem(stack, getX() + 3, getY() + 3);
+            int x = getX();
+            int y = getY();
+            boolean hover = isHoveredOrFocused();
+            if (open) {
+                float pulse = 0.5F + 0.5F * net.minecraft.util.Mth.sin(System.currentTimeMillis() / 500.0F);
+                g.fill(x - 2, y - 2, x + width + 2, y + height + 2, ((int) (0x30 + 0x50 * pulse) << 24) | 0xFFC040);
+                g.fill(x, y - 1, x + width + 1, y + height + 1, 0xFFFFD27A);
+                g.fill(x, y, x + width, y + height, hover ? 0xFF6A3A90 : 0xFF4A2A66);
+                g.renderItem(stack, x + 7, y + 3);
+            } else {
+                g.fill(x - 1, y - 1, x + width + 1, y + height + 1, hover ? 0xFFC9A040 : 0xFF6A4A18);
+                g.fill(x, y, x + width, y + height, hover ? 0xFF3A2050 : 0xFF1A0E26);
+                g.renderItem(stack, x + 3, y + 3);
+                if (!hover) {
+                    g.fill(x, y, x + width, y + height, 0x55000000); // dim: not opened
+                }
+            }
         }
     }
 
@@ -247,7 +285,7 @@ public final class VillagerDialog {
         if (next != null && next.visible) {
             next.render(g, event.getMouseX(), event.getMouseY(), event.getPartialTick());
         }
-        if (event.getScreen() instanceof MerchantScreen) {
+        {
             for (IconButton icon : icons) {
                 icon.render(g, event.getMouseX(), event.getMouseY(), event.getPartialTick());
             }

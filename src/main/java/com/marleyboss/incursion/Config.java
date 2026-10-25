@@ -916,6 +916,19 @@ public final class Config {
             .comment("Emeralds the Mythic Potion costs (plus one blaze rod).")
             .defineInRange("potionTradeEmeralds", 24, 1, 64);
 
+    public static final ModConfigSpec.IntValue RUNE_CRAFT_SECONDS = BUILDER
+            .comment("How long the librarian needs to write a Core Rune after it was commissioned (seconds).")
+            .defineInRange("runeCraftSeconds", 180, 1, 3600);
+
+    public static final ModConfigSpec.IntValue POTION_CRAFT_SECONDS = BUILDER
+            .comment("How long the cleric needs to brew one Mythic Potion (seconds); every further potion of the same",
+                    "order adds a third of it.")
+            .defineInRange("potionCraftSeconds", 45, 1, 3600);
+
+    public static final ModConfigSpec.IntValue FORGE_CRAFT_SECONDS = BUILDER
+            .comment("How long the toolsmith needs to forge an Upgrade Tool (seconds).")
+            .defineInRange("forgeCraftSeconds", 90, 1, 3600);
+
     public static final ModConfigSpec.IntValue TOOL_FORGE_LEVEL = BUILDER
             .comment("Toolsmith level (1 = Novice ... 5 = Master) that forges an Upgrade Tool together with a general's",
                     "insignia into the next tool (tool in one hand, insignia of the same stage in the other, right-click him).")
