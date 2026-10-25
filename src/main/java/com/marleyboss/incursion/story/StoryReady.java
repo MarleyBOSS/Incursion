@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /**
  * A commission the villager is working on or has finished, kept in the villager himself (persistent data, so it
- * survives unloading and restarts): the order (up to 9 stacks) for its owner, when it was begun and when it is done
+ * survives unloading and restarts): the order (up to 16 stacks) for its owner, when it was begun and when it is done
  * (game time), what kind of work it is and what lies on his station while he works. Once it is done the owner takes it
  * in the pickup window. One order per villager.
  */
@@ -90,13 +90,13 @@ public final class StoryReady {
     }
 
     /**
-     * A new order: {@code total} (split into stacks of the item's maximum size, at most 9 stacks) for {@code owner}, done
+     * A new order: {@code total} (split into stacks of the item's maximum size, at most 16 stacks) for {@code owner}, done
      * at game time {@code end}.
      */
     public static void begin(Villager villager, UUID owner, ItemStack total, List<ItemStack> props, String kind, long end) {
         List<ItemStack> stacks = new ArrayList<>();
         int left = total.getCount();
-        while (left > 0 && stacks.size() < 9) {
+        while (left > 0 && stacks.size() < 16) {
             int n = Math.min(left, total.getMaxStackSize());
             stacks.add(total.copyWithCount(n));
             left -= n;

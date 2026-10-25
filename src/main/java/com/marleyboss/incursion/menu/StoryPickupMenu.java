@@ -21,7 +21,7 @@ import java.util.List;
  * shift click) takes everything the order made into the inventory (what does not fit stays with him).
  */
 public class StoryPickupMenu extends AbstractContainerMenu {
-    private static final int MAX = 9;
+    private static final int MAX = 16;
 
     private final int villagerId;
     private final String workingKey;

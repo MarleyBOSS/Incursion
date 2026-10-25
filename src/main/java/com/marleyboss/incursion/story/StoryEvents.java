@@ -292,35 +292,42 @@ public final class StoryEvents {
         ItemStack result = offer.result().copyWithCount(quantity);
         VillagerWorks.Kind kind;
         java.util.List<ItemStack> props;
-        long seconds;
         switch (offer.key()) {
             case "rune" -> {
                 CoreWorldData.get(level.getServer()).setRuneTraded(true); // once per world (until a Core is destroyed)
                 kind = VillagerWorks.Kind.SCRIBE;
                 props = java.util.List.of(new ItemStack(Items.BOOK));
-                seconds = Config.RUNE_CRAFT_SECONDS.get();
             }
             case "potion" -> {
                 kind = VillagerWorks.Kind.BREW;
                 props = java.util.List.of(new ItemStack(Items.GLASS_BOTTLE));
-                int base = Config.POTION_CRAFT_SECONDS.get();
-                seconds = base + (long) (quantity - 1) * Math.max(1, base / 3);
             }
             default -> {
                 kind = VillagerWorks.Kind.FORGE;
                 props = java.util.List.of(offer.costs().get(0).copyWithCount(1), offer.costs().get(1).copyWithCount(1));
-                seconds = Config.FORGE_CRAFT_SECONDS.get();
             }
         }
-        if (player.getAbilities().instabuild) {
-            seconds = Math.min(seconds, 8); // creative: quick, for testing
-        }
+        long seconds = craftSeconds(offer.key(), quantity, player.getAbilities().instabuild);
         StoryReady.begin(villager, player.getUUID(), result, props, kind.key(), level.getGameTime() + seconds * 20L);
         VillagerWorks.start(level, villager, kind, props);
         villager.playSound(SoundEvents.VILLAGER_YES, 1.0F, 1.0F);
         player.displayClientMessage(Component.translatable("message.incursion.villager.order_started")
                 .withStyle(ChatFormatting.GOLD), true);
         return true;
+    }
+
+    /**
+     * How long the villager works on {@code quantity} of the commission {@code key}: the first takes the full time, every
+     * further one {@code batchTimeFactor} of it (a little less than ordering them one by one). Creative: quick.
+     */
+    public static int craftSeconds(String key, int quantity, boolean creative) {
+        int base = switch (key) {
+            case "rune" -> Config.RUNE_CRAFT_SECONDS.get();
+            case "potion" -> Config.POTION_CRAFT_SECONDS.get();
+            default -> Config.FORGE_CRAFT_SECONDS.get();
+        };
+        int seconds = (int) Math.round(base + Math.max(0, quantity - 1) * base * Config.BATCH_TIME_FACTOR.get());
+        return creative ? Math.min(seconds, 8) : seconds;
     }
 
     /** The icon beside the vanilla trading screen was clicked: the mod's trading menu replaces that screen. */

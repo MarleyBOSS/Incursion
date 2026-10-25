@@ -921,9 +921,13 @@ public final class Config {
             .defineInRange("runeCraftSeconds", 180, 1, 3600);
 
     public static final ModConfigSpec.IntValue POTION_CRAFT_SECONDS = BUILDER
-            .comment("How long the cleric needs to brew one Mythic Potion (seconds); every further potion of the same",
-                    "order adds a third of it.")
+            .comment("How long the cleric needs to brew one Mythic Potion (seconds); see batchTimeFactor for several at once.")
             .defineInRange("potionCraftSeconds", 45, 1, 3600);
+
+    public static final ModConfigSpec.DoubleValue BATCH_TIME_FACTOR = BUILDER
+            .comment("Time of every further item of the same order compared to making it alone (0.8 = a fifth faster than",
+                    "ordering the items one after the other).")
+            .defineInRange("batchTimeFactor", 0.8, 0.1, 1.0);
 
     public static final ModConfigSpec.IntValue FORGE_CRAFT_SECONDS = BUILDER
             .comment("How long the toolsmith needs to forge an Upgrade Tool (seconds).")

@@ -480,6 +480,7 @@
   "message.incursion.ready.smith.3": "The hammer rests. %s is yours – handle it with care.",
   "message.incursion.ready.smith.4": "No shoddy work, no frills, just steel and will. Take %s.",
   "message.incursion.ready.smith.5": "The best piece I have made in years. %s – wear it with pride.",
+  "gui.incursion.story_trade.time": "Time: %s",
   "gui.incursion.dialog.next": "Next",
   "message.incursion.talk.rune.1.1": "Ah, you again. Pick a book, take your time.",
   "message.incursion.talk.rune.1.2": "Most only come for the books. You too?",

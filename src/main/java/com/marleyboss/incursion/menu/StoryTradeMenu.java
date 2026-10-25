@@ -35,7 +35,16 @@ public class StoryTradeMenu extends AbstractContainerMenu {
 
     private final int villagerId;
     private final List<StoryOffer> offers;
-    private final SimpleContainer input = new SimpleContainer(INPUTS);
+    /** The payment slots hold any number of items (not only one stack). */
+    private static final int SLOT_LIMIT = 100000;
+    private final SimpleContainer input = new SimpleContainer(INPUTS) {
+        @Override
+        public int getMaxStackSize() {
+            return SLOT_LIMIT;
+        }
+    };
+    /** Seconds the selected commission takes in this amount (set by the server every tick, shown by the screen). */
+    private final DataSlot time = DataSlot.standalone();
     private final DataSlot selected = DataSlot.standalone();
     private final DataSlot amount = DataSlot.standalone();
     private final Inventory playerInventory;
@@ -50,10 +59,21 @@ public class StoryTradeMenu extends AbstractContainerMenu {
         amount.set(1);
         addDataSlot(selected);
         addDataSlot(amount);
+        addDataSlot(time);
         // payment slots (x/y as the screen draws them) and the result slot
         for (int i = 0; i < INPUTS; i++) {
             final int slotIndex = i;
             addSlot(new Slot(input, i, 112 + i * 24, 30) {
+                @Override
+                public int getMaxStackSize() {
+                    return SLOT_LIMIT;
+                }
+
+                @Override
+                public int getMaxStackSize(ItemStack stack) {
+                    return SLOT_LIMIT;
+                }
+
                 @Override
                 public boolean mayPlace(ItemStack stack) {
                     ItemStack want = wanted(slotIndex);
@@ -126,8 +146,8 @@ public class StoryTradeMenu extends AbstractContainerMenu {
         return offers.isEmpty() ? null : offers.get(Math.min(selected.get(), offers.size() - 1));
     }
 
-    /** Most items one order makes (the pickup window shows at most 9 stacks). */
-    public static final int MAX_QUANTITY = 9;
+    /** Most items one order makes (the villager holds at most 16 stacks). */
+    public static final int MAX_QUANTITY = 16;
 
     /** Whether the selected commission can be ordered several times at once (the potion). */
     public boolean isMulti() {
@@ -135,17 +155,9 @@ public class StoryTradeMenu extends AbstractContainerMenu {
         return offer != null && "potion".equals(offer.key());
     }
 
-    /** How many the selected commission can be ordered at once: what the payment slots (64 each) can hold. */
+    /** How many the selected commission can be ordered at once. */
     public int maxAmount() {
-        StoryOffer offer = selectedOffer();
-        if (offer == null || !isMulti()) {
-            return 1;
-        }
-        int max = MAX_QUANTITY;
-        for (ItemStack cost : offer.costs()) {
-            max = Math.min(max, 64 / Math.max(1, cost.getCount()));
-        }
-        return Math.max(1, max);
+        return isMulti() ? MAX_QUANTITY : 1;
     }
 
     /** How many are ordered (set with the plus and minus buttons). */
@@ -171,6 +183,18 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     }
 
     /** What the result slot shows: the item of the selected commission, as often as is ordered. */
+    public int seconds() {
+        return time.get();
+    }
+
+    @Override
+    public void broadcastChanges() {
+        if (playerInventory.player instanceof ServerPlayer serverPlayer && selectedOffer() != null) {
+            time.set(StoryEvents.craftSeconds(selectedOffer().key(), amount(), serverPlayer.getAbilities().instabuild));
+        }
+        super.broadcastChanges();
+    }
+
     public ItemStack preview() {
         StoryOffer offer = selectedOffer();
         int times = quantity();

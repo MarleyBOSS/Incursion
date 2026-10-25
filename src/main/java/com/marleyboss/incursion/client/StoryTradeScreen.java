@@ -71,7 +71,10 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
 
     private void amountClick(int id) {
         if (minecraft != null && minecraft.gameMode != null) {
-            minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id);
+            // shift: four at once
+            for (int i = 0; i < (hasShiftDown() ? 4 : 1); i++) {
+                minecraft.gameMode.handleInventoryButtonClick(menu.containerId, id);
+            }
         }
     }
 
@@ -188,6 +191,11 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
         }
         g.blitSprite(ARROW, left + 212, top + 34, 10, 9);
         g.drawString(font, Component.translatable("container.inventory"), left + 108, top + 74, COLOR_TITLE, false);
+        int seconds = menu.seconds();
+        if (seconds > 0) {
+            Component time = Component.translatable("gui.incursion.story_trade.time", (seconds / 60) + ":" + String.format("%02d", seconds % 60));
+            g.drawString(font, time, left + 270 - font.width(time), top + 74, COLOR_DIM, false);
+        }
     }
 
     private static void corner(GuiGraphics g, int x, int y) {
