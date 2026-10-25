@@ -2,6 +2,8 @@ package com.marleyboss.incursion.story;
 
 import com.marleyboss.incursion.Config;
 import com.marleyboss.incursion.data.CoreWorldData;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import com.marleyboss.incursion.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -48,6 +50,7 @@ public final class StoryEvents {
         NeoForge.EVENT_BUS.addListener(StoryEvents::onLeaveLevel);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerInteract);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onTrade);
+        NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerTick);
     }
 
     // ------------------------------------------------------------------
@@ -132,23 +135,34 @@ public final class StoryEvents {
         VillagerProfession profession = villager.getVillagerData().getProfession();
         int level = villager.getVillagerData().getLevel();
         MerchantOffers offers = villager.getOffers(); // creates the vanilla offers first if there are none yet
+        String hint = null;
         if (profession == VillagerProfession.LIBRARIAN) {
             if (CoreWorldData.get(villager.getServer()).isRuneTraded()) {
                 // Sold once in this world already: no librarian offers it again until a Core is destroyed.
                 offers.removeIf(offer -> offer.getResult().is(ModItems.CORE_RUNE.get()));
-            } else if (level >= Config.RUNE_TRADE_LEVEL.get()
-                    && rolled(villager, ROLL_RUNE, Config.RUNE_TRADE_CHANCE.get())) {
-                ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.RUNE_TRADE_EMERALDS.get()),
-                        Optional.of(new ItemCost(Items.BOOK, 1)), new ItemStack(ModItems.CORE_RUNE.get()),
-                        1, 30, 0.05F));
+            } else if (isRuneKeeper(villager)) {
+                if (level >= Config.RUNE_TRADE_LEVEL.get()) {
+                    ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.RUNE_TRADE_EMERALDS.get()),
+                            Optional.of(new ItemCost(Items.BOOK, 1)), new ItemStack(ModItems.CORE_RUNE.get()),
+                            1, 30, 0.05F));
+                } else {
+                    hint = "message.incursion.villager.hint.librarian";
+                }
             }
         } else if (profession == VillagerProfession.CLERIC) {
-            if (level >= Config.POTION_TRADE_LEVEL.get() && rolled(villager, ROLL_POTION, Config.POTION_TRADE_CHANCE.get())) {
-                ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.POTION_TRADE_EMERALDS.get()),
-                        Optional.of(new ItemCost(Items.BLAZE_ROD, 1)), new ItemStack(ModItems.MYTHIC_POTION.get()),
-                        3, 30, 0.05F));
+            if (isPotionKeeper(villager)) {
+                if (level >= Config.POTION_TRADE_LEVEL.get()) {
+                    ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.POTION_TRADE_EMERALDS.get()),
+                            Optional.of(new ItemCost(Items.BLAZE_ROD, 1)), new ItemStack(ModItems.MYTHIC_POTION.get()),
+                            3, 30, 0.05F));
+                } else {
+                    hint = "message.incursion.villager.hint.cleric";
+                }
             }
         } else if (profession == VillagerProfession.TOOLSMITH) {
+            if (level < 3) {
+                hint = "message.incursion.villager.hint.toolsmith";
+            }
             // Journeyman (3): I -> II, Expert (4): II -> III, Master (5): III -> IV.
             for (int tier = 1; tier <= 3; tier++) {
                 if (level < tier + 2) {
@@ -163,6 +177,49 @@ public final class StoryEvents {
                         Optional.of(new ItemCost(material.getItem(), material.getCount())),
                         new ItemStack(ModItems.upgradeTool(tier + 1).get()), 3, 20, 0.0F));
             }
+        }
+        if (hint != null && event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
+            // Not yet trusted enough: a hint that it is worth to level this villager up.
+            event.getEntity().displayClientMessage(Component.translatable(hint)
+                    .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.ITALIC), true);
+        }
+    }
+
+    /** Librarian that sells the Core Rune once he is a Master (decided once per villager, as soon as he is a librarian). */
+    private static boolean isRuneKeeper(Villager villager) {
+        return rolled(villager, ROLL_RUNE, Config.RUNE_TRADE_CHANCE.get());
+    }
+
+    /** Cleric that sells the Mythic Potion once he has the level (decided once per villager). */
+    private static boolean isPotionKeeper(Villager villager) {
+        return rolled(villager, ROLL_POTION, Config.POTION_TRADE_CHANCE.get());
+    }
+
+    /**
+     * Every 2.5 seconds: villagers that keep something for the story show it, from the moment they have the
+     * profession on: the rune keeper is surrounded by the glyphs of the old script (only while the Core Rune can still
+     * be bought in this world), the potion keeper by little flames, the toolsmith by sparks.
+     */
+    private static void onVillagerTick(net.neoforged.neoforge.event.tick.EntityTickEvent.Post event) {
+        if (!(event.getEntity() instanceof Villager villager) || !(villager.level() instanceof ServerLevel level)
+                || (villager.tickCount + villager.getId()) % 50 != 0 || villager.isBaby()
+                || !Config.TRADES_ENABLED.get()) {
+            return;
+        }
+        VillagerProfession profession = villager.getVillagerData().getProfession();
+        double x = villager.getX();
+        double y = villager.getY() + villager.getBbHeight() + 0.2;
+        double z = villager.getZ();
+        if (profession == VillagerProfession.LIBRARIAN) {
+            if (isRuneKeeper(villager) && !CoreWorldData.get(level.getServer()).isRuneTraded()) {
+                level.sendParticles(ParticleTypes.ENCHANT, x, y, z, 8, 0.5, 0.4, 0.5, 0.6);
+            }
+        } else if (profession == VillagerProfession.CLERIC) {
+            if (isPotionKeeper(villager)) {
+                level.sendParticles(ParticleTypes.SMALL_FLAME, x, y - 0.4, z, 3, 0.35, 0.3, 0.35, 0.01);
+            }
+        } else if (profession == VillagerProfession.TOOLSMITH) {
+            level.sendParticles(ParticleTypes.ELECTRIC_SPARK, x, y - 0.6, z, 3, 0.35, 0.3, 0.35, 0.05);
         }
     }
 

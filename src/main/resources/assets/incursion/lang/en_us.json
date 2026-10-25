@@ -415,5 +415,8 @@
   "gui.incursion.core.guardian_1": "Elder Guardian",
   "gui.incursion.core.guardian_2": "Warden",
   "gui.incursion.core.guardian_3": "Ender Dragon",
-  "gui.incursion.core.guardian_4": "Wither"
+  "gui.incursion.core.guardian_4": "Wither",
+  "message.incursion.villager.hint.librarian": "He looks you over carefully. Perhaps one day he will trust you with more …",
+  "message.incursion.villager.hint.cleric": "He smells of blaze powder. Perhaps one day he will brew you something special …",
+  "message.incursion.villager.hint.toolsmith": "He eyes your tools like an expert. With more experience he could improve them …"
 }

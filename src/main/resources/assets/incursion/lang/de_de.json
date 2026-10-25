@@ -415,5 +415,8 @@
   "gui.incursion.core.guardian_1": "Großer Wächter",
   "gui.incursion.core.guardian_2": "Wärter",
   "gui.incursion.core.guardian_3": "Enderdrache",
-  "gui.incursion.core.guardian_4": "Wither"
+  "gui.incursion.core.guardian_4": "Wither",
+  "message.incursion.villager.hint.librarian": "Er mustert dich prüfend. Vielleicht vertraut er dir eines Tages mehr an …",
+  "message.incursion.villager.hint.cleric": "Er riecht nach Lohenstaub. Vielleicht braut er dir eines Tages etwas Besonderes …",
+  "message.incursion.villager.hint.toolsmith": "Er betrachtet dein Werkzeug mit Kennerblick. Mit mehr Erfahrung könnte er es verbessern …"
 }
