@@ -1,5 +1,6 @@
 package com.marleyboss.incursion.story;
 
+import com.marleyboss.incursion.registry.ModItems;
 import com.mojang.math.Transformation;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -114,6 +115,8 @@ public final class VillagerWorks {
         final List<Display.ItemDisplay> shown = new ArrayList<>();
         /** Brewing: the bottle place the villager uses (-1 = none). */
         int bottleSlot = -1;
+        /** Scribing: the rune that forms above the lectern (null until it appears). */
+        Display.ItemDisplay runeShown;
         /** Scribing: the villager laid a book on the lectern (taken away again at the end). */
         boolean bookLaid;
         ItemStack heldBefore = ItemStack.EMPTY;
@@ -226,7 +229,7 @@ public final class VillagerWorks {
         return switch (kind) {
             case FORGE -> Items.MACE;
             case BREW -> Items.BLAZE_ROD;
-            case SCRIBE -> Items.FEATHER;
+            case SCRIBE -> Items.AMETHYST_SHARD;
         };
     }
 
@@ -390,13 +393,11 @@ public final class VillagerWorks {
                 }
             }
             case SCRIBE -> {
-                Vec3 head = job.villager.getEyePosition();
-                if (a % 4 == 0) {
-                    Vec3 d = p.subtract(head);
-                    level.sendParticles(ParticleTypes.ENCHANT, head.x + d.x * 0.3, head.y + d.y * 0.3, head.z + d.z * 0.3, 3,
-                            0.15, 0.15, 0.15, 0.6);
+                // the book reads itself: now and then glyphs rise from the pages and sink back
+                if (a % 6 == 0) {
+                    level.sendParticles(ParticleTypes.ENCHANT, p.x, p.y + 0.2, p.z, 3, 0.2, 0.3, 0.2, 0.4);
                 }
-                if (a % 50 == 5) {
+                if (a % 60 == 5) {
                     level.playSound(null, at, SoundEvents.BOOK_PAGE_TURN, SoundSource.NEUTRAL, 0.8F, 0.9F);
                 }
             }
@@ -404,23 +405,21 @@ public final class VillagerWorks {
     }
 
     /**
-     * The rune is written: the librarian writes (quill, pages), then the glyphs rise from the book, circle the lectern
-     * in a slowly closing ring and fall back into the book, which becomes the rune.
+     * The rune is made: the archivist lays the book on the lectern and channels its knowledge. The glyphs rise out of
+     * the open book, circle the lectern in a slowly closing ring and condense above it into the Core Rune, which
+     * floats up and takes shape; the book is spent and crumbles to dust.
      */
     private static void scribe(Job job, ServerLevel level, Vec3 p, BlockPos at, int a) {
-        Vec3 head = job.villager.getEyePosition();
         if (a < 60) {
+            // the book reads itself: glyphs rise from the pages
             if (a % 3 == 0) {
-                // the glyphs flow from the writer into the pages
-                Vec3 d = p.subtract(head);
-                level.sendParticles(ParticleTypes.ENCHANT, head.x + d.x * 0.3, head.y + d.y * 0.3, head.z + d.z * 0.3, 4,
-                        0.15, 0.15, 0.15, 0.6);
+                level.sendParticles(ParticleTypes.ENCHANT, p.x, p.y + 0.2, p.z, 5, 0.2, 0.35, 0.2, 0.5);
             }
             if (a % 20 == 5) {
                 level.playSound(null, at, SoundEvents.BOOK_PAGE_TURN, SoundSource.NEUTRAL, 1.0F, 0.9F + 0.1F * (a / 20));
             }
         } else if (a < 130) {
-            // the ring of glyphs
+            // the ring of glyphs, closing in
             float k = (a - 60) / 70.0F;
             double radius = 1.3 * (1.0 - k) + 0.2;
             double height = 0.3 + 1.2 * Math.sin(k * Math.PI);
@@ -439,9 +438,27 @@ public final class VillagerWorks {
             if (a % 25 == 0) {
                 level.playSound(null, at, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.NEUTRAL, 1.0F, 0.5F + k);
             }
+            if (a >= 80) {
+                // the rune takes shape above the lectern and floats up
+                double y = p.y + 0.55 + 0.4 * Math.min(1.0, (a - 80) / 50.0);
+                if (job.runeShown == null) {
+                    job.runeShown = display(level, new Vec3(p.x, y, p.z), new ItemStack(ModItems.CORE_RUNE.get()), 0.0F,
+                            0.0F, 0.5F);
+                    if (job.runeShown != null) {
+                        job.runeShown.setGlowingTag(true);
+                        job.shown.add(job.runeShown);
+                    }
+                } else {
+                    job.runeShown.setPos(p.x, y, p.z);
+                }
+                if (a % 3 == 0) {
+                    level.sendParticles(ParticleTypes.GLOW, p.x, y + 0.1, p.z, 2, 0.12, 0.12, 0.12, 0.01);
+                }
+            }
         } else if (a == 135) {
-            // everything falls back into the book: it is the rune now
+            // the book is spent: it crumbles, the rune stays
             level.sendParticles(ParticleTypes.REVERSE_PORTAL, p.x, p.y + 0.2, p.z, 60, 0.3, 0.3, 0.3, 0.05);
+            level.sendParticles(ParticleTypes.ASH, p.x, p.y + 0.15, p.z, 30, 0.25, 0.1, 0.25, 0.02);
             level.playSound(null, at, SoundEvents.AMETHYST_BLOCK_RESONATE, SoundSource.NEUTRAL, 1.2F, 0.6F);
             level.playSound(null, at, SoundEvents.BEACON_POWER_SELECT, SoundSource.NEUTRAL, 0.6F, 1.4F);
         }
@@ -484,7 +501,7 @@ public final class VillagerWorks {
                     level.sendParticles(ParticleTypes.WITCH, p.x, p.y + 0.5, p.z, 20, 0.15, 0.2, 0.15, 0.05);
                     level.playSound(null, BlockPos.containing(p), SoundEvents.BOTTLE_FILL, SoundSource.NEUTRAL, 1.0F, 0.8F);
                 }
-                case SCRIBE -> level.sendParticles(ParticleTypes.END_ROD, p.x, p.y + 0.3, p.z, 6, 0.1, 0.1, 0.1, 0.05);
+                case SCRIBE -> level.sendParticles(ParticleTypes.END_ROD, p.x, p.y + 0.8, p.z, 14, 0.15, 0.2, 0.15, 0.05);
             }
         }
         // the bottle in the brewing stand goes again (the finished potions are kept by the villager)
