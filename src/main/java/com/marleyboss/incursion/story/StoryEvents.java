@@ -44,6 +44,7 @@ public final class StoryEvents {
 
     public static void register() {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, StoryEvents::onBossDeath);
+        NeoForge.EVENT_BUS.addListener(StoryEvents::onLeaveLevel);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerInteract);
     }
 
@@ -67,15 +68,36 @@ public final class StoryEvents {
         return 0;
     }
 
+    /** Set on a boss whose tablet has dropped, so it drops only once. */
+    private static final String DROPPED_TAG = "incursion_tablet_dropped";
+
     private static void onBossDeath(LivingDeathEvent event) {
-        LivingEntity boss = event.getEntity();
-        if (event.isCanceled() || !(boss.level() instanceof ServerLevel level) || !Config.TABLET_DROPS.get()) {
+        if (!event.isCanceled()) {
+            dropTablet(event.getEntity());
+        }
+    }
+
+    /**
+     * The Ender Dragon does not always die through the normal death: {@code /kill} and the end of its death animation
+     * remove it directly ("killed"). The tablet then drops when it leaves the world.
+     */
+    private static void onLeaveLevel(net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent event) {
+        if (event.getEntity() instanceof LivingEntity boss && boss.getType() == EntityType.ENDER_DRAGON
+                && boss.getRemovalReason() == net.minecraft.world.entity.Entity.RemovalReason.KILLED) {
+            dropTablet(boss);
+        }
+    }
+
+    private static void dropTablet(LivingEntity boss) {
+        if (!(boss.level() instanceof ServerLevel level) || !Config.TABLET_DROPS.get()
+                || boss.getTags().contains(DROPPED_TAG)) {
             return;
         }
         int stage = tabletStage(boss.getType());
         if (stage == 0) {
             return;
         }
+        boss.addTag(DROPPED_TAG);
         double x = boss.getX();
         double y = boss.getY() + boss.getBbHeight() * 0.5;
         double z = boss.getZ();

@@ -19,10 +19,10 @@ public class TabletItem extends Item {
     private static final ResourceLocation ALT_FONT = ResourceLocation.withDefaultNamespace("alt");
     /** What stands on the tablets, unreadable in the old script (different on every tablet). */
     private static final String[] ENGRAVING = {
-            "the eye that never closes keeps the deep",
-            "the one who hears in the dark keeps the stone",
-            "the wings above the void keep the gate",
-            "the three heads keep the ashes of the order"
+            "the eye keeps the deep",
+            "the ear keeps the stone",
+            "the wings keep the gate",
+            "the heads keep the ash"
     };
 
     private final int stage;
@@ -43,6 +43,5 @@ public class TabletItem extends Item {
         tooltip.add(Component.literal(ENGRAVING[Math.max(0, Math.min(3, stage - 1))])
                 .withStyle(style -> style.withFont(ALT_FONT).withColor(ChatFormatting.DARK_PURPLE)));
         tooltip.add(Component.translatable("item.incursion.tablet.level", stage * 5).withStyle(ChatFormatting.GRAY));
-        tooltip.add(Component.translatable("item.incursion.tablet.use").withStyle(ChatFormatting.DARK_GRAY));
     }
 }
