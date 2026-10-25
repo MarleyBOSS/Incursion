@@ -1,6 +1,7 @@
 package com.marleyboss.incursion.story;
 
 import com.marleyboss.incursion.Config;
+import com.marleyboss.incursion.data.CoreWorldData;
 import com.marleyboss.incursion.registry.ModItems;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
@@ -32,10 +33,10 @@ import java.util.Optional;
  * <ul>
  *     <li>Tablets: the Elder Guardian, the Warden, the Ender Dragon and the Wither drop the tablet of their stage when
  *     they die (always, one per kill). The item cannot burn, despawn or be blown up and glows.</li>
- *     <li>Villager trades: the Librarian sells the Core Rune, the Cleric the Mythic Potion, the Toolsmith trades an
- *     Upgrade Tool and a material for the next tier. The offers are added when a player opens the trading screen of a
- *     villager of the needed level, so villagers that existed before get them too, and the offer is always there
- *     (not left to the random choice of vanilla trades).</li>
+ *     <li>Villager trades, added when a player opens the trading screen (villagers that existed before get them too):
+ *     one librarian in five (decided once per villager) sells the Core Rune, but only once per world until a Core is
+ *     destroyed; one cleric in five sells the Mythic Potion; every Toolsmith trades an Upgrade Tool and a material
+ *     for the next tier (Journeyman, Expert, Master).</li>
  * </ul>
  */
 public final class StoryEvents {
@@ -46,6 +47,7 @@ public final class StoryEvents {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, StoryEvents::onBossDeath);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onLeaveLevel);
         NeoForge.EVENT_BUS.addListener(StoryEvents::onVillagerInteract);
+        NeoForge.EVENT_BUS.addListener(StoryEvents::onTrade);
     }
 
     // ------------------------------------------------------------------
@@ -130,14 +132,22 @@ public final class StoryEvents {
         VillagerProfession profession = villager.getVillagerData().getProfession();
         int level = villager.getVillagerData().getLevel();
         MerchantOffers offers = villager.getOffers(); // creates the vanilla offers first if there are none yet
-        if (profession == VillagerProfession.LIBRARIAN && level >= Config.RUNE_TRADE_LEVEL.get()) {
-            ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.RUNE_TRADE_EMERALDS.get()),
-                    Optional.of(new ItemCost(Items.BOOK, 1)), new ItemStack(ModItems.CORE_RUNE.get()),
-                    2, 30, 0.05F));
-        } else if (profession == VillagerProfession.CLERIC && level >= Config.POTION_TRADE_LEVEL.get()) {
-            ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.POTION_TRADE_EMERALDS.get()),
-                    Optional.of(new ItemCost(Items.BLAZE_ROD, 1)), new ItemStack(ModItems.MYTHIC_POTION.get()),
-                    3, 30, 0.05F));
+        if (profession == VillagerProfession.LIBRARIAN) {
+            if (CoreWorldData.get(villager.getServer()).isRuneTraded()) {
+                // Sold once in this world already: no librarian offers it again until a Core is destroyed.
+                offers.removeIf(offer -> offer.getResult().is(ModItems.CORE_RUNE.get()));
+            } else if (level >= Config.RUNE_TRADE_LEVEL.get()
+                    && rolled(villager, ROLL_RUNE, Config.RUNE_TRADE_CHANCE.get())) {
+                ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.RUNE_TRADE_EMERALDS.get()),
+                        Optional.of(new ItemCost(Items.BOOK, 1)), new ItemStack(ModItems.CORE_RUNE.get()),
+                        1, 30, 0.05F));
+            }
+        } else if (profession == VillagerProfession.CLERIC) {
+            if (level >= Config.POTION_TRADE_LEVEL.get() && rolled(villager, ROLL_POTION, Config.POTION_TRADE_CHANCE.get())) {
+                ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.POTION_TRADE_EMERALDS.get()),
+                        Optional.of(new ItemCost(Items.BLAZE_ROD, 1)), new ItemStack(ModItems.MYTHIC_POTION.get()),
+                        3, 30, 0.05F));
+            }
         } else if (profession == VillagerProfession.TOOLSMITH) {
             // Journeyman (3): I -> II, Expert (4): II -> III, Master (5): III -> IV.
             for (int tier = 1; tier <= 3; tier++) {
@@ -153,6 +163,33 @@ public final class StoryEvents {
                         Optional.of(new ItemCost(material.getItem(), material.getCount())),
                         new ItemStack(ModItems.upgradeTool(tier + 1).get()), 3, 20, 0.0F));
             }
+        }
+    }
+
+    private static final String ROLL_RUNE = "IncursionRuneOffer";
+    private static final String ROLL_POTION = "IncursionPotionOffer";
+
+    /**
+     * Whether this villager offers the story item: decided once per villager with {@code chance} and kept in the
+     * villager (1 = yes, 2 = no), so opening the trade screen again does not roll again.
+     */
+    private static boolean rolled(Villager villager, String key, double chance) {
+        net.minecraft.nbt.CompoundTag data = villager.getPersistentData();
+        if (!data.contains(key)) {
+            data.putInt(key, villager.getRandom().nextDouble() < chance ? 1 : 2);
+        }
+        return data.getInt(key) == 1;
+    }
+
+    /** The Core Rune was bought: from now on no villager in this world sells it (until a Core is destroyed). */
+    private static void onTrade(net.neoforged.neoforge.event.entity.player.TradeWithVillagerEvent event) {
+        if (event.getEntity().level().isClientSide()
+                || !event.getMerchantOffer().getResult().is(ModItems.CORE_RUNE.get())) {
+            return;
+        }
+        event.getMerchantOffer().setToOutOfStock();
+        if (event.getEntity().getServer() != null) {
+            CoreWorldData.get(event.getEntity().getServer()).setRuneTraded(true);
         }
     }
 

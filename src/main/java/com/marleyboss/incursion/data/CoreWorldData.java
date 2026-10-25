@@ -22,11 +22,14 @@ public class CoreWorldData extends SavedData {
     private static final String NAME = "incursion_core";
     private static final String TAG_DIMENSION = "Dimension";
     private static final String TAG_POS = "Pos";
+    private static final String TAG_RUNE_TRADED = "RuneTraded";
 
     @Nullable
     private ResourceKey<Level> dimension;
     @Nullable
     private BlockPos pos;
+    /** A villager has sold the Core Rune in this world; none sells it again until a Core is destroyed. */
+    private boolean runeTraded;
 
     public static CoreWorldData get(MinecraftServer server) {
         return server.overworld().getDataStorage().computeIfAbsent(
@@ -36,8 +39,20 @@ public class CoreWorldData extends SavedData {
     public CoreWorldData() {
     }
 
+    public boolean isRuneTraded() {
+        return runeTraded;
+    }
+
+    public void setRuneTraded(boolean traded) {
+        if (runeTraded != traded) {
+            runeTraded = traded;
+            setDirty();
+        }
+    }
+
     private static CoreWorldData load(CompoundTag tag, HolderLookup.Provider registries) {
         CoreWorldData data = new CoreWorldData();
+        data.runeTraded = tag.getBoolean(TAG_RUNE_TRADED);
         if (tag.contains(TAG_DIMENSION) && tag.contains(TAG_POS)) {
             ResourceLocation dimensionId = ResourceLocation.tryParse(tag.getString(TAG_DIMENSION));
             if (dimensionId != null) {
@@ -54,6 +69,7 @@ public class CoreWorldData extends SavedData {
             tag.putString(TAG_DIMENSION, dimension.location().toString());
             tag.putLong(TAG_POS, pos.asLong());
         }
+        tag.putBoolean(TAG_RUNE_TRADED, runeTraded);
         return tag;
     }
 

@@ -213,6 +213,8 @@ public class CoreBlock extends BaseEntityBlock {
             } else {
                 CoreWorldData.get(serverLevel.getServer()).clearIfMatches(level.dimension(), pos);
             }
+            // The Core is destroyed: villagers may sell the Core Rune again (it can be bought only once per Core).
+            CoreWorldData.get(serverLevel.getServer()).setRuneTraded(false);
             // the Core does not just vanish: it overloads first (the explosion follows when the fuse has run down)
             CoreBlastEntity.start(serverLevel, pos, coreLevel, grownStage);
         } else if (!state.is(newState.getBlock()) && !level.isClientSide && level instanceof ServerLevel serverLevel
