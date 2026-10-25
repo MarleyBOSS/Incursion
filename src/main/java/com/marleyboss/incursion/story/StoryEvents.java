@@ -267,7 +267,7 @@ public final class StoryEvents {
      * afterwards when this returns true). Checked again here: the keeper must be near, not busy or down, hold nothing
      * finished, and still offer it.
      */
-    static boolean beginOrder(net.minecraft.server.level.ServerPlayer player, int villagerId, StoryOffer offer, int quantity) {
+    public static boolean beginOrder(net.minecraft.server.level.ServerPlayer player, int villagerId, StoryOffer offer, int quantity) {
         if (!(player.level().getEntity(villagerId) instanceof Villager villager) || !villager.isAlive()
                 || villager.distanceToSqr(player) > 10.0 * 10.0 || !(villager.level() instanceof ServerLevel level)) {
             return false;
