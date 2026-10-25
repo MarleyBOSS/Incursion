@@ -435,8 +435,6 @@
   "name.incursion.keeper.rune": "%s, Rune Keeper",
   "name.incursion.keeper.glow": "%s, Keeper of the Embers",
   "name.incursion.keeper.smith": "%s, Seal Smith",
-  "name.incursion.keeper.stone": "%s (turned to stone)",
-  "message.incursion.villager.stone": "He has turned to stone … He will wake up in the morning.",
   "message.incursion.dialog.rune.1": "You carry the smell of the intruders … They come closer every night, don't they?",
   "message.incursion.dialog.rune.2": "I keep the knowledge of the Seal Wardens. With it an anchor can be bound that keeps them away. But one does not give such a thing to a stranger.",
   "message.incursion.dialog.rune.wait": "Come back when I know you better.",
@@ -448,5 +446,7 @@
   "message.incursion.dialog.smith.1": "My hammer once struck for the Order of the Seal Wardens.",
   "message.incursion.dialog.smith.2": "Bring me what the mighty among the intruders leave behind, and your tool will grow stronger.",
   "message.incursion.dialog.smith.wait": "But only as a master of my craft am I up to it.",
-  "message.incursion.dialog.smith.trusted": "Hold your tool and their sign in your hands, then I will forge."
+  "message.incursion.dialog.smith.trusted": "Hold your tool and their sign in your hands, then I will forge.",
+  "name.incursion.keeper.down": "%s (unconscious)",
+  "message.incursion.villager.down": "He is unconscious … He will come to in the morning."
 }

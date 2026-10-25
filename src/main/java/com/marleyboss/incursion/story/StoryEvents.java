@@ -146,10 +146,10 @@ public final class StoryEvents {
         }
         VillagerProfession profession = villager.getVillagerData().getProfession();
         int level = villager.getVillagerData().getLevel();
-        if (StoryVillagers.isStone(villager)) {
+        if (StoryVillagers.isDown(villager)) {
             cancel(event);
             if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
-                event.getEntity().displayClientMessage(Component.translatable("message.incursion.villager.stone")
+                event.getEntity().displayClientMessage(Component.translatable("message.incursion.villager.down")
                         .withStyle(ChatFormatting.GRAY), true);
             }
             return;
@@ -317,8 +317,8 @@ public final class StoryEvents {
                 || (villager.tickCount + villager.getId()) % 50 != 0 || villager.isBaby()) {
             return;
         }
-        if (StoryVillagers.isStone(villager)) {
-            StoryVillagers.tickStone(level, villager);
+        if (StoryVillagers.isDown(villager)) {
+            StoryVillagers.tickDown(level, villager);
             return;
         }
         if (!Config.TRADES_ENABLED.get()) {

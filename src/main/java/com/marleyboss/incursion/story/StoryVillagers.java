@@ -1,7 +1,6 @@
 package com.marleyboss.incursion.story;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -18,7 +17,6 @@ import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.block.Blocks;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.living.LivingConversionEvent;
@@ -39,14 +37,14 @@ import java.util.UUID;
  *     <li>The first time a player right-clicks one, he speaks a few lines (in the chat, one after the other) instead of
  *     opening the trading screen.</li>
  *     <li>Then he carries a name from the lore with his title, always visible, so he is easy to find again.</li>
- *     <li>A named keeper does not die from monsters, falls, fire and the like: he turns to stone and wakes up the next
- *     morning. Only a player can really kill him.</li>
+ *     <li>A named keeper does not die from monsters, falls, fire and the like: he collapses (lies on the ground) and
+ *     gets up again the next morning. Only a player can really kill him.</li>
  * </ul>
  */
 public final class StoryVillagers {
     private static final String TAG_NAMED = "IncursionStoryName";
     private static final String TAG_MET = "IncursionMetPlayers";
-    private static final String TAG_STONE_DAY = "IncursionStoneDay";
+    private static final String TAG_DOWN_DAY = "IncursionDownDay";
     private static final String TAG_KEEPER = "IncursionKeeper";
 
     private static final String[] RUNE_NAMES = {"Orwin", "Ysolde", "Cael", "Edrin", "Mirelle", "Thalos", "Ansgar", "Liora"};
@@ -69,6 +67,7 @@ public final class StoryVillagers {
         NeoForge.EVENT_BUS.addListener(StoryVillagers::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(StoryVillagers::onConversion);
         NeoForge.EVENT_BUS.addListener(StoryVillagers::onServerTick);
+        NeoForge.EVENT_BUS.addListener(StoryVillagers::onContinueSleeping);
         NeoForge.EVENT_BUS.addListener((ServerStoppingEvent event) -> LINES.clear());
     }
 
@@ -170,15 +169,15 @@ public final class StoryVillagers {
     }
 
     // ------------------------------------------------------------------
-    // Turned to stone instead of dying
+    // Collapsed instead of dying
     // ------------------------------------------------------------------
 
-    static boolean isStone(Villager villager) {
-        return villager.getPersistentData().contains(TAG_STONE_DAY);
+    static boolean isDown(Villager villager) {
+        return villager.getPersistentData().contains(TAG_DOWN_DAY);
     }
 
-    /** Monsters, falls, fire and the like turn a named keeper to stone; a player kills him; the void still takes him. */
-    private static boolean petrifies(Villager villager, DamageSource source) {
+    /** Monsters, falls, fire and the like make a named keeper collapse; a player kills him; the void still takes him. */
+    private static boolean spares(Villager villager, DamageSource source) {
         return isNamed(villager) && !(source.getEntity() instanceof Player)
                 && !source.is(DamageTypes.FELL_OUT_OF_WORLD) && !source.is(DamageTypes.GENERIC_KILL)
                 && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY);
@@ -186,19 +185,26 @@ public final class StoryVillagers {
 
     private static void onDeath(LivingDeathEvent event) {
         if (event.isCanceled() || !(event.getEntity() instanceof Villager villager)
-                || !(villager.level() instanceof ServerLevel level) || !petrifies(villager, event.getSource())) {
+                || !(villager.level() instanceof ServerLevel level) || !spares(villager, event.getSource())) {
             return;
         }
         event.setCanceled(true);
         villager.setHealth(villager.getMaxHealth());
-        petrify(level, villager);
+        collapse(level, villager);
     }
 
-    /** A villager of stone takes no harm, except from a player. */
+    /** A collapsed keeper takes no harm, except from a player (a hit would also wake a lying entity). */
     private static void onIncomingDamage(LivingIncomingDamageEvent event) {
-        if (event.getEntity() instanceof Villager villager && !villager.level().isClientSide && isStone(villager)
-                && petrifies(villager, event.getSource())) {
+        if (event.getEntity() instanceof Villager villager && !villager.level().isClientSide && isDown(villager)
+                && spares(villager, event.getSource())) {
             event.setCanceled(true);
+        }
+    }
+
+    /** He lies without a bed: the game would wake him every tick, he stays down until the morning. */
+    private static void onContinueSleeping(net.neoforged.neoforge.event.entity.player.CanContinueSleepingEvent event) {
+        if (event.getEntity() instanceof Villager villager && isDown(villager)) {
+            event.setContinueSleeping(true);
         }
     }
 
@@ -209,22 +215,24 @@ public final class StoryVillagers {
         }
     }
 
-    private static void petrify(ServerLevel level, Villager villager) {
-        villager.getPersistentData().putLong(TAG_STONE_DAY, Math.floorDiv(level.getDayTime(), 24000L));
-        villager.setNoAi(true);
-        villager.clearFire();
+    private static void collapse(ServerLevel level, Villager villager) {
+        villager.getPersistentData().putLong(TAG_DOWN_DAY, Math.floorDiv(level.getDayTime(), 24000L));
         villager.setTradingPlayer(null);
-        villager.setCustomName(Component.translatable("name.incursion.keeper.stone",
+        villager.getNavigation().stop();
+        villager.clearFire();
+        villager.setNoAi(true); // his brain would make him get up (or walk away lying down)
+        villager.setSleepingPos(villager.blockPosition()); // lies on the ground where he fell (the sleeping pose)
+        villager.setPose(net.minecraft.world.entity.Pose.SLEEPING);
+        villager.setCustomName(Component.translatable("name.incursion.keeper.down",
                 villager.getCustomName() != null ? villager.getCustomName() : villager.getDisplayName())
                 .withStyle(ChatFormatting.GRAY));
-        stoneBurst(level, villager);
-        level.playSound(null, villager.blockPosition(), SoundEvents.BASALT_PLACE, SoundSource.NEUTRAL, 1.2F, 0.6F);
+        level.sendParticles(ParticleTypes.POOF, villager.getX(), villager.getY() + 0.4, villager.getZ(), 12, 0.3, 0.2, 0.3, 0.02);
+        level.playSound(null, villager.blockPosition(), SoundEvents.VILLAGER_HURT, SoundSource.NEUTRAL, 1.0F, 0.8F);
+        level.playSound(null, villager.blockPosition(), SoundEvents.PLAYER_SMALL_FALL, SoundSource.NEUTRAL, 1.0F, 0.8F);
     }
 
-    /**
-     * Every 2.5 seconds (from the villager tick): a villager of stone crumbles a little and wakes up the next morning.
-     */
-    static void tickStone(ServerLevel level, Villager villager) {
+    /** Every 2.5 seconds (from the villager tick): a collapsed keeper gets up again the next morning. */
+    static void tickDown(ServerLevel level, Villager villager) {
         String key = villager.getPersistentData().getString(TAG_KEEPER);
         Keeper keeper = Keeper.SMITH;
         for (Keeper k : Keeper.values()) {
@@ -234,23 +242,23 @@ public final class StoryVillagers {
         }
         long day = Math.floorDiv(level.getDayTime(), 24000L);
         long timeOfDay = Math.floorMod(level.getDayTime(), 24000L);
-        if (day > villager.getPersistentData().getLong(TAG_STONE_DAY) && timeOfDay < 12000L) {
-            villager.getPersistentData().remove(TAG_STONE_DAY);
+        if (day > villager.getPersistentData().getLong(TAG_DOWN_DAY) && timeOfDay < 12000L) {
+            villager.getPersistentData().remove(TAG_DOWN_DAY);
+            villager.stopSleeping();
+            villager.setPose(net.minecraft.world.entity.Pose.STANDING);
             villager.setNoAi(false);
             villager.setCustomName(nameOf(villager, keeper));
             villager.setHealth(villager.getMaxHealth());
-            stoneBurst(level, villager);
-            level.playSound(null, villager.blockPosition(), SoundEvents.BASALT_BREAK, SoundSource.NEUTRAL, 1.2F, 0.8F);
+            level.sendParticles(ParticleTypes.HAPPY_VILLAGER, villager.getX(), villager.getY() + 1.6, villager.getZ(),
+                    8, 0.3, 0.3, 0.3, 0.0);
             level.playSound(null, villager.blockPosition(), SoundEvents.VILLAGER_YES, SoundSource.NEUTRAL, 1.0F, 1.0F);
             return;
         }
-        level.sendParticles(new BlockParticleOption(ParticleTypes.FALLING_DUST, Blocks.STONE.defaultBlockState()),
-                villager.getX(), villager.getY() + 1.2, villager.getZ(), 3, 0.25, 0.5, 0.25, 0.0);
-    }
-
-    private static void stoneBurst(ServerLevel level, Villager villager) {
-        level.sendParticles(new BlockParticleOption(ParticleTypes.BLOCK, Blocks.STONE.defaultBlockState()),
-                villager.getX(), villager.getY() + 1.0, villager.getZ(), 40, 0.3, 0.6, 0.3, 0.1);
+        if (!villager.isSleeping()) {
+            // something stood him up (e.g. a reload): back to the ground
+            villager.setSleepingPos(villager.blockPosition());
+            villager.setPose(net.minecraft.world.entity.Pose.SLEEPING);
+        }
     }
 
     /** The keeper this villager is, or null (decided by the same rolls as the trades). */
