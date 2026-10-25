@@ -34,6 +34,7 @@ public class Incursion {
         ModSounds.SOUNDS.register(modEventBus);
 
         modEventBus.addListener(this::addCreative);
+        modEventBus.addListener(com.marleyboss.incursion.story.DialogPayload::register);
         modEventBus.addListener(ModEntities::registerAttributes);
         modEventBus.addListener(ChunkLoading::register);
         modEventBus.addListener(Fallout::registerTickets);

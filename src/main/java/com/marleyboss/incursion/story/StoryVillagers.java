@@ -34,8 +34,8 @@ import java.util.UUID;
  * The keepers among the villagers (the librarian who keeps the Core Rune, the cleric who brews the Mythic Potion, the
  * toolsmith of the order) become characters:
  * <ul>
- *     <li>The first time a player right-clicks one, he speaks a few lines (in the chat, one after the other) instead of
- *     opening the trading screen.</li>
+ *     <li>Beside his trading screen, a panel shows him and what he says (see DialogPayload): the first time a player
+ *     meets him a few lines to click through, later one line that fits his trading level.</li>
  *     <li>Then he carries a name from the lore with his title, always visible, so he is easy to find again.</li>
  *     <li>A named keeper does not die from monsters, falls, fire and the like: he collapses (lies on the ground) and
  *     gets up again the next morning. Only a player can really kill him.</li>
@@ -51,14 +51,6 @@ public final class StoryVillagers {
     private static final String[] GLOW_NAMES = {"Vela", "Morwen", "Halric", "Isen", "Brannoc", "Selka", "Odran", "Ilsa"};
     private static final String[] SMITH_NAMES = {"Borin", "Hald", "Garrek", "Torvald", "Ruona", "Dagmar", "Kestrel", "Bram"};
 
-    /** Ticks between two lines of a dialog. */
-    private static final int LINE_TICKS = 50;
-
-    private record Line(UUID player, Villager speaker, Component text, long due) {
-    }
-
-    private static final List<Line> LINES = new ArrayList<>();
-
     private StoryVillagers() {
     }
 
@@ -66,9 +58,7 @@ public final class StoryVillagers {
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, StoryVillagers::onDeath);
         NeoForge.EVENT_BUS.addListener(StoryVillagers::onIncomingDamage);
         NeoForge.EVENT_BUS.addListener(StoryVillagers::onConversion);
-        NeoForge.EVENT_BUS.addListener(StoryVillagers::onServerTick);
         NeoForge.EVENT_BUS.addListener(StoryVillagers::onContinueSleeping);
-        NeoForge.EVENT_BUS.addListener((ServerStoppingEvent event) -> LINES.clear());
     }
 
     /** Which keeper he is: "rune", "glow", "smith". */
@@ -91,8 +81,8 @@ public final class StoryVillagers {
     // ------------------------------------------------------------------
 
     /**
-     * Called when a player right-clicks a keeper. Returns true if this player meets him for the first time: then a
-     * dialog runs (the caller cancels the trading screen) and the villager gets his name if he has none yet.
+     * Called when a player right-clicks a keeper. Returns true if this player meets him for the first time (the
+     * dialog panel then shows the first-meeting lines); the villager gets his name if he has none yet.
      */
     static boolean meet(ServerLevel level, Villager villager, Player player, Keeper keeper, boolean trusted) {
         CompoundTag data = villager.getPersistentData();
@@ -112,13 +102,6 @@ public final class StoryVillagers {
             villager.setCustomNameVisible(true);
             villager.setPersistenceRequired();
         }
-        long now = level.getGameTime();
-        String base = "message.incursion.dialog." + keeper.key + ".";
-        String[] keys = {base + "1", base + "2", base + (trusted ? "trusted" : "wait")};
-        for (int i = 0; i < keys.length; i++) {
-            LINES.add(new Line(player.getUUID(), villager, say(villager, Component.translatable(keys[i])),
-                    now + 10L + (long) i * LINE_TICKS));
-        }
         villager.getLookControl().setLookAt(player);
         level.playSound(null, villager.blockPosition(), SoundEvents.VILLAGER_AMBIENT, SoundSource.NEUTRAL, 1.0F, 0.9F);
         return true;
@@ -134,38 +117,6 @@ public final class StoryVillagers {
         int index = Math.floorMod((int) (id.getMostSignificantBits() ^ id.getLeastSignificantBits()), keeper.names.length);
         return Component.translatable("name.incursion.keeper." + keeper.key, keeper.names[index])
                 .withStyle(ChatFormatting.GOLD);
-    }
-
-    private static Component say(Villager villager, Component text) {
-        Component name = villager.getCustomName() != null ? villager.getCustomName() : villager.getDisplayName();
-        return Component.empty().append(name.copy().withStyle(ChatFormatting.GOLD))
-                .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
-                .append(text.copy().withStyle(ChatFormatting.WHITE, ChatFormatting.ITALIC));
-    }
-
-    private static void onServerTick(ServerTickEvent.Post event) {
-        if (LINES.isEmpty()) {
-            return;
-        }
-        Iterator<Line> it = LINES.iterator();
-        while (it.hasNext()) {
-            Line line = it.next();
-            if (!(line.speaker().level() instanceof ServerLevel level) || line.speaker().isRemoved()) {
-                it.remove();
-                continue;
-            }
-            if (level.getGameTime() < line.due()) {
-                continue;
-            }
-            it.remove();
-            ServerPlayer player = level.getServer().getPlayerList().getPlayer(line.player());
-            if (player != null) {
-                player.sendSystemMessage(line.text());
-                line.speaker().getLookControl().setLookAt(player);
-                level.playSound(null, line.speaker().blockPosition(), SoundEvents.VILLAGER_AMBIENT, SoundSource.NEUTRAL,
-                        0.8F, 0.9F + level.random.nextFloat() * 0.2F);
-            }
-        }
     }
 
     // ------------------------------------------------------------------

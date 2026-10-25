@@ -161,17 +161,20 @@ public final class StoryEvents {
                 case GLOW -> Config.POTION_TRADE_LEVEL.get();
                 case SMITH -> Config.TOOL_FORGE_LEVEL.get();
             };
-            boolean runeGone = keeper == StoryVillagers.Keeper.RUNE
-                    && CoreWorldData.get(villager.getServer()).isRuneTraded();
-            if (!runeGone && StoryVillagers.meet((ServerLevel) villager.level(), villager, event.getEntity(), keeper,
-                    level >= needed)) {
-                cancel(event); // the first meeting: he speaks instead of trading
+            if (profession == VillagerProfession.TOOLSMITH && level >= Config.TOOL_FORGE_LEVEL.get()
+                    && tryForge(event, villager)) {
                 return;
             }
-        }
-        if (profession == VillagerProfession.TOOLSMITH && level >= Config.TOOL_FORGE_LEVEL.get()
-                && tryForge(event, villager)) {
-            return;
+            if (event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND
+                    && event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+                // What he says, in the panel beside his trading screen.
+                boolean runeGone = keeper == StoryVillagers.Keeper.RUNE
+                        && CoreWorldData.get(villager.getServer()).isRuneTraded();
+                boolean first = StoryVillagers.meet((ServerLevel) villager.level(), villager, player, keeper,
+                        level >= needed);
+                DialogPayload.send(player, villager.getId(),
+                        dialogLines(keeper, level, level >= needed, first, runeGone, villager.getRandom()));
+            }
         }
         MerchantOffers offers = villager.getOffers(); // creates the vanilla offers first if there are none yet
         String hint = null;
@@ -184,8 +187,6 @@ public final class StoryEvents {
                     ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.RUNE_TRADE_EMERALDS.get()),
                             Optional.of(new ItemCost(Items.BOOK, 1)), new ItemStack(ModItems.CORE_RUNE.get()),
                             1, 30, 0.05F));
-                } else {
-                    hint = "message.incursion.villager.hint.librarian";
                 }
             }
         } else if (profession == VillagerProfession.CLERIC) {
@@ -194,25 +195,41 @@ public final class StoryEvents {
                     ensure(offers, new MerchantOffer(new ItemCost(Items.EMERALD, Config.POTION_TRADE_EMERALDS.get()),
                             Optional.of(new ItemCost(Items.BLAZE_ROD, 1)), new ItemStack(ModItems.MYTHIC_POTION.get()),
                             3, 30, 0.05F));
-                } else {
-                    hint = "message.incursion.villager.hint.cleric";
                 }
             }
         } else if (profession == VillagerProfession.TOOLSMITH) {
             // The tools are not traded any more (v0.17.0-v0.17.4 added rows): he forges them, see tryForge.
             offers.removeIf(offer -> offer.getResult().getItem() instanceof UpgradeToolItem);
-            boolean carries = holdsStoryItem(event.getEntity());
-            if (level < Config.TOOL_FORGE_LEVEL.get()) {
-                hint = "message.incursion.villager.hint.toolsmith";
-            } else if (carries) {
-                hint = "message.incursion.villager.hint.forge";
+            if (level >= Config.TOOL_FORGE_LEVEL.get() && holdsStoryItem(event.getEntity())) {
+                hint = "message.incursion.villager.hint.forge"; // only one of the two pieces in the hands
             }
         }
         if (hint != null && event.getHand() == net.minecraft.world.InteractionHand.MAIN_HAND) {
-            // Not yet trusted enough: a hint that it is worth to level this villager up.
             event.getEntity().displayClientMessage(Component.translatable(hint)
                     .withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.ITALIC), true);
         }
+    }
+
+    /** Alternative lines per trading level (1 to 5) and keeper; one of them is picked at random. */
+    private static final int TALK_VARIANTS = 3;
+
+    /**
+     * The lines of the dialog panel: at the first meeting three lines (the last one depends on his trust), later one
+     * line that fits his trading level (or, for the rune keeper, that the rune is gone).
+     */
+    private static java.util.List<String> dialogLines(StoryVillagers.Keeper keeper, int level, boolean trusted,
+                                                      boolean first, boolean runeGone,
+                                                      net.minecraft.util.RandomSource random) {
+        String key = keeper.key;
+        if (first && !runeGone) {
+            String base = "message.incursion.dialog." + key + ".";
+            return java.util.List.of(base + "1", base + "2", base + (trusted ? "trusted" : "wait"));
+        }
+        if (runeGone) {
+            return java.util.List.of("message.incursion.talk.rune.sold." + (1 + random.nextInt(2)));
+        }
+        int stage = Math.max(1, Math.min(5, level));
+        return java.util.List.of("message.incursion.talk." + key + "." + stage + "." + (1 + random.nextInt(TALK_VARIANTS)));
     }
 
     private static void cancel(PlayerInteractEvent.EntityInteract event) {
