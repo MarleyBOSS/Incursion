@@ -596,7 +596,15 @@ public final class StoryEvents {
     private static boolean rolled(Villager villager, String key, double chance) {
         net.minecraft.nbt.CompoundTag data = villager.getPersistentData();
         if (!data.contains(key)) {
-            data.putInt(key, villager.getRandom().nextDouble() < chance ? 1 : 2);
+            boolean keeper;
+            if (villager.getServer() != null) {
+                // with a safety net: after two villagers in a row that were not keepers the next one is (per world)
+                keeper = CoreWorldData.get(villager.getServer()).rollKeeper(ROLL_RUNE.equals(key), chance,
+                        villager.getRandom());
+            } else {
+                keeper = villager.getRandom().nextDouble() < chance;
+            }
+            data.putInt(key, keeper ? 1 : 2);
         }
         return data.getInt(key) == 1;
     }
