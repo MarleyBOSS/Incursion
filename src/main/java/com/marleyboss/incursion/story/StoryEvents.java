@@ -329,7 +329,7 @@ public final class StoryEvents {
 
     /**
      * How long the villager works on {@code quantity} of the commission {@code key}. A brewing stand brews three potions
-     * at once, so three potions take as long as one; everything else is made one at a time. Creative: quick.
+     * at once, so three potions take as long as one; everything else is made one at a time. Creative: a tenth of the time.
      */
     public static int craftSeconds(String key, int quantity, boolean creative) {
         int base = switch (key) {
@@ -339,7 +339,7 @@ public final class StoryEvents {
         };
         int rounds = "potion".equals(key) ? (Math.max(1, quantity) + 2) / 3 : Math.max(1, quantity);
         int seconds = base * rounds;
-        return creative ? Math.min(seconds, 8) : seconds;
+        return creative ? Math.max(3, seconds / 10) : seconds; // creative: a tenth of the time, for testing
     }
 
     /** {capacity left, seconds of rest left} of this keeper (for the mod's trading window). */

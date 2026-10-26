@@ -110,7 +110,7 @@ public class StoryTradeMenu extends AbstractContainerMenu {
 
             @Override
             public boolean isHighlightable() {
-                return false; // only shows what is made: it is not a place to click
+                return !preview().isEmpty(); // the button lights up under the mouse when it can be clicked
             }
         });
         for (int row = 0; row < 3; row++) {
@@ -248,7 +248,11 @@ public class StoryTradeMenu extends AbstractContainerMenu {
     @Override
     public void clicked(int slotId, int button, ClickType clickType, Player player) {
         if (slotId == RESULT) {
-            return; // the result slot only shows what is made
+            // the result slot is a button: a click orders (the item itself comes later from the villager)
+            if (player instanceof ServerPlayer serverPlayer && (clickType == ClickType.PICKUP || clickType == ClickType.QUICK_MOVE)) {
+                order(serverPlayer);
+            }
+            return;
         }
         super.clicked(slotId, button, clickType, player);
     }
