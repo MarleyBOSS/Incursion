@@ -485,6 +485,8 @@
   "gui.incursion.story_trade.capacity": "Kraft: %s / %s",
   "message.incursion.villager.resting": "Er muss sich noch erholen (%s).",
   "gui.incursion.story_trade.click_order": "Klicken zum Beauftragen",
+  "gui.incursion.story_pickup.take": "Klicken zum Mitnehmen",
+  "gui.incursion.story_pickup.working": "Er arbeitet noch daran …",
   "gui.incursion.dialog.next": "Weiter",
   "message.incursion.talk.rune.1.1": "Ah, du schon wieder. Such dir ruhig ein Buch aus.",
   "message.incursion.talk.rune.1.2": "Die meisten kommen nur wegen der Bücher. Du auch?",

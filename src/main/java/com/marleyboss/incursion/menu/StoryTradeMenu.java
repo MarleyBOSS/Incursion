@@ -69,7 +69,7 @@ public class StoryTradeMenu extends AbstractContainerMenu {
         // payment slots (x/y as the screen draws them) and the result slot
         for (int i = 0; i < INPUTS; i++) {
             final int slotIndex = i;
-            addSlot(new Slot(input, i, 112 + i * 24, 30) {
+            addSlot(new Slot(input, i, 112 + i * 30, 30) {
                 @Override
                 public int getMaxStackSize() {
                     return SLOT_LIMIT;

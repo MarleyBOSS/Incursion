@@ -42,7 +42,7 @@ public class StoryPickupMenu extends AbstractContainerMenu {
         addDataSlot(permille);
         addDataSlot(seconds);
         refresh();
-        addSlot(new Slot(container, 0, 214, 88) {
+        addSlot(new Slot(container, 0, 100, 124) {
             @Override
             public ItemStack getItem() {
                 // the one slot shows the whole order: the first item, as many times as the order made
@@ -77,7 +77,7 @@ public class StoryPickupMenu extends AbstractContainerMenu {
 
             @Override
             public boolean isActive() {
-                return isDone();
+                return false; // the screen draws the item itself, big, and handles the click
             }
         });
     }

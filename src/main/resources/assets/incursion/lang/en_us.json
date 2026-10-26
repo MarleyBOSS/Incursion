@@ -485,6 +485,8 @@
   "gui.incursion.story_trade.capacity": "Stamina: %s / %s",
   "message.incursion.villager.resting": "He still has to rest (%s).",
   "gui.incursion.story_trade.click_order": "Click to order",
+  "gui.incursion.story_pickup.take": "Click to take it",
+  "gui.incursion.story_pickup.working": "He is still working on it …",
   "gui.incursion.dialog.next": "Next",
   "message.incursion.talk.rune.1.1": "Ah, you again. Pick a book, take your time.",
   "message.incursion.talk.rune.1.2": "Most only come for the books. You too?",

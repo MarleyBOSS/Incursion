@@ -56,9 +56,9 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
     protected void init() {
         super.init();
         minus = addRenderableWidget(Button.builder(Component.literal("-"), button -> amountClick(StoryTradeMenu.BUTTON_MINUS))
-                .bounds(leftPos + 112, topPos + 54, 16, 18).build());
+                .bounds(leftPos + 112, topPos + 58, 16, 14).build());
         plus = addRenderableWidget(Button.builder(Component.literal("+"), button -> amountClick(StoryTradeMenu.BUTTON_PLUS))
-                .bounds(leftPos + 162, topPos + 54, 16, 18).build());
+                .bounds(leftPos + 162, topPos + 58, 16, 14).build());
         containerTick();
     }
 
@@ -200,6 +200,12 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
                     g.pose().popPose();
                 }
             }
+            if (slot.index < StoryTradeMenu.INPUTS) {
+                ItemStack need = menu.wanted(slot.index);
+                if (!need.isEmpty()) {
+                    drawHave(g, x, y, slot.hasItem() ? slot.getItem().getCount() : 0, need.getCount());
+                }
+            }
             if (slot.index < StoryTradeMenu.INPUTS && !slot.hasItem()) {
                 ItemStack want = menu.wanted(slot.index);
                 if (!want.isEmpty()) {
@@ -210,21 +216,20 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
                     g.pose().translate(0.0F, 0.0F, 250.0F);
                     g.fill(x, y, x + 16, y + 16, 0xD00C0612);
                     g.pose().popPose();
-                    drawNeed(g, x, y, want.getCount(), 0, false);
                 }
             }
         }
         if (menu.isMulti()) {
             // the amount between the minus and plus button
-            g.fill(left + 129, top + 54, left + 161, top + 72, COLOR_SLOT_EDGE);
-            g.fill(left + 130, top + 55, left + 160, top + 71, COLOR_SLOT);
+            g.fill(left + 129, top + 58, left + 161, top + 72, COLOR_SLOT_EDGE);
+            g.fill(left + 130, top + 59, left + 160, top + 71, COLOR_SLOT);
             String amount = "x" + menu.amount();
-            g.drawString(font, amount, left + 145 - font.width(amount) / 2, top + 59, COLOR_TITLE, false);
+            g.drawString(font, amount, left + 145 - font.width(amount) / 2, top + 62, COLOR_TITLE, false);
         }
         int rest = menu.restSeconds();
         if (rest > 0) {
             Component label = Component.translatable("gui.incursion.story_trade.resting", (rest / 60) + ":" + String.format("%02d", rest % 60));
-            g.drawString(font, label, left + (menu.isMulti() ? 184 : 112), top + 59, 0xFFE0A050, false);
+            g.drawString(font, label, left + (menu.isMulti() ? 184 : 112), top + 62, 0xFFE0A050, false);
         }
         g.blitSprite(ARROW, left + 212, top + 34, 10, 9);
         g.drawString(font, Component.translatable("container.inventory"), left + 108, top + 74, COLOR_TITLE, false);
@@ -235,29 +240,15 @@ public class StoryTradeScreen extends AbstractContainerScreen<StoryTradeMenu> {
         }
     }
 
-    /** The number of items the slot still needs (red) or, once it has enough, the amount (green). */
-    private void drawNeed(GuiGraphics g, int x, int y, int need, int have, boolean raised) {
-        if (need <= 1) {
-            return;
-        }
+    /** Under a payment slot: how many lie in it / how many are needed (red until enough, then green). */
+    private void drawHave(GuiGraphics g, int x, int y, int have, int need) {
+        String text = have + "/" + need;
         boolean enough = have >= need;
-        String text = String.valueOf(enough ? need : need - have);
         g.pose().pushPose();
-        g.pose().translate(0.0F, 0.0F, 300.0F);
-        g.drawString(font, text, x + 17 - font.width(text), y + 9, enough ? 0xFF55E070 : 0xFFE85050, true);
+        g.pose().translate(x + 8, y + 19, 0.0F);
+        g.pose().scale(0.8F, 0.8F, 1.0F);
+        g.drawString(font, text, -font.width(text) / 2, 0, enough ? 0xFF55E070 : 0xFFE85050, true);
         g.pose().popPose();
-    }
-
-    @Override
-    protected void renderSlotContents(GuiGraphics g, ItemStack stack, Slot slot, String countString) {
-        if (slot.index >= StoryTradeMenu.INPUTS) {
-            super.renderSlotContents(g, stack, slot, countString);
-            return;
-        }
-        // a payment slot: the real item without its own count; instead what is still missing (red) or the amount (green)
-        g.renderItem(stack, slot.x, slot.y);
-        g.renderItemDecorations(font, stack, slot.x, slot.y, "");
-        drawNeed(g, slot.x, slot.y, menu.wanted(slot.index).getCount(), stack.getCount(), true);
     }
 
     private static void corner(GuiGraphics g, int x, int y) {
